@@ -17,7 +17,7 @@ fi
 
 curl --progress-bar -T $archiveFile -u${BT_ACCOUNT}:${BT_API_KEY} "https://api.bintray.com/content/electron-userland/bin/Squirrel.Windows/$version/$archiveFileName?override=0&publish=1" > out/result
 result=`cat out/result`
-if [[ result != '{"message":"success"}' ]]; then
+if [ "$result" != '{"message":"success"}' ]; then
   >&2 echo "$result"
   exit 1
 fi
