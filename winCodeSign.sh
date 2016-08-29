@@ -16,16 +16,16 @@ if [ -z "$BT_ACCOUNT" ] ; then
   BT_API_KEY=`echo "$SEC" | grep "password" | cut -d \" -f 2`
 fi
 
-curl --progress-bar -T $archiveFile -u${BT_ACCOUNT}:${BT_API_KEY} "https://api.bintray.com/content/electron-userland/bin/$NAME/$version/$archiveFileName?override=0&publish=1&list_in_downloads=1" > out/result
+curl --progress-bar -T $archiveFile -u${BT_ACCOUNT}:${BT_API_KEY} "https://api.bintray.com/content/electron-userland/bin/$NAME/$version/$archiveFileName?override=1&publish=1&list_in_downloads=1" > out/result
 result=`cat out/result`
 if [ "$result" != '{"message":"success"}' ]; then
   >&2 echo "$result"
   exit 1
 fi
 
-echo "sleep 20 seconds to add file to downloads list"
+echo "sleep 10 seconds to add file to downloads list"
 
-secs=$((20))
+secs=$((10))
 while [ $secs -gt 0 ]; do
    echo -ne "$secs\033[0K\r"
    sleep 1
