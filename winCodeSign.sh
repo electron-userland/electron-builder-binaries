@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -e
 
 NAME=winCodeSign
 version=`cat $NAME/version.txt`
