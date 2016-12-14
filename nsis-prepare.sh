@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
+cd nsis
+
 rm -rf Docs
 rm -rf NSIS.chm
 rm -rf Examples
@@ -10,9 +12,9 @@ rm -f makensisw.exe
 # nsProcess plugin
 curl -L http://nsis.sourceforge.net/mediawiki/images/1/18/NsProcess.zip > a.zip
 7za x a.zip -oa
+unlink a.zip
 mv a/Plugin/nsProcessW.dll Plugins/x86-unicode/nsProcess.dll
 mv a/Include/nsProcess.nsh Include/nsProcess.nsh
-unlink a.zip
 rm -rf a
 
 # UAC plugin
