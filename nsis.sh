@@ -25,7 +25,7 @@ fi
 
 echo "sleep 15 seconds to add file to downloads list"
 
-secs=$((15))
+secs=$((10))
 while [ $secs -gt 0 ]; do
    echo -ne "$secs\033[0K\r"
    sleep 1
