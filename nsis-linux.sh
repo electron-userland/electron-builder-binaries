@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-# docker run -ti --rm -v $PWD:/tmp/nsis buildpack-deps:trusty
+# docker run -ti --rm -v $PWD:/tmp/nsis buildpack-deps:xenial
 
 mkdir -p /tmp/scons && curl -L http://prdownloads.sourceforge.net/scons/scons-local-2.5.0.tar.gz | tar -xz -C /tmp/scons
 mkdir -p /tmp/nsis && curl -L https://sourceforge.net/projects/nsis/files/NSIS%203/3.01/nsis-3.01-src.tar.bz2/download | tar -xj -C /tmp/nsis --strip-components 1 && cd /tmp/nsis
 
-python /tmp/scons/scons.py STRIP=0 SKIPSTUBS=all SKIPPLUGINS=all SKIPUTILS=all SKIPMISC=all NSIS_CONFIG_CONST_DATA_PATH=no makensis
+python /tmp/scons/scons.py STRIP=0 SKIPSTUBS=all SKIPPLUGINS=all SKIPUTILS=all SKIPMISC=all NSIS_CONFIG_CONST_DATA_PATH=no NSIS_MAX_STRLEN=8192 makensis
