@@ -1,0 +1,10 @@
+{
+  "private": true,
+  "scripts": {
+    "appx": "node scripts/appx.js"
+  },
+  "dependencies": {
+    "bluebird-lst": "^1.0.2",
+    "fcopy-pre-bundled": "^0.1.2"
+  }
+}
