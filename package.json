@@ -2,7 +2,7 @@
   "private": true,
   "scripts": {
     "appx": "node scripts/appx.js",
-    "appx-checksum": "openssl dgst -sha512 -binary out/winCodeSign-1.8.0.7z | base64"
+    "winCodeSign-checksum": "openssl dgst -sha512 -binary out/winCodeSign-1.9.0.7z | base64"
   },
   "dependencies": {
     "bluebird-lst": "^1.0.2",
