@@ -8,7 +8,7 @@ archiveFile=out/$archiveFileName
 rm -f $archiveFile
 
 cd $NAME
-7za a -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on ../$archiveFile .
+../ 7za a -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on ../$archiveFile .
 cd ..
 
 if [ -z "$BT_ACCOUNT" ] ; then
