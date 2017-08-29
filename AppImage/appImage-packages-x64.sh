@@ -21,11 +21,11 @@ mv ef/usr/lib/x86_64-linux-gnu/libnotify.so.4.0.0 packages/libnotify.so.4
 rm -rf ef
 
 # libappindicator1
-curl http://mirrors.kernel.org/ubuntu/pool/main/liba/libappindicator/libappindicator1_12.10.1+13.10.20130920-0ubuntu4_amd64.deb -o f.deb
-dpkg-deb -R f.deb ef
-mv ef/usr/lib/libappindicator.so.1.0.0 packages/libappindicator.so.1
+#curl http://mirrors.kernel.org/ubuntu/pool/main/liba/libappindicator/libappindicator1_12.10.1+13.10.20130920-0ubuntu4_amd64.deb -o f.deb
+#dpkg-deb -R f.deb ef
+#mv ef/usr/lib/libappindicator.so.1.0.0 packages/libappindicator.so.1
 
-rm -rf ef
+#rm -rf ef
 
 # libxtst6
 curl http://mirrors.kernel.org/ubuntu/pool/main/libx/libxtst/libxtst6_1.2.2-1_amd64.deb -o f.deb
