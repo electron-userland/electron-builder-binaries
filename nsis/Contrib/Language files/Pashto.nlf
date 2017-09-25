@@ -6,7 +6,7 @@ NLF v6
 # Font and size - dash (-) means default
 -
 -
-# Codepage - dash (-) means ANSI code page
+# Codepage - dash (-) means ASCII code page
 1256
 # RTL - anything else than RTL means LTR
 RTL
@@ -184,8 +184,8 @@ $_CLICK .به د لاندې پوښۍ نه ونالګول شي $(^NameDA)
 # ^Byte
 ب
 # ^Kilo
-ک
+ ک
 # ^Mega
-م
+ م
 # ^Giga
-ګ
+ ګ

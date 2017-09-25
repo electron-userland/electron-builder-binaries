@@ -20,18 +20,3 @@ script:
 
   - CHECKSUM=$(shasum -a 512 /tmp/linux-tools-mac-10.12.7z | xxd -r -p | base64)
   - 'github-release electron-userland/electron-builder-binaries linux-tools-mac-10.12 master "Sha512: $CHECKSUM" /tmp/linux-tools-mac-10.12.7z'
-
-  # wine
-  - cd /usr/local/Cellar
-  - brew install wine --force-bottle --without-x11
-  - rm -rf wine/*/share/wine/gecko
-  - rm -rf wine/*/share/wine/mono
-
-  - cd wine/2.*
-  - rm -rf include
-  - rm -f bin/widl
-  - rm -rf .bottle
-  - rm -rf .brew
-  - 7za a -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on -xr!man -xr!doc /tmp/wine-2.0.1-mac-10.12.7z .
-  - CHECKSUM=$(shasum -a 512 /tmp/wine-2.0.1-mac-10.12.7z | xxd -r -p | base64)
-  - 'github-release electron-userland/electron-builder-binaries wine-2.0.1-mac-10.12 master "Sha512: $CHECKSUM" /tmp/wine-2.0.1-mac-10.12.7z'

@@ -6,7 +6,7 @@ NLF v6
 # Font and size - dash (-) means default
 -
 -
-# Codepage - dash (-) means ANSI code page
+# Codepage - dash (-) means ASCII code page
 1250
 # RTL - anything else than RTL means LTR
 -
@@ -128,7 +128,7 @@ Soubor nelze otevřít pro zápis: \r\n\t"$0"\r\nKlikněte na tlačítko Opakova
 # ^CopyFailed
 Kopírování se nezdařilo.
 # ^CopyTo
-"Zkopírovat do "
+"Kopírování do "
 # ^Registering
 "Registrace: "
 # ^Unregistering
@@ -184,8 +184,8 @@ Protokolovat proces instalace
 # ^Byte
 B
 # ^Kilo
-K
+ K
 # ^Mega
-M
+ M
 # ^Giga
-G
+ G

@@ -5,11 +5,12 @@ NLF v6
 # Font and size - dash (-) means default 字体名称与大小
 宋体
 9
-# Codepage - dash (-) means ANSI code page ANSI 字码页
+# Codepage - dash (-) means ASCII code page ASCII 字码页
 936
 # RTL - anything else than RTL means LTR 由右至左书写
 -
-# Translator: Kii Ali <kiiali@cpatch.org>,<kiiali@ms1.url.com.tw>, <kiiali@pchome.com.tw>;  Revision date: 2010-09-28
+# Revision date: 2010-09-28
+# Translator: Kii Ali <kiiali@cpatch.org>, <kiiali@ms1.url.com.tw>, <kiiali@pchome.com.tw>
 # ^Branding
 Nullsoft Install System %s
 # ^SetupCaption
@@ -183,8 +184,8 @@ Setup 将自下列文件夹解除安装 $(^NameDA) 。要解除安装到不同�
 # byte
 B
 # kilo
-K
+ K
 # mega
-M
+ M
 # giga
-G
+ G

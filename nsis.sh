@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
 
+# How do update NSIS:
+# 1. Download https://vorboss.dl.sourceforge.net/project/nsis/NSIS%203/3.02.1/nsis-3.02.1.zip (replace 3.02.1 to new version)
+# 2. Copy over nsis in this repo and copy nsis-lang-fixes to nsis/Contrib/Language files
+# 3. Inspect changed and unversioned files — delete if need.
+# 4. brew install makensis --with-large-strings && sudo cp /usr/local/Cellar/makensis/*/bin/makensis nsis/mac/makensis
+# 5. See nsis-linux.sh
+
+BASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
 NAME=nsis
 version=`cat $NAME/version.txt`
 archiveFileName=$NAME-$version.7z
@@ -7,29 +16,13 @@ archiveFile=out/$archiveFileName
 rm -f $archiveFile
 
 cd $NAME
-7za a -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on ../$archiveFile .
+$BASEDIR/7za a -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on ../$archiveFile .
 cd ..
 
-if [ -z "$BT_ACCOUNT" ] ; then
-  SEC=`security find-generic-password -l BINTRAY_API_KEY -g 2>&1`
-  BT_ACCOUNT=`echo "$SEC" | grep "acct" | cut -d \" -f 4`
-  BT_API_KEY=`echo "$SEC" | grep "password" | cut -d \" -f 2`
+if [ -z "$GITHUB_TOKEN" ] ; then
+  SEC=`security find-generic-password -l GH_TOKEN -g 2>&1`
+  export GITHUB_TOKEN=`echo "$SEC" | grep "password" | cut -d \" -f 2`
 fi
 
-curl --progress-bar -T $archiveFile -u${BT_ACCOUNT}:${BT_API_KEY} "https://api.bintray.com/content/electron-userland/bin/$NAME/$version/$archiveFileName?override=0&publish=1&list_in_downloads=1" > out/result
-result=`cat out/result`
-if [ "$result" != '{"message":"success"}' ]; then
-  >&2 echo "$result"
-  exit 1
-fi
-
-echo "sleep 15 seconds to add file to downloads list"
-
-secs=$((10))
-while [ $secs -gt 0 ]; do
-   echo -ne "$secs\033[0K\r"
-   sleep 1
-   : $((secs--))
-done
-
-curl -u${BT_ACCOUNT}:${BT_API_KEY} -H Content-Type:application/json -X PUT -d '{"list_in_downloads": true}' https://api.bintray.com/file_metadata/electron-userland/bin/$archiveFileName
+CHECKSUM=$(shasum -a 512 $archiveFile | xxd -r -p | base64)
+$BASEDIR/github-release electron-userland/electron-builder-binaries $NAME-$version master "Sha512: $CHECKSUM" $archiveFile
