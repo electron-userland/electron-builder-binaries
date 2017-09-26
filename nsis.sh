@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -e
 
 # How do update NSIS:
 # 1. Download https://vorboss.dl.sourceforge.net/project/nsis/NSIS%203/3.02.1/nsis-3.02.1.zip (replace 3.02.1 to new version)
