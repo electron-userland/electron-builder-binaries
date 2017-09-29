@@ -28,6 +28,10 @@ curl http://mirrors.kernel.org/ubuntu/pool/main/liba/libappindicator/libappindic
 dpkg-deb -R f.deb ef
 mv ef/usr/lib/i386-linux-gnu/libappindicator.so.1.0.0 packages/libappindicator.so.1
 
+curl http://mirrors.kernel.org/ubuntu/pool/main/libi/libindicator/libindicator7_12.10.2+14.04.20140402-0ubuntu1_i386.deb -o f.deb
+dpkg-deb -R f.deb ef
+mv ef/usr/lib/i386-linux-gnu/libindicator.so.7.0.0 packages/libindicator.so.7
+
 rm -rf ef
 
 # libxtst6

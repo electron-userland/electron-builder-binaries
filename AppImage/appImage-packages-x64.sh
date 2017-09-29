@@ -23,10 +23,14 @@ mv ef/usr/lib/x86_64-linux-gnu/libnotify.so.4.0.0 packages/libnotify.so.4
 
 rm -rf ef
 
-#libappindicator1
+# libappindicator1
 curl http://mirrors.kernel.org/ubuntu/pool/main/liba/libappindicator/libappindicator1_12.10.1+13.10.20130920-0ubuntu4_amd64.deb -o f.deb
 dpkg-deb -R f.deb ef
 mv ef/usr/lib/x86_64-linux-gnu/libappindicator.so.1.0.0 packages/libappindicator.so.1
+
+curl http://mirrors.kernel.org/ubuntu/pool/main/libi/libindicator/libindicator7_12.10.2+14.04.20140402-0ubuntu1_amd64.deb -o f.deb
+dpkg-deb -R f.deb ef
+mv ef/usr/lib/x86_64-linux-gnu/libindicator.so.7.0.0 packages/libindicator.so.7
 
 rm -rf ef
 
