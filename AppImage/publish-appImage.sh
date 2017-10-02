@@ -2,14 +2,14 @@
 
 BASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-NAME=appimage-packages
+NAME=appimage
 version=`cat $BASEDIR/version.txt`
 archiveFileName=$NAME-$version.7z
 archiveFile=$BASEDIR/../out/$archiveFileName
 rm -f $archiveFile
 
 cd $BASEDIR
-7za a -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on $archiveFile i386-linux-gnu x86_64-linux-gnu
+7za a -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on $archiveFile lib
 cd ..
 
 if [ -z "$GITHUB_TOKEN" ] ; then
