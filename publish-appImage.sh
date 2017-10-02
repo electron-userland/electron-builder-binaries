@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 
-BASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# to build AppImage on macOS:
+# 1. `brew install libtool`
+# 2. `brew install Caskroom/cask/osxfuse`
+
+BASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/AppImage"
 
 NAME=appimage
 version=`cat $BASEDIR/version.txt`
@@ -9,7 +13,7 @@ archiveFile=$BASEDIR/../out/$archiveFileName
 rm -f $archiveFile
 
 cd $BASEDIR
-7za a -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on $archiveFile lib
+7za a -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on $archiveFile .
 cd ..
 
 if [ -z "$GITHUB_TOKEN" ] ; then
