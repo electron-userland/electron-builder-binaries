@@ -1,6 +1,6 @@
 const path = require("path")
 const BluebirdPromise = require("bluebird-lst")
-const copy = BluebirdPromise.promisify(require("fcopy-pre-bundled"))
+const copy = BluebirdPromise.promisify(require("fs").copyFile)
 
 const windowsKitsDir = "/Volumes/C/Program Files (x86)/Windows Kits/10"
 const sourceDir = path.join(windowsKitsDir, "bin/10.0.15063.0")
