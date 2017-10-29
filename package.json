@@ -4,7 +4,8 @@
     "appx": "node scripts/appx.js",
     "winCodeSign-checksum": "openssl dgst -sha512 -binary out/winCodeSign-1.9.0.7z | base64",
     "appimage": "NAME=appimage VERSION=9.0.2 ./publish.sh",
-    "wix": "NAME=wix VERSION=4.0.0.5512.2 ./publish.sh"
+    "wix": "NAME=wix VERSION=4.0.0.5512.2 ./publish.sh",
+    "sw": "NAME=Squirrel.Windows VERSION=1.7.8 ./publish.sh"
   },
   "dependencies": {
     "bluebird-lst": "^1.0.5"
