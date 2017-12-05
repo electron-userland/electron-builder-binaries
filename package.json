@@ -6,7 +6,13 @@
     "appimage": "NAME=appimage VERSION=9.0.3 ./publish.sh",
     "wix": "NAME=wix VERSION=4.0.0.5512.2 ./publish.sh",
     "sw": "NAME=Squirrel.Windows VERSION=1.7.8 ./publish.sh",
-    "ran": "NAME=ran VERSION=0.1.3 ./publish.sh"
+    "ran": "NAME=ran VERSION=0.1.3 ./publish.sh",
+    "aria2-win-x64": "NAME=aria2-win-x64 VERSION=1.33.1 ./publish.sh",
+    "aria2-win-ia32": "NAME=aria2-win-ia32 VERSION=1.33.1 ./publish.sh",
+    "aria2-mac": "NAME=aria2-mac VERSION=1.33.1 ./publish.sh",
+    "zstd-win-x64": "NAME=zstd-win-x64 VERSION=1.3.2 ./publish.sh",
+    "zstd-win-ia32": "NAME=zstd-win-ia32 VERSION=1.3.2 ./publish.sh",
+    "zstd-mac": "NAME=zstd-mac VERSION=1.3.2 ./publish.sh"
   },
   "dependencies": {
     "bluebird-lst": "^1.0.5"
