@@ -9,7 +9,6 @@ if [ -z "$GITHUB_TOKEN" ] ; then
 fi
 
 OUT_DIR="$BASEDIR/out/$NAME"
-
 rm -rf "$OUT_DIR"
 
 publish()
