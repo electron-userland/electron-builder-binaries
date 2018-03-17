@@ -2,6 +2,7 @@
   "private": true,
   "scripts": {
     "appx": "node scripts/appx.js",
+    "winCodeSign": "NAME=winCodeSign VERSION=2.0.0 ./publish.sh",
     "winCodeSign-checksum": "openssl dgst -sha512 -binary out/winCodeSign-1.9.0.7z | base64",
     "appimage": "NAME=appimage VERSION=9.1.0 ./publish.sh",
     "wix": "NAME=wix VERSION=4.0.0.5512.2 ./publish.sh",
