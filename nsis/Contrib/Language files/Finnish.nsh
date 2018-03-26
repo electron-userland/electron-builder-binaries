@@ -60,7 +60,7 @@
   ${LangFileString} MUI_TEXT_DIRECTORY_SUBTITLE "Valitse kansio, johon haluat asentaa $(^NameDA) -ohjelman."
 !endif
 
-!ifdef MUI_UNDIRECTORYSPAGE
+!ifdef MUI_UNDIRECTORYPAGE
   ${LangFileString} MUI_UNTEXT_DIRECTORY_TITLE "Valitse kansio, josta poistetaan"
   ${LangFileString} MUI_UNTEXT_DIRECTORY_SUBTITLE "Valitse kansio, josta $(^NameDA) poistetaan."
 !endif
@@ -100,7 +100,7 @@
   ${LangFileString} MUI_TEXT_FINISH_REBOOTLATER "Käynnistän uudelleen myöhemmin"
   ${LangFileString} MUI_TEXT_FINISH_RUN "Käynnistä $(^NameDA)"
   ${LangFileString} MUI_TEXT_FINISH_SHOWREADME "Näytä Lueminut-tiedosto"
-  ${LangFileString} MUI_BUTTONTEXT_FINISH "&Valmis"  
+  ${LangFileString} MUI_BUTTONTEXT_FINISH "&Valmis"
 !endif
 
 !ifdef MUI_STARTMENUPAGE

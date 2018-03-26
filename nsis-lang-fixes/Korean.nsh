@@ -97,7 +97,7 @@
   ${LangFileString} MUI_TEXT_FINISH_REBOOTLATER "나중에 재부팅 하겠습니다."
   ${LangFileString} MUI_TEXT_FINISH_RUN "$(^NameDA) 실행하기(&R)"
   ${LangFileString} MUI_TEXT_FINISH_SHOWREADME "Readme 파일 보기(&S)"
-  ${LangFileString} MUI_BUTTONTEXT_FINISH "마침"  
+  ${LangFileString} MUI_BUTTONTEXT_FINISH "마침"
 !endif
 
 !ifdef MUI_STARTMENUPAGE
