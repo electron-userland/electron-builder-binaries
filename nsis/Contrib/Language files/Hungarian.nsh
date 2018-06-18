@@ -49,7 +49,7 @@
   !ifndef NSIS_CONFIG_COMPONENTPAGE_ALTERNATIVE
     ${LangFileString} MUI_INNERTEXT_COMPONENTS_DESCRIPTION_INFO "Vigye rá az egeret az összetevőre, hogy megtekinthesse a leírását."
   !else
-    #FIXME:MUI_INNERTEXT_COMPONENTS_DESCRIPTION_INFO
+    #FIXME:MUI_INNERTEXT_COMPONENTS_DESCRIPTION_INFO 
   !endif
 !endif
 
@@ -98,7 +98,7 @@
   ${LangFileString} MUI_TEXT_FINISH_REBOOTLATER "Később fogom újraindítani"
   ${LangFileString} MUI_TEXT_FINISH_RUN "$(^NameDA) futtatása"
   ${LangFileString} MUI_TEXT_FINISH_SHOWREADME "OlvassEl fájl megjelenítése"
-  ${LangFileString} MUI_BUTTONTEXT_FINISH "&Befejezés"
+  ${LangFileString} MUI_BUTTONTEXT_FINISH "&Befejezés"  
 !endif
 
 !ifdef MUI_STARTMENUPAGE
