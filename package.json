@@ -9,7 +9,7 @@
     "sw": "NAME=Squirrel.Windows VERSION=1.7.8 ./publish.sh",
     "ran": "NAME=ran VERSION=0.1.3 ./publish.sh",
     "zstd": "NAME=zstd VERSION=1.3.4 ./publish-m.sh",
-    "nsis": "NAME=nsis VERSION=3.0.3.0 ./publish.sh"
+    "nsis": "NAME=nsis VERSION=3.0.3.1 ./publish.sh"
   },
   "dependencies": {
     "bluebird-lst": "^1.0.5"

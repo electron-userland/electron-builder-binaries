@@ -9,4 +9,4 @@ mkdir -p /tmp/scons && curl -L http://prdownloads.sourceforge.net/scons/scons-lo
 mkdir -p /tmp/nsis && curl -L https://sourceforge.net/projects/nsis/files/NSIS%203/3.03/nsis-3.03-src.tar.bz2/download | tar -xj -C /tmp/nsis --strip-components 1
 cd /tmp/nsis
 
-python /tmp/scons/scons.py STRIP=0 SKIPSTUBS=all SKIPPLUGINS=all SKIPUTILS=all SKIPMISC=all NSIS_CONFIG_CONST_DATA_PATH=no NSIS_MAX_STRLEN=8192 makensis
+python /tmp/scons/scons.py STRIP=0 SKIPSTUBS=all SKIPPLUGINS=all SKIPUTILS=all SKIPMISC=all NSIS_CONFIG_CONST_DATA_PATH=no NSIS_CONFIG_LOG=yes NSIS_MAX_STRLEN=8192 makensis
