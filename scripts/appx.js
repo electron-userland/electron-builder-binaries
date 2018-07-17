@@ -2,8 +2,8 @@ const path = require("path")
 const BluebirdPromise = require("bluebird-lst")
 const copy = BluebirdPromise.promisify(require("fs").copyFile)
 
-const windowsKitsDir = "/Volumes/C/Program Files (x86)/Windows Kits/10"
-const sourceDir = path.join(windowsKitsDir, "bin/10.0.15063.0")
+const windowsKitsDir = "/Volumes/[C] MSEdge - Win10.hidden/Program Files (x86)/Windows Kits/10"
+const sourceDir = path.join(windowsKitsDir, "bin/10.0.17134.0")
 const destination = path.join(__dirname, "../winCodeSign/windows-10")
 
 // noinspection SpellCheckingInspection
@@ -15,7 +15,8 @@ const files = [
   "Microsoft.Windows.Build.Appx.AppxPackaging.dll.manifest",
   "Microsoft.Windows.Build.Appx.OpcServices.dll.manifest",
   "opcservices.dll",
-  "signtool.exe"
+  "signtool.exe",
+  "pvk2pfx.exe"
 ]
 
 function copyFiles(files, sourceDir, archWin, archNode) {
@@ -25,9 +26,6 @@ function copyFiles(files, sourceDir, archWin, archNode) {
 BluebirdPromise.all([
   copyFiles(files, sourceDir, "x86", "ia32"),
   copyFiles(files, sourceDir, "x64", "x64"),
-  // pvk2pfx not in the 10.0.15063.0 for unknown reason
-  copyFiles(["pvk2pfx.exe",], path.join(windowsKitsDir, "bin"), "x86", "ia32"),
-  copyFiles(["pvk2pfx.exe",], path.join(windowsKitsDir, "bin"), "x64", "x64"),
 ])
   .catch(error => {
     process.exitCode = 1

@@ -23,6 +23,18 @@
         clsid="{48DE828C-730C-49AF-AE84-759C609911EE}"
         threadingModel="Both"
         description="AppxNoValidationFactory class"/>
+    <comClass
+        clsid="{F004F2CA-AEBC-4B0D-BF58-E516D5BCC0AB}"
+        threadingModel="Both"
+        description="AppxPackageEditor class"/>
+    <comClass
+        clsid="{7F00FA1E-9820-47B1-9C4F-8701F1432177}"
+        threadingModel="Both"
+        description="AppxPackagingLayoutReader class"/>
+    <comClass
+        clsid="{0CF07551-EEF2-420C-B5AB-7E4FEB2249CF}"
+        threadingModel="Both"
+        description="AppxFactoryInternal class"/>
   </file>
 
   <dependency>
