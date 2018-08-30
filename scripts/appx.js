@@ -11,11 +11,25 @@ const files = [
   "appxpackaging.dll",
   "makeappx.exe",
   "makecert.exe",
+
+  "makecat.exe",
+  "makecat.exe.manifest",
+
+  "Microsoft.Windows.Build.Signing.mssign32.dll.manifest",
+  "mssign32.dll",
+
+  "Microsoft.Windows.Build.Appx.AppxSip.dll.manifest",
+  "appxsip.dll",
+
+  "Microsoft.Windows.Build.Signing.wintrust.dll.manifest",
+  "wintrust.dll",
+
   "makepri.exe",
   "Microsoft.Windows.Build.Appx.AppxPackaging.dll.manifest",
   "Microsoft.Windows.Build.Appx.OpcServices.dll.manifest",
   "opcservices.dll",
   "signtool.exe",
+  "signtool.exe.manifest",
   "pvk2pfx.exe"
 ]
 
