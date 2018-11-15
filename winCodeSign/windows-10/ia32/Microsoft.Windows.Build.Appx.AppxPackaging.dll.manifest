@@ -35,6 +35,10 @@
         clsid="{0CF07551-EEF2-420C-B5AB-7E4FEB2249CF}"
         threadingModel="Both"
         description="AppxFactoryInternal class"/>
+    <comClass
+        clsid="{50CA0A46-1588-4161-8ED2-EF9E469CED5D}"
+        threadingModel="Both"
+        description="AppxPackagingDiagnosticEventSinkManager class"/>
   </file>
 
   <dependency>

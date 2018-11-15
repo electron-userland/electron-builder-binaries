@@ -2,8 +2,8 @@ const path = require("path")
 const BluebirdPromise = require("bluebird-lst")
 const copy = BluebirdPromise.promisify(require("fs").copyFile)
 
-const windowsKitsDir = "/Volumes/[C] MSEdge - Win10.hidden/Program Files (x86)/Windows Kits/10"
-const sourceDir = path.join(windowsKitsDir, "bin/10.0.17134.0")
+const windowsKitsDir = "/Volumes/[C] Windows 10.hidden/Program Files (x86)/Windows Kits/10"
+const sourceDir = path.join(windowsKitsDir, "bin/10.0.17763.0")
 const destination = path.join(__dirname, "../winCodeSign/windows-10")
 
 // noinspection SpellCheckingInspection
