@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
+# CANNOT BE BUILD on latest macOS Mojave due to ia32 bugs (as Mojave removed corresponding capabilities)
+
 # custom homebrew prefix and DYLD_FALLBACK_LIBRARY_PATH doesn't work due to unknown reasons on Travis
 # homebrew bottle and DYLD_FALLBACK_LIBRARY_PATH doesn't work due to not found library on Travis
 # so, we just build it without brew http://mybyways.com/blog/compiling-wine-from-scratch-on-macos-with-retina-mode
