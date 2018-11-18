@@ -8,26 +8,27 @@ if [ -z "$GITHUB_TOKEN" ] ; then
   export GITHUB_TOKEN=`echo "$SEC" | grep "password" | cut -d \" -f 2`
 fi
 
-tagName="v0.1.4-10.13.0"
+tagName="v0.1.4-11.2.0"
 
 stageDir=/tmp/launch-ui-stage
 rm -rf "${stageDir}"
 mkdir "${stageDir}"
 
-repack()
+download()
 {
   arch=$1
   platform=$2
 
-  extractDir="${stageDir}/${arch}"
-  mkdir "${extractDir}"
-  cd "${extractDir}"
-  $BASEDIR/7za x ~/Downloads/launchui-v0.1.4-${platform}-${arch}.zip
-  $BASEDIR/7za a -m0=lzma2 -mx=9 -mfb=64 -md=256m -ms=on "${stageDir}/launchui-${tagName}-${platform}-${arch}.7z" .
+  jobNameSuffix=$arch
+  if [ "$arch" == "ia32" ]; then
+     jobNameSuffix=x86
+  fi
+
+  curl -L --fail https://ci.appveyor.com/api/projects/develar/launchui/artifacts/packages%2Flaunchui-v0.1.4-win32-${arch}.7z?job=Platform%3A%20${jobNameSuffix} > "${stageDir}/launchui-${tagName}-${platform}-${arch}.7z"
 }
 
-#repack "x64" "win32"
-#repack "ia32" "win32"
-repack "x64" "linux"
+download "x64" "win32"
+download "ia32" "win32"
+#repack "x64" "linux"
 
-#tool-releaser develar/launchui "${tagName}" master "" "${stageDir}/*.7z"
+tool-releaser develar/launchui "${tagName}" master "" "${stageDir}/*.7z"

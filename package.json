@@ -11,6 +11,7 @@
     "nsis": "NAME=nsis VERSION=3.0.3.2 ./publish.sh",
     "launchui": "NAME=launchui VERSION=0.1.4-10.13.0 ./publish.sh"
   },
+  "//": "go get -u github.com/develar/tool-releaser",
   "dependencies": {
     "bluebird-lst": "^1.0.5"
   }
