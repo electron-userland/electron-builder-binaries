@@ -9,7 +9,7 @@ update-appimage-runtime:
 	curl -L https://github.com/AppImage/AppImageKit/releases/download/12/runtime-armhf -o AppImage/runtime-armv7l
 
 publish-appimage:
-	NAME=appimage VERSION=12.0.0 ./publish.sh
+	NAME=appimage VERSION=12.0.1 ./publish.sh
 
 winCodeSign:
 	NAME=winCodeSign VERSION=2.4.1 ./publish.sh
