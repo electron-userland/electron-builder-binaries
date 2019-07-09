@@ -8,7 +8,7 @@ if [ -z "$GITHUB_TOKEN" ] ; then
   export GITHUB_TOKEN=`echo "$SEC" | grep "password" | cut -d \" -f 2`
 fi
 
-VERSION=3.0.3-mac64-10.13
+VERSION=4.0.1-mac
 rm -f /tmp/wine-$VERSION.7z
 cd /tmp/wine-stage/wine/usr
 $BASEDIR/7za a -m0=lzma2 -mx=9 -mfb=64 -md=256m -ms=on /tmp/wine-$VERSION.7z .
