@@ -11,8 +11,14 @@ update-appimage-runtime:
 publish-appimage:
 	NAME=appimage VERSION=12.0.1 ./publish.sh
 
-winCodeSign:
+publish-nsis-resources:
+	NAME=nsis-resources VERSION=3.4.1 ./publish.sh
+
+publish-winCodeSign:
 	NAME=winCodeSign VERSION=2.4.1 ./publish.sh
 
 publish-wine-mac:
 	./publish-wine-mac.sh
+
+download-nsis-plugins:
+	./scripts/nsis-plugins.sh
