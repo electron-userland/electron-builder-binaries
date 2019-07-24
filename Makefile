@@ -15,7 +15,7 @@ publish-nsis-resources:
 	NAME=nsis-resources VERSION=3.4.1 ./publish.sh
 
 publish-winCodeSign:
-	NAME=winCodeSign VERSION=2.4.1 ./publish.sh
+	NAME=winCodeSign VERSION=2.5.0 ./publish.sh
 
 publish-wine-mac:
 	./publish-wine-mac.sh
