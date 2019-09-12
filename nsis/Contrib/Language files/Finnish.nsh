@@ -60,7 +60,7 @@
   ${LangFileString} MUI_TEXT_DIRECTORY_SUBTITLE "Valitse kansio, johon haluat asentaa $(^NameDA) -ohjelman."
 !endif
 
-!ifdef MUI_UNDIRECTORYPAGE
+!ifdef MUI_UNDIRECTORYSPAGE
   ${LangFileString} MUI_UNTEXT_DIRECTORY_TITLE "Valitse kansio, josta poistetaan"
   ${LangFileString} MUI_UNTEXT_DIRECTORY_SUBTITLE "Valitse kansio, josta $(^NameDA) poistetaan."
 !endif
@@ -121,4 +121,12 @@
 
 !ifdef MUI_UNABORTWARNING
   ${LangFileString} MUI_UNTEXT_ABORTWARNING "Haluatko varmasti keskeyttää $(^Name) -ohjelman poiston?"
+!endif
+
+!ifdef MULTIUSER_INSTALLMODEPAGE
+  ${LangFileString} MULTIUSER_TEXT_INSTALLMODE_TITLE "Choose Users"
+  ${LangFileString} MULTIUSER_TEXT_INSTALLMODE_SUBTITLE "Choose for which users you want to install $(^NameDA)."
+  ${LangFileString} MULTIUSER_INNERTEXT_INSTALLMODE_TOP "Select whether you want to install $(^NameDA) for yourself only or for all users of this computer. $(^ClickNext)"
+  ${LangFileString} MULTIUSER_INNERTEXT_INSTALLMODE_ALLUSERS "Install for anyone using this computer"
+  ${LangFileString} MULTIUSER_INNERTEXT_INSTALLMODE_CURRENTUSER "Install just for me"
 !endif
