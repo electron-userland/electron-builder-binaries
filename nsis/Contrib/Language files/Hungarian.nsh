@@ -49,7 +49,7 @@
   !ifndef NSIS_CONFIG_COMPONENTPAGE_ALTERNATIVE
     ${LangFileString} MUI_INNERTEXT_COMPONENTS_DESCRIPTION_INFO "Vigye rá az egeret az összetevőre, hogy megtekinthesse a leírását."
   !else
-    #FIXME:MUI_INNERTEXT_COMPONENTS_DESCRIPTION_INFO 
+    #FIXME:MUI_INNERTEXT_COMPONENTS_DESCRIPTION_INFO
   !endif
 !endif
 
@@ -98,7 +98,7 @@
   ${LangFileString} MUI_TEXT_FINISH_REBOOTLATER "Később fogom újraindítani"
   ${LangFileString} MUI_TEXT_FINISH_RUN "$(^NameDA) futtatása"
   ${LangFileString} MUI_TEXT_FINISH_SHOWREADME "OlvassEl fájl megjelenítése"
-  ${LangFileString} MUI_BUTTONTEXT_FINISH "&Befejezés"  
+  ${LangFileString} MUI_BUTTONTEXT_FINISH "&Befejezés"
 !endif
 
 !ifdef MUI_STARTMENUPAGE
@@ -119,4 +119,12 @@
 
 !ifdef MUI_UNABORTWARNING
   ${LangFileString} MUI_UNTEXT_ABORTWARNING "Biztos, hogy ki akar lépni a(z) $(^Name) Eltávolítóból?"
+!endif
+
+!ifdef MULTIUSER_INSTALLMODEPAGE
+  ${LangFileString} MULTIUSER_TEXT_INSTALLMODE_TITLE "Choose Users"
+  ${LangFileString} MULTIUSER_TEXT_INSTALLMODE_SUBTITLE "Choose for which users you want to install $(^NameDA)."
+  ${LangFileString} MULTIUSER_INNERTEXT_INSTALLMODE_TOP "Select whether you want to install $(^NameDA) for yourself only or for all users of this computer. $(^ClickNext)"
+  ${LangFileString} MULTIUSER_INNERTEXT_INSTALLMODE_ALLUSERS "Install for anyone using this computer"
+  ${LangFileString} MULTIUSER_INNERTEXT_INSTALLMODE_CURRENTUSER "Install just for me"
 !endif

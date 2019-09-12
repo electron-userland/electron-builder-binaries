@@ -413,13 +413,6 @@ Header file for creating custom installer pages with nsDialogs
 !insertmacro __NSD_DefineControlCallback Notify
 !insertmacro __NSD_DefineDialogCallback Back
 
-!define NSD_Return "!insertmacro NSD_Return "
-!macro NSD_Return val
-StrCpy $_OUTDIR ${val}
-SetSilent silent
-Return
-!macroend
-
 
 !define __NSD_MkCtlCmd "!insertmacro __NSD_MkCtlCmd "
 !macro __NSD_MkCtlCmd msg wp lp hCtl
@@ -633,7 +626,7 @@ SendMessage ${CONTROL} ${CB_SETITEMDATA} ${INDEX} ${DATA}
 !define NSD_CB_DelItem `${__NSD_MkCtlCmd_WP} CB_DELETESTRING 0 `
 !define NSD_CB_LimitText `${__NSD_MkCtlCmd_WP} CB_LIMITTEXT 0 `
 !define /IfNDef NSD_CB_Clear `${__NSD_MkCtlCmd} CB_RESETCONTENT 0 0 `
-!define /IfNDef NSD_CB_GetCount `${__NSD_MkCtlCmd_RV} CB_GETCOUNT 0 0 `
+!define /IfNDef NSD_CB_GetCount `${__NSD_MkCtlCmd_RV} CB_RESETCONTENT 0 0 `
 ;define /IfNDef NSD_CB_DelString    ; /IfNDef to try to stay compatible with 
 ;define /IfNDef NSD_CB_GetSelection ; the ListView header from the Wiki.
 

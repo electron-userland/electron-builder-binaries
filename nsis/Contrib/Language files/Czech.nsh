@@ -1,7 +1,7 @@
 ﻿;Language: Czech (1029)
 ;By Václav Pavlíček (v.pavlicek@centrum.cz), dříve SELiCE
 
-!insertmacro LANGFILE "Czech" = "Čeština" "Cestina"
+!insertmacro LANGFILE "Czech" = "Čeština" =
 
 !ifdef MUI_WELCOMEPAGE
   ${LangFileString} MUI_TEXT_WELCOME_INFO_TITLE "Vítejte v průvodci instalace programu $(^NameDA)"

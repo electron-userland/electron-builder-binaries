@@ -68,9 +68,6 @@ Var MultiUser.InstallMode
   !define MULTIUSER_EXECUTIONLEVEL_ALLUSERS
 !else
   RequestExecutionLevel user
-  !ifndef MULTIUSER_EXECUTIONLEVEL
-    !warning "MULTIUSER_EXECUTIONLEVEL not set!"
-  !endif
 !endif
 
 /*
@@ -195,27 +192,19 @@ Installer/uninstaller initialization
 
 !macroend
 
-!macro MULTIUSER_INIT_TEXTS UNINSTALLER_PREFIX
-
-  !if "${UNINSTALLER_PREFIX}" == ""
-    !define /ReDef MULTIUSER_TMPSTR_CAPTION "$(^SetupCaption)"
-  !else
-    !define /ReDef MULTIUSER_TMPSTR_CAPTION "$(^Name)"
-  !endif
+!macro MULTIUSER_INIT_TEXTS
 
   !ifndef MULTIUSER_INIT_TEXT_ADMINREQUIRED
-    !define MULTIUSER_INIT_TEXT_ADMINREQUIRED "${MULTIUSER_TMPSTR_CAPTION} requires administrator privileges."
+    !define MULTIUSER_INIT_TEXT_ADMINREQUIRED "$(^Caption) requires administrator privileges."
   !endif
 
   !ifndef MULTIUSER_INIT_TEXT_POWERREQUIRED
-    !define MULTIUSER_INIT_TEXT_POWERREQUIRED "${MULTIUSER_TMPSTR_CAPTION} requires at least Power User privileges."
+    !define MULTIUSER_INIT_TEXT_POWERREQUIRED "$(^Caption) requires at least Power User privileges."
   !endif
 
   !ifndef MULTIUSER_INIT_TEXT_ALLUSERSNOTPOSSIBLE
     !define MULTIUSER_INIT_TEXT_ALLUSERSNOTPOSSIBLE "Your user account does not have sufficient privileges to install $(^Name) for all users of this computer."
   !endif
-
-  !undef MULTIUSER_TMPSTR_CAPTION
 
 !macroend
 
@@ -223,7 +212,7 @@ Installer/uninstaller initialization
 
   ;Installer initialization - check privileges and set install mode
 
-  !insertmacro MULTIUSER_INIT_TEXTS "${UNINSTALLER_PREFIX}"
+  !insertmacro MULTIUSER_INIT_TEXTS
 
   UserInfo::GetAccountType
   Pop $MultiUser.Privileges
@@ -323,14 +312,13 @@ Installer/uninstaller initialization
       ${endif}
   
     !endif
-
-  !if ${NSIS_PTR_SIZE} <= 4
+    
   ${else}
   
     ;Not running Windows NT, per-user installation not supported
+    
     Call ${UNINSTALLER_FUNCPREFIX}MultiUser.InstallMode.AllUsers
-
-  !endif
+  
   ${endif}
 
 !macroend
