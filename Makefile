@@ -11,6 +11,12 @@ update-appimage-runtime:
 publish-appimage:
 	NAME=appimage VERSION=12.0.1 ./publish.sh
 
+publish-zstd:
+	NAME=zstd VERSION=1.4.4 ./publish-m.sh
+
+publish-nsis:
+	NAME=nsis VERSION=3.0.4.1 ./publish.sh
+
 publish-nsis-resources:
 	NAME=nsis-resources VERSION=3.4.1 ./publish.sh
 
