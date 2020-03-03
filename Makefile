@@ -15,13 +15,13 @@ publish-zstd:
 	NAME=zstd VERSION=1.4.4 ./publish-m.sh
 
 publish-nsis:
-	NAME=nsis VERSION=3.0.4.1 ./publish.sh
+	NAME=nsis VERSION=3.0.4.2 ./publish.sh
 
 publish-nsis-resources:
 	NAME=nsis-resources VERSION=3.4.1 ./publish.sh
 
 publish-winCodeSign:
-	NAME=winCodeSign VERSION=2.5.0 ./publish.sh
+	NAME=winCodeSign VERSION=2.6.0 ./publish.sh
 
 publish-wine-mac:
 	./publish-wine-mac.sh
