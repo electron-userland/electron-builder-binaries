@@ -3,16 +3,19 @@
 .PHONY: update-appimage-runtime winCodeSign
 
 update-appimage-runtime:
-	curl -L https://github.com/AppImage/AppImageKit/releases/download/12/runtime-x86_64 -o AppImage/runtime-x64
-	curl -L https://github.com/AppImage/AppImageKit/releases/download/12/runtime-i686 -o AppImage/runtime-ia32
-	curl -L https://github.com/AppImage/AppImageKit/releases/download/12/runtime-aarch64 -o AppImage/runtime-arm64
-	curl -L https://github.com/AppImage/AppImageKit/releases/download/12/runtime-armhf -o AppImage/runtime-armv7l
+	curl -L https://github.com/AppImage/AppImageKit/releases/download/13/runtime-x86_64 -o AppImage/runtime-x64
+	curl -L https://github.com/AppImage/AppImageKit/releases/download/13/runtime-i686 -o AppImage/runtime-ia32
+	curl -L https://github.com/AppImage/AppImageKit/releases/download/13/runtime-aarch64 -o AppImage/runtime-arm64
+	curl -L https://github.com/AppImage/AppImageKit/releases/download/13/runtime-armhf -o AppImage/runtime-armv7l
 
 publish-appimage:
-	NAME=appimage VERSION=12.0.1 ./publish.sh
+	NAME=appimage VERSION=13.0.0 ./publish.sh
+
+update-zstd:
+	./scripts/update-zstd.sh
 
 publish-zstd:
-	NAME=zstd VERSION=1.4.4 ./publish-m.sh
+	NAME=zstd VERSION=1.5.0 ./publish-m.sh
 
 publish-nsis:
 	NAME=nsis VERSION=3.0.4.2 ./publish.sh

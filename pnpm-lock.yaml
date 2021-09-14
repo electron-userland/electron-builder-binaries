@@ -1,0 +1,19 @@
+lockfileVersion: 5.3
+
+specifiers:
+  bluebird-lst: ^1.0.9
+
+dependencies:
+  bluebird-lst: 1.0.9
+
+packages:
+
+  /bluebird-lst/1.0.9:
+    resolution: {integrity: sha512-7B1Rtx82hjnSD4PGLAjVWeYH3tHAcVUmChh85a3lltKQm6FresXh9ErQo6oAv6CqxttczC3/kEg8SY5NluPuUw==}
+    dependencies:
+      bluebird: 3.7.2
+    dev: false
+
+  /bluebird/3.7.2:
+    resolution: {integrity: sha512-XpNj6GDQzdfW+r2Wnn7xiSAd7TM3jzkxGXBGTtWKuSXv1xUV+azxAm8jdWZN06QTQk+2N2XB9jRDkvbmQmcRtg==}
+    dev: false

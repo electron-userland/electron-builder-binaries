@@ -37,7 +37,7 @@ function copyFiles(files, sourceDir, archWin, archNode) {
   return BluebirdPromise.map(files, file => copy(path.join(sourceDir, archWin, file), path.join(destination, archNode, file)))
 }
 
-BluebirdPromise.all([
+Promise.all([
   copyFiles(files, sourceDir, "x86", "ia32"),
   copyFiles(files, sourceDir, "x64", "x64"),
 ])
