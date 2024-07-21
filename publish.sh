@@ -17,4 +17,4 @@ $BASEDIR/7za a -mx=9 -mfb=64 ../$archiveFile .
 cd ..
 
 CHECKSUM=$(shasum -a 512 $archiveFile | xxd -r -p | base64)
-$BASEDIR/github-release electron-userland/electron-builder-binaries $NAME-$VERSION master "Sha512: $CHECKSUM" $archiveFile
+$BASEDIR/github-release beyondkmp/electron-builder-binaries $NAME-$VERSION master "Sha512: $CHECKSUM" $archiveFile
