@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-set -e
+set -ex
 
 # custom homebrew prefix and DYLD_FALLBACK_LIBRARY_PATH doesn't work due to unknown reasons on Travis
 # homebrew bottle and DYLD_FALLBACK_LIBRARY_PATH doesn't work due to not found library on Travis
 # so, we just build it without brew http://mybyways.com/blog/compiling-wine-from-scratch-on-macos-with-retina-mode
 # also, we build very minimal wine (~ 15 MB compressed)
 
-WINE_VERSION=3.0.3
+WINE_VERSION=5.0
 LIBPNG_VERSION=1.6.35
 # 2.8.1 leads to error - https://forums.gentoo.org/viewtopic-p-8119832.html
-FREETYPE_VERSION=2.9.1
+FREETYPE_VERSION=2.13.2
 
 rm -rf /tmp/wine-stage
 mkdir -p /tmp/wine-stage/wine
