@@ -3,10 +3,10 @@
 .PHONY: update-appimage-runtime winCodeSign
 
 update-appimage-runtime:
-	curl -L https://github.com/AppImage/AppImageKit/releases/download/13/runtime-x86_64 -o AppImage/runtime-x64
-	curl -L https://github.com/AppImage/AppImageKit/releases/download/13/runtime-i686 -o AppImage/runtime-ia32
-	curl -L https://github.com/AppImage/AppImageKit/releases/download/13/runtime-aarch64 -o AppImage/runtime-arm64
-	curl -L https://github.com/AppImage/AppImageKit/releases/download/13/runtime-armhf -o AppImage/runtime-armv7l
+	curl -L https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64 -o AppImage/runtime-x64
+	curl -L https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-i686 -o AppImage/runtime-ia32
+	curl -L https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-aarch64 -o AppImage/runtime-arm64
+	curl -L https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-armhf -o AppImage/runtime-armv7l
 
 publish-appimage:
 	NAME=appimage VERSION=13.0.0 ./publish.sh
