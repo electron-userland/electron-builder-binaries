@@ -60,7 +60,6 @@ echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
 NAME="wine"
 VERSION=4.0.1-mac
 ARCHIVE_NAME="$NAME-$VERSION.7z"
-# $BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
 cp -a $BASE_DIR/$NAME/wine-4.0.1-mac.7z "$ARTIFACTS_DIR/$ARCHIVE_NAME"
 CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
 echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
@@ -69,9 +68,16 @@ echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
 # needs compilation on on GH runner, for now we just copy previous distributable as interim solution
 NAME="snap-template"
 VERSION=4.0
-# ARCHIVE_NAME="$NAME-$VERSION.7z"
-# $BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
-cp -a $BASE_DIR/$NAME/* "$ARTIFACTS_DIR/"
+cp -a $BASE_DIR/$NAME/* "$ARTIFACTS_DIR/$NAME-$VERSION/"
+ARCHIVE_NAME="snap-template-electron-4.0.tar.7z"
+CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$NAME-$VERSION/$ARCHIVE_NAME" | xxd -r -p | base64)
+echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
+ARCHIVE_NAME="snap-template-electron-4.0.tar.7z"
+CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$NAME-$VERSION/$ARCHIVE_NAME" | xxd -r -p | base64)
+echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
+ARCHIVE_NAME="snap-template-electron-4.0.tar.7z"
+CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$NAME-$VERSION/$ARCHIVE_NAME" | xxd -r -p | base64)
+echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
 
 # Squirrel.Windows
 NAME="Squirrel.Windows"
@@ -85,6 +91,6 @@ echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
 NAME="nsis-resources"
 VERSION=3.4.1
 ARCHIVE_NAME="$NAME-$VERSION.7z"
-$BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
+$BASE_DIR/7za a -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
 CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
 echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"

@@ -26,6 +26,7 @@ jobs:
           fetch-depth: 1
       - name: Compress Artifacts
         run: |
+          chmod +x ./7za
           sh ./compress-artifacts.sh
       - name: Upload Artifacts
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
