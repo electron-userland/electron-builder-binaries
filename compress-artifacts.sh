@@ -68,16 +68,15 @@ echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
 # needs compilation on on GH runner, for now we just copy previous distributable as interim solution
 NAME="snap-template"
 VERSION=4.0
-mkdir -p "$ARTIFACTS_DIR/$NAME-$VERSION"
-cp -a $BASE_DIR/$NAME/* "$ARTIFACTS_DIR/$NAME-$VERSION/"
+cp -a $BASE_DIR/$NAME/* "$ARTIFACTS_DIR/"
 ARCHIVE_NAME="snap-template-electron-4.0.tar.7z"
-CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$NAME-$VERSION/$ARCHIVE_NAME" | xxd -r -p | base64)
+CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
 echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
 ARCHIVE_NAME="snap-template-electron-4.0.tar.7z"
-CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$NAME-$VERSION/$ARCHIVE_NAME" | xxd -r -p | base64)
+CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
 echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
 ARCHIVE_NAME="snap-template-electron-4.0.tar.7z"
-CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$NAME-$VERSION/$ARCHIVE_NAME" | xxd -r -p | base64)
+CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
 echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
 
 # Squirrel.Windows
