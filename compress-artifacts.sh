@@ -60,7 +60,7 @@ echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
 NAME="wine"
 VERSION=4.0.1-mac
 ARCHIVE_NAME="$NAME-$VERSION.7z"
-cp -a $BASE_DIR/$NAME/wine-4.0.1-mac.7z "$ARTIFACTS_DIR/$ARCHIVE_NAME"
+cp -a $BASE_DIR/$NAME/$ARCHIVE_NAME "$ARTIFACTS_DIR/$ARCHIVE_NAME"
 CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
 echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
 
@@ -68,6 +68,7 @@ echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
 # needs compilation on on GH runner, for now we just copy previous distributable as interim solution
 NAME="snap-template"
 VERSION=4.0
+mkdir -p "$ARTIFACTS_DIR/$NAME-$VERSION"
 cp -a $BASE_DIR/$NAME/* "$ARTIFACTS_DIR/$NAME-$VERSION/"
 ARCHIVE_NAME="snap-template-electron-4.0.tar.7z"
 CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$NAME-$VERSION/$ARCHIVE_NAME" | xxd -r -p | base64)
