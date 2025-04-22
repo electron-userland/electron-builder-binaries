@@ -14,39 +14,20 @@ permissions:
 #   TEST_IMAGE_NODE_MAJOR_VERSION: 22
 
 jobs:
-  test-linux:
-    runs-on: ubuntu-22.04
+  compress-assets:
+    runs-on: macos-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
-      matrix:
-        buildFiles:
-          - './appImage-packages-ia32.sh'
-          - './appImage-packages-x64.sh'
-          - './zstd-linux.sh'
-          - './wine/wine-ia32.sh'
-          - './wine/wine-mac-ia32-and-x64.sh'
-          - './wine/wine-only-x64.sh'
-          - './scripts/nsis-plugins.sh'
-          - './scripts/update-zstd.sh'
-          # - ['./nsis-linux.sh']
-          # - ['./nsis.sh', './nsis-prepare.sh', './nsis.sh']
     steps:
       - name: Checkout code repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
-          fetch-depth: 2
-          submodules: recursive
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: 22
-          cache: 'npm'
-      - name: Build and test
+          fetch-depth: 1
+      - name: Compress Artifacts
         run: |
-          echo "Running build for ${{ env.buildFile }}"
-          chmod +x "$buildFile"
-          "$buildFile"
-          echo "Build completed for ${{ matrix.buildFiles }}"
-        env:
-          buildFile: ${{ matrix.buildFiles }}
+          sh ./compress-artifacts.sh
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
+        with:
+          path: artifacts

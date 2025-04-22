@@ -1,0 +1,25 @@
+name: Main
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 1
+      - name: Compress Artifacts
+        run: |
+          sh ./compress-artifacts.sh
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: ${{ github.workspace }}/artifacts/checksums.txt
+          files: artifacts/*
+          fail_on_unmatched_files: true
+          draft: true
