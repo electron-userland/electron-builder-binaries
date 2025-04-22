@@ -14,8 +14,8 @@ permissions:
 #   TEST_IMAGE_NODE_MAJOR_VERSION: 22
 
 jobs:
-  test-linux:
-    runs-on: ubuntu-22.04
+  compress-assets:
+    runs-on: macos-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
