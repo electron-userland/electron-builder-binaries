@@ -110,3 +110,11 @@ ARCHIVE_NAME="$NAME-$VERSION.7z"
 $BASE_DIR/7za a -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
 CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
 echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
+
+# ran
+NAME="ran"
+VERSION=0.1.3
+ARCHIVE_NAME="$NAME-$VERSION.7z"
+$BASE_DIR/7za a -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
+CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
+echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
