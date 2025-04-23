@@ -13,6 +13,12 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 1
+      - name: Branch name/tag
+        id: branch_name
+        run: |
+          echo "SOURCE_NAME=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+          echo "SOURCE_BRANCH=${GITHUB_REF#refs/heads/}" >> $GITHUB_ENV
+          echo "SOURCE_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
       - name: Compress Artifacts
         run: |
           sh ./compress-artifacts.sh
@@ -23,3 +29,11 @@ jobs:
           files: artifacts/*
           fail_on_unmatched_files: true
           draft: true
+          prerelease: true
+          tag_name: ${{ env.SOURCE_TAG }}
+          name: ${{ env.SOURCE_TAG }}
+          generate_release_notes: true
+        env:
+          SOURCE_NAME: ${{ env.SOURCE_NAME }}
+          SOURCE_BRANCH: ${{ env.SOURCE_BRANCH }}
+          SOURCE_TAG: ${{ env.SOURCE_TAG }}
