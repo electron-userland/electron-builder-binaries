@@ -94,3 +94,19 @@ ARCHIVE_NAME="$NAME-$VERSION.7z"
 $BASE_DIR/7za a -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
 CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
 echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
+
+# linux-tools-mac
+NAME="linux-tools-mac"
+VERSION=10.12.4
+ARCHIVE_NAME="$NAME-$VERSION.7z"
+cp -a $BASE_DIR/linux-tools/$ARCHIVE_NAME "$ARTIFACTS_DIR/$ARCHIVE_NAME"
+CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
+echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
+
+# wix
+NAME="wix"
+VERSION=4.0.0.5512.2
+ARCHIVE_NAME="$NAME-$VERSION.7z"
+$BASE_DIR/7za a -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
+CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
+echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
