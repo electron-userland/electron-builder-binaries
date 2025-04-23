@@ -72,10 +72,10 @@ cp -a $BASE_DIR/$NAME/* "$ARTIFACTS_DIR/"
 ARCHIVE_NAME="snap-template-electron-4.0.tar.7z"
 CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
 echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
-ARCHIVE_NAME="snap-template-electron-4.0.tar.7z"
+ARCHIVE_NAME="snap-template-electron-4.0-1-armhf.tar.7z"
 CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
 echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
-ARCHIVE_NAME="snap-template-electron-4.0.tar.7z"
+ARCHIVE_NAME="snap-template-electron-4.0-2-amd64.tar.7z"
 CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
 echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
 
