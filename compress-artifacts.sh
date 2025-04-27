@@ -117,10 +117,10 @@ VERSION=0.1.3
 downloadArtifact "$NAME" "$VERSION"
 
 # fpm
-NAME="fpm"
-VERSION="1.9.3"
 for FOLDER_NAME in "2.3.1-linux-x86_64" "2.3.1-linux-x86" "20150715-2.2.2-mac"
 do
+    NAME="fpm"
+    VERSION="1.9.3"
     downloadArtifact "$NAME-$VERSION" "$FOLDER_NAME"
 done
 
