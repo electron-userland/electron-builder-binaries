@@ -107,7 +107,7 @@ echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
 NAME="wix"
 VERSION=4.0.0.5512.2
 ARCHIVE_NAME="$NAME-$VERSION.7z"
-$BASE_DIR/7za a -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
+$BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
 CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
 echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
 
@@ -115,6 +115,17 @@ echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
 NAME="ran"
 VERSION=0.1.3
 ARCHIVE_NAME="$NAME-$VERSION.7z"
-$BASE_DIR/7za a -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
+$BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
 CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
 echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
+
+# fpm
+NAME="fpm"
+VERSION="1.9.3"
+for FOLDER_NAME in "2.3.1-linux-x86_64" "2.3.1-linux-x86" "20150715-2.2.2-mac"
+do
+    ARCHIVE_NAME="$NAME-$VERSION-$FOLDER_NAME.7z"
+    cp -a $BASE_DIR/$NAME/$ARCHIVE_NAME "$ARTIFACTS_DIR/$ARCHIVE_NAME"
+    CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
+    echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
+done
