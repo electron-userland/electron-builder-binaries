@@ -100,7 +100,7 @@ hashArtifact "$ARCHIVE_NAME"
 NAME="linux-tools-mac"
 VERSION=10.12.4
 ARCHIVE_NAME="$NAME-$VERSION"
-curl -L https://github.com/electron-userland/electron-builder-binaries/releases/download/$ARCHIVE_NAME/$ARCHIVE_NAME.7z > "$ARTIFACTS_DIR/$ARCHIVE_NAME"
+curl -L https://github.com/electron-userland/electron-builder-binaries/releases/download/$ARCHIVE_NAME/$ARCHIVE_NAME.7z > "$ARTIFACTS_DIR/$ARCHIVE_NAME.7z"
 hashArtifact "$ARCHIVE_NAME"
 
 # wix
@@ -114,7 +114,7 @@ hashArtifact "$ARCHIVE_NAME"
 NAME="ran"
 VERSION=0.1.3
 ARCHIVE_NAME="$NAME-$VERSION"
-curl -L https://github.com/electron-userland/electron-builder-binaries/releases/download/$ARCHIVE_NAME/$ARCHIVE_NAME.7z > "$ARTIFACTS_DIR/$ARCHIVE_NAME"
+curl -L https://github.com/electron-userland/electron-builder-binaries/releases/download/$ARCHIVE_NAME/$ARCHIVE_NAME.7z > "$ARTIFACTS_DIR/$ARCHIVE_NAME.7z"
 hashArtifact "$ARCHIVE_NAME"
 
 # fpm
@@ -123,7 +123,7 @@ VERSION="1.9.3"
 for FOLDER_NAME in "2.3.1-linux-x86_64" "2.3.1-linux-x86" "20150715-2.2.2-mac"
 do
     ARCHIVE_NAME="$NAME-$VERSION-$FOLDER_NAME"
-    curl -L https://github.com/electron-userland/electron-builder-binaries/releases/download/$ARCHIVE_NAME/$ARCHIVE_NAME.7z > "$ARTIFACTS_DIR/$ARCHIVE_NAME"
+    curl -L https://github.com/electron-userland/electron-builder-binaries/releases/download/$ARCHIVE_NAME/$ARCHIVE_NAME.7z > "$ARTIFACTS_DIR/$ARCHIVE_NAME.7z"
     hashArtifact "$ARCHIVE_NAME"
 done
 
