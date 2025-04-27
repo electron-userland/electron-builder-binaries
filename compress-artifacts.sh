@@ -11,6 +11,12 @@ mkdir -p "$ARTIFACTS_DIR"
 
 touch $ARTIFACTS_DIR/checksums.txt
 
+hashArtifact()
+{
+    ARCHIVE_NAME=$1
+    CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
+    echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
+}
 
 # ztsd
 NAME="zstd"
@@ -19,8 +25,7 @@ for FOLDER_NAME in "linux-x64" "mac" "win-ia32" "win-x64" "win-x64"
 do
     ARCHIVE_NAME="$NAME-$VERSION-$FOLDER_NAME.7z"
     $BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/zstd/$FOLDER_NAME"/*
-    CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
-    echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
+    hashArtifact "$ARCHIVE_NAME"
 done
 
 # appimage
@@ -28,93 +33,99 @@ NAME="appimage"
 VERSION="13.0.1"
 ARCHIVE_NAME="$NAME-$VERSION.7z"
 $BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/AppImage"/*
-CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
-echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
+hashArtifact "$ARCHIVE_NAME"
 
 # nsis
 NAME="nsis"
 VERSION="3.0.5.0"
 ARCHIVE_NAME="$NAME-$VERSION.7z"
 $BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
-CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
-echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
+hashArtifact "$ARCHIVE_NAME"
 
 # winCodeSign
 NAME="winCodeSign"
 VERSION="2.6.0"
 ARCHIVE_NAME="$NAME-$VERSION.7z"
 $BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
-CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
-echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
+hashArtifact "$ARCHIVE_NAME"
 
 # nsis-resources
 NAME="nsis-resources"
 VERSION="3.4.1"
 ARCHIVE_NAME="$NAME-$VERSION.7z"
 $BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
-CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
-echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
+hashArtifact "$ARCHIVE_NAME"
 
 # wine-4.0.1-mac
 # needs compilation on macOS runner, for now we just copy previous distributable as interim solution
 NAME="wine"
 VERSION=4.0.1-mac
-ARCHIVE_NAME="$NAME-$VERSION.7z"
-cp -a $BASE_DIR/$NAME/$ARCHIVE_NAME "$ARTIFACTS_DIR/$ARCHIVE_NAME"
-CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
-echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
+ARCHIVE_NAME="$NAME-$VERSION"
+curl -L https://github.com/electron-userland/electron-builder-binaries/releases/download/$ARCHIVE_NAME/$ARCHIVE_NAME.7z > "$ARTIFACTS_DIR/$ARCHIVE_NAME"
+hashArtifact "$ARCHIVE_NAME"
 
 # snap-template-4.0
 # needs compilation on on GH runner, for now we just copy previous distributable as interim solution
-NAME="snap-template"
+NAME="snap-template-electron"
 VERSION=4.0
-cp -a $BASE_DIR/$NAME/* "$ARTIFACTS_DIR/"
+RELEASE_NAME="snap-template-4.0"
 ARCHIVE_NAME="snap-template-electron-4.0.tar.7z"
-CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
-echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
+curl -L https://github.com/electron-userland/electron-builder-binaries/releases/download/$RELEASE_NAME/$ARCHIVE_NAME > "$ARTIFACTS_DIR/$ARCHIVE_NAME"
+hashArtifact "$ARCHIVE_NAME"
+RELEASE_NAME="snap-template-4.0-1"
 ARCHIVE_NAME="snap-template-electron-4.0-1-armhf.tar.7z"
-CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
-echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
+curl -L https://github.com/electron-userland/electron-builder-binaries/releases/download/$RELEASE_NAME/$ARCHIVE_NAME > "$ARTIFACTS_DIR/$ARCHIVE_NAME"
+ARCHIVE_NAME="snap-template-electron-4.0-1-amd64.tar.7z"
+curl -L https://github.com/electron-userland/electron-builder-binaries/releases/download/$RELEASE_NAME/$ARCHIVE_NAME > "$ARTIFACTS_DIR/$ARCHIVE_NAME"
+RELEASE_NAME="snap-template-4.0-2"
 ARCHIVE_NAME="snap-template-electron-4.0-2-amd64.tar.7z"
-CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
-echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
+curl -L https://github.com/electron-userland/electron-builder-binaries/releases/download/$RELEASE_NAME/$ARCHIVE_NAME > "$ARTIFACTS_DIR/$ARCHIVE_NAME"
+hashArtifact "$ARCHIVE_NAME"
 
 # Squirrel.Windows
 NAME="Squirrel.Windows"
 VERSION=1.9.0
 ARCHIVE_NAME="$NAME-$VERSION.7z"
 $BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
-CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
-echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
+hashArtifact "$ARCHIVE_NAME"
 
 # nsis-resources
 NAME="nsis-resources"
 VERSION=3.4.1
 ARCHIVE_NAME="$NAME-$VERSION.7z"
 $BASE_DIR/7za a -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
-CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
-echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
+hashArtifact "$ARCHIVE_NAME"
 
 # linux-tools-mac
 NAME="linux-tools-mac"
 VERSION=10.12.4
-ARCHIVE_NAME="$NAME-$VERSION.7z"
-cp -a $BASE_DIR/linux-tools/$ARCHIVE_NAME "$ARTIFACTS_DIR/$ARCHIVE_NAME"
-CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
-echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
+ARCHIVE_NAME="$NAME-$VERSION"
+curl -L https://github.com/electron-userland/electron-builder-binaries/releases/download/$ARCHIVE_NAME/$ARCHIVE_NAME.7z > "$ARTIFACTS_DIR/$ARCHIVE_NAME"
+hashArtifact "$ARCHIVE_NAME"
 
 # wix
 NAME="wix"
 VERSION=4.0.0.5512.2
 ARCHIVE_NAME="$NAME-$VERSION.7z"
-$BASE_DIR/7za a -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
-CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
-echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
+$BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
+hashArtifact "$ARCHIVE_NAME"
 
 # ran
 NAME="ran"
 VERSION=0.1.3
-ARCHIVE_NAME="$NAME-$VERSION.7z"
-$BASE_DIR/7za a -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
-CHECKSUM=$(shasum -a 512 "$ARTIFACTS_DIR/$ARCHIVE_NAME" | xxd -r -p | base64)
-echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
+ARCHIVE_NAME="$NAME-$VERSION"
+curl -L https://github.com/electron-userland/electron-builder-binaries/releases/download/$ARCHIVE_NAME/$ARCHIVE_NAME.7z > "$ARTIFACTS_DIR/$ARCHIVE_NAME"
+hashArtifact "$ARCHIVE_NAME"
+
+# fpm
+NAME="fpm"
+VERSION="1.9.3"
+for FOLDER_NAME in "2.3.1-linux-x86_64" "2.3.1-linux-x86" "20150715-2.2.2-mac"
+do
+    ARCHIVE_NAME="$NAME-$VERSION-$FOLDER_NAME"
+    curl -L https://github.com/electron-userland/electron-builder-binaries/releases/download/$ARCHIVE_NAME/$ARCHIVE_NAME.7z > "$ARTIFACTS_DIR/$ARCHIVE_NAME"
+    hashArtifact "$ARCHIVE_NAME"
+done
+
+sort "$ARTIFACTS_DIR/checksums.txt" -o "$ARTIFACTS_DIR/checksums.txt"
+echo "Artifacts compressed and checksums generated in $ARTIFACTS_DIR"
