@@ -18,6 +18,25 @@ hashArtifact()
     echo "$ARCHIVE_NAME: $CHECKSUM" >> "$ARTIFACTS_DIR/checksums.txt"
 }
 
+downloadArtifact()
+{
+    NAME=$1
+    VERSION=$2
+    RELEASE_NAME="$NAME-$VERSION"
+    ARCHIVE_NAME="$NAME-$VERSION.7z"
+    curl -L https://github.com/electron-userland/electron-builder-binaries/releases/download/$RELEASE_NAME/$ARCHIVE_NAME > "$ARTIFACTS_DIR/$ARCHIVE_NAME"
+    hashArtifact "$ARCHIVE_NAME"
+}
+
+compressArtifact()
+{
+    NAME=$1
+    VERSION=$2
+    ARCHIVE_NAME="$NAME-$VERSION.7z"
+    $BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
+    hashArtifact "$ARCHIVE_NAME"
+}
+
 # ztsd
 NAME="zstd"
 VERSION="v1.5.5"
@@ -38,36 +57,24 @@ hashArtifact "$ARCHIVE_NAME"
 # nsis
 NAME="nsis"
 VERSION="3.0.5.0"
-ARCHIVE_NAME="$NAME-$VERSION.7z"
-$BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
-hashArtifact "$ARCHIVE_NAME"
+compressArtifact "$NAME" "$VERSION"
 
 # winCodeSign
 NAME="winCodeSign"
 VERSION="2.6.0"
-ARCHIVE_NAME="$NAME-$VERSION.7z"
-$BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
-hashArtifact "$ARCHIVE_NAME"
+compressArtifact "$NAME" "$VERSION"
 
 # nsis-resources
 NAME="nsis-resources"
 VERSION="3.4.1"
-ARCHIVE_NAME="$NAME-$VERSION.7z"
-$BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
-hashArtifact "$ARCHIVE_NAME"
+compressArtifact "$NAME" "$VERSION"
 
 # wine-4.0.1-mac
-# needs compilation on macOS runner, for now we just copy previous distributable as interim solution
 NAME="wine"
 VERSION=4.0.1-mac
-ARCHIVE_NAME="$NAME-$VERSION"
-curl -L https://github.com/electron-userland/electron-builder-binaries/releases/download/$ARCHIVE_NAME/$ARCHIVE_NAME.7z > "$ARTIFACTS_DIR/$ARCHIVE_NAME"
-hashArtifact "$ARCHIVE_NAME"
+downloadArtifact "$NAME" "$VERSION"
 
 # snap-template-4.0
-# needs compilation on on GH runner, for now we just copy previous distributable as interim solution
-NAME="snap-template-electron"
-VERSION=4.0
 RELEASE_NAME="snap-template-4.0"
 ARCHIVE_NAME="snap-template-electron-4.0.tar.7z"
 curl -L https://github.com/electron-userland/electron-builder-binaries/releases/download/$RELEASE_NAME/$ARCHIVE_NAME > "$ARTIFACTS_DIR/$ARCHIVE_NAME"
@@ -85,9 +92,7 @@ hashArtifact "$ARCHIVE_NAME"
 # Squirrel.Windows
 NAME="Squirrel.Windows"
 VERSION=1.9.0
-ARCHIVE_NAME="$NAME-$VERSION.7z"
-$BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
-hashArtifact "$ARCHIVE_NAME"
+compressArtifact "$NAME" "$VERSION"
 
 # nsis-resources
 NAME="nsis-resources"
@@ -99,32 +104,24 @@ hashArtifact "$ARCHIVE_NAME"
 # linux-tools-mac
 NAME="linux-tools-mac"
 VERSION=10.12.4
-ARCHIVE_NAME="$NAME-$VERSION"
-curl -L https://github.com/electron-userland/electron-builder-binaries/releases/download/$ARCHIVE_NAME/$ARCHIVE_NAME.7z > "$ARTIFACTS_DIR/$ARCHIVE_NAME.7z"
-hashArtifact "$ARCHIVE_NAME"
+downloadArtifact "$NAME" "$VERSION"
 
 # wix
 NAME="wix"
 VERSION=4.0.0.5512.2
-ARCHIVE_NAME="$NAME-$VERSION.7z"
-$BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
-hashArtifact "$ARCHIVE_NAME"
+compressArtifact "$NAME" "$VERSION"
 
 # ran
 NAME="ran"
 VERSION=0.1.3
-ARCHIVE_NAME="$NAME-$VERSION"
-curl -L https://github.com/electron-userland/electron-builder-binaries/releases/download/$ARCHIVE_NAME/$ARCHIVE_NAME.7z > "$ARTIFACTS_DIR/$ARCHIVE_NAME.7z"
-hashArtifact "$ARCHIVE_NAME"
+downloadArtifact "$NAME" "$VERSION"
 
 # fpm
 NAME="fpm"
 VERSION="1.9.3"
 for FOLDER_NAME in "2.3.1-linux-x86_64" "2.3.1-linux-x86" "20150715-2.2.2-mac"
 do
-    ARCHIVE_NAME="$NAME-$VERSION-$FOLDER_NAME"
-    curl -L https://github.com/electron-userland/electron-builder-binaries/releases/download/$ARCHIVE_NAME/$ARCHIVE_NAME.7z > "$ARTIFACTS_DIR/$ARCHIVE_NAME.7z"
-    hashArtifact "$ARCHIVE_NAME"
+    downloadArtifact "$NAME-$VERSION" "$FOLDER_NAME"
 done
 
 sort "$ARTIFACTS_DIR/checksums.txt" -o "$ARTIFACTS_DIR/checksums.txt"
