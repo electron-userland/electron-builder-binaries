@@ -38,6 +38,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           artifact-ids: ${{ needs.build-artifacts.outputs.artifactId }}
+          path: artifacts
 
       - name: Display structure of downloaded files
         run: ls -R artifacts

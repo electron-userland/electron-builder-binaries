@@ -10,7 +10,7 @@ execSync(`pnpm changeset status --output ${changesetJsonPath}`);
 const changesetJson = JSON.parse(fs.readFileSync(changesetJsonPath, "utf-8"));
 const releases = changesetJson.releases;
 
-console.log("Releases:", releases);
+console.log("Release candidates:", releases);
 
 const packageMap = {
   appimage: ["appimage-13.0.1.7z"],
