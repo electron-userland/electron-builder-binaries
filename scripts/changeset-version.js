@@ -17,8 +17,8 @@ const packageMap = {
   nsis: ["nsis-3.0.5.0.7z"],
   "nsis-resources": ["nsis-resources-3.4.1.7z"],
   ran: ["ran-0.1.3.7z"],
-  "squirrel.windows": ["Squirrel.Windows-1.9.0.7z"],
-  "win-codesign": ["winCodeSign-2.6.0.7z"],
+  "squirrel.windows": ["squirrel.windows-1.9.0.7z"],
+  "win-codesign": ["win-codesign-2.6.0.7z"],
   wine: ["wine-4.0.1-mac.7z"],
   wix: ["wix-4.0.0.5512.2.7z"],
   zstd: [

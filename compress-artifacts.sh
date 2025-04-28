@@ -38,10 +38,10 @@ compressArtifact()
 }
 
 # ztsd
-NAME="zstd"
-VERSION="v1.5.5"
 for FOLDER_NAME in "linux-x64" "mac" "win-ia32" "win-x64"
 do
+    NAME="zstd"
+    VERSION="v1.5.5"
     ARCHIVE_NAME="$NAME-$VERSION-$FOLDER_NAME.7z"
     $BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/packages/zstd/$FOLDER_NAME"/*
     hashArtifact "$ARCHIVE_NAME"
@@ -50,9 +50,7 @@ done
 # appimage
 NAME="appimage"
 VERSION="13.0.1"
-ARCHIVE_NAME="$NAME-$VERSION.7z"
-$BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/packages/AppImage"/*
-hashArtifact "$ARCHIVE_NAME"
+compressArtifact "$NAME" "$VERSION"
 
 # nsis
 NAME="nsis"
@@ -60,7 +58,7 @@ VERSION="3.0.5.0"
 compressArtifact "$NAME" "$VERSION"
 
 # winCodeSign
-NAME="winCodeSign"
+NAME="win-codesign"
 VERSION="2.6.0"
 compressArtifact "$NAME" "$VERSION"
 
@@ -88,7 +86,7 @@ curl -L https://github.com/electron-userland/electron-builder-binaries/releases/
 hashArtifact "$ARCHIVE_NAME"
 
 # Squirrel.Windows
-NAME="Squirrel.Windows"
+NAME="squirrel.windows"
 VERSION=1.9.0
 compressArtifact "$NAME" "$VERSION"
 
