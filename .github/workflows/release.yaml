@@ -3,37 +3,59 @@ name: Main
 on:
   push:
     tags:
-      - "v*"
+      - "test*"
 
 jobs:
-  build:
+  build-artifacts:
+    uses: ./.github/workflows/build.yaml
+
+  release:
     runs-on: macos-latest
+    needs: build-artifacts
+    timeout-minutes: 15
     steps:
+      - name: Fetch artifact
+        id: artifact-url
+        env:
+          ARTIFACT_URL: ${{ needs.build-artifacts.outputs.artifactUrl }}
+          ARTIFACT_ID: ${{ needs.build-artifacts.outputs.artifactId }}
+        run: |
+          echo "Artifact URL is: $ARTIFACT_URL"
+          echo "ARTIFACT_URL=$ARTIFACT_URL" >> $GITHUB_ENV
+          echo "ARTIFACT_ID=$ARTIFACT_ID" >> $GITHUB_ENV
+
+      - name: Download artifact
+        id: download-artifact
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ needs.build-artifacts.outputs.artifactId }}
+          path: artifacts
+
+      - name: Display structure of downloaded files
+        run: ls -R artifacts
+
       - name: Checkout code repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 1
-      - name: Branch name/tag
-        id: branch_name
-        run: |
-          echo "SOURCE_NAME=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
-          echo "SOURCE_BRANCH=${GITHUB_REF#refs/heads/}" >> $GITHUB_ENV
-          echo "SOURCE_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-      - name: Compress Artifacts
-        run: |
-          sh ./compress-artifacts.sh
-      - name: Release
-        uses: softprops/action-gh-release@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
-          body_path: ${{ github.workspace }}/artifacts/checksums.txt
-          files: artifacts/*
-          fail_on_unmatched_files: true
-          draft: true
-          prerelease: true
-          tag_name: ${{ env.SOURCE_TAG }}
-          name: ${{ env.SOURCE_TAG }}
-          generate_release_notes: true
+          node-version: 22
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+      
+      - name: Create versions PR & prepare publish
+        id: changesets
+        uses: changesets/action@06245a4e0a36c064a573d4150030f5ec548e4fcc # v1.4.1
+        with:
+          version: pnpm ci:version
+          commit: 'chore(deploy): Release'
+          title: 'chore(deploy): Release'
+          publish: pnpm ci:publish
         env:
-          SOURCE_NAME: ${{ env.SOURCE_NAME }}
-          SOURCE_BRANCH: ${{ env.SOURCE_BRANCH }}
-          SOURCE_TAG: ${{ env.SOURCE_TAG }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
