@@ -6,6 +6,12 @@ on:
       master
   pull_request:
   workflow_dispatch: # Allows you to run this workflow manually from the Actions tab
+  workflow_call:
+    # Map the workflow outputs to job outputs
+    outputs:
+      artifactUrl:
+        description: "The url of the compressed artifacts"
+        value: ${{ jobs.compress-assets.outputs.artifactUrl }}
 
 permissions:
   contents: read
@@ -17,8 +23,9 @@ jobs:
   compress-assets:
     runs-on: macos-latest
     timeout-minutes: 15
-    strategy:
-      fail-fast: false
+    outputs:
+      artifactUrl: ${{ steps.artifact-url.outputs.ARTIFACT_URL }}
+      artifactId: ${{ steps.artifact-url.outputs.ARTIFACT_ID }}
     steps:
       - name: Checkout code repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -28,6 +35,13 @@ jobs:
         run: |
           sh ./compress-artifacts.sh
       - name: Upload Artifacts
+        id: upload-artifacts
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
         with:
           path: artifacts
+      - name: Extract artifact url
+        id: artifact-url
+        run: |
+          echo "Artifact URL is: ${{ steps.upload-artifacts.outputs.artifact-url }}"
+          echo "ARTIFACT_URL=${{ steps.upload-artifacts.outputs.artifact-url }}" >> $GITHUB_ENV
+          echo "ARTIFACT_ID=${{ steps.upload-artifacts.outputs.artifact-id }}" >> $GITHUB_ENV
