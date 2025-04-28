@@ -43,14 +43,21 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
         with:
-          node-version: 22
+          version: 9.4.0
+          run_install: false
+  
+      - name: Setup node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
           cache: 'pnpm'
+  
       - name: Install dependencies
-        run: |
-          pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
+        shell: bash
       
       - name: Create versions PR & prepare publish
         id: changesets
