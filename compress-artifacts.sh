@@ -40,7 +40,7 @@ compressArtifact()
 # ztsd
 NAME="zstd"
 VERSION="v1.5.5"
-for FOLDER_NAME in "linux-x64" "mac" "win-ia32" "win-x64" "win-x64" 
+for FOLDER_NAME in "linux-x64" "mac" "win-ia32" "win-x64"
 do
     ARCHIVE_NAME="$NAME-$VERSION-$FOLDER_NAME.7z"
     $BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/zstd/$FOLDER_NAME"/*
@@ -64,11 +64,6 @@ NAME="winCodeSign"
 VERSION="2.6.0"
 compressArtifact "$NAME" "$VERSION"
 
-# nsis-resources
-NAME="nsis-resources"
-VERSION="3.4.1"
-compressArtifact "$NAME" "$VERSION"
-
 # wine-4.0.1-mac
 NAME="wine"
 VERSION=4.0.1-mac
@@ -82,8 +77,11 @@ hashArtifact "$ARCHIVE_NAME"
 RELEASE_NAME="snap-template-4.0-1"
 ARCHIVE_NAME="snap-template-electron-4.0-1-armhf.tar.7z"
 curl -L https://github.com/electron-userland/electron-builder-binaries/releases/download/$RELEASE_NAME/$ARCHIVE_NAME > "$ARTIFACTS_DIR/$ARCHIVE_NAME"
+hashArtifact "$ARCHIVE_NAME"
+RELEASE_NAME="snap-template-4.0-1"
 ARCHIVE_NAME="snap-template-electron-4.0-1-amd64.tar.7z"
 curl -L https://github.com/electron-userland/electron-builder-binaries/releases/download/$RELEASE_NAME/$ARCHIVE_NAME > "$ARTIFACTS_DIR/$ARCHIVE_NAME"
+hashArtifact "$ARCHIVE_NAME"
 RELEASE_NAME="snap-template-4.0-2"
 ARCHIVE_NAME="snap-template-electron-4.0-2-amd64.tar.7z"
 curl -L https://github.com/electron-userland/electron-builder-binaries/releases/download/$RELEASE_NAME/$ARCHIVE_NAME > "$ARTIFACTS_DIR/$ARCHIVE_NAME"
