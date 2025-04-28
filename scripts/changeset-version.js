@@ -46,25 +46,16 @@ const packageMap = {
 };
 
 releases.forEach((release) => {
-  const { name, newVersion } = release;
-  // const packagePath = path.join(__dirname, "../packages", name)
-  // const packageJsonPath = path.join(packagePath, "package.json")
-  // const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"))
-
-  // // Update the version in package.json
-  // packageJson.version = version
-
-  // // Write the updated package.json back to disk
-  // fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2))
-
-  // // Update the changeset status file
-  // changesets.forEach((changeset) => {
-  //     const changesetPath = path.join(__dirname, "../.changeset", changeset + ".md")
-  //     const changesetContent = fs.readFileSync(changesetPath, "utf-8")
-  //     const updatedContent = changesetContent.replace(
-  //     /version: \d+\.\d+\.\d+/,
-  //     `version: ${version}`
-  //     )
-  //     fs.writeFileSync(changesetPath, updatedContent)
-  // })
+  const { name } = release;
+  const artifactsToUpload = packageMap[name];
+  if (!artifactsToUpload) {
+    console.warn(`No artifacts found for ${name}`);
+    return;
+  }
+  console.log(`Committing artifacts for ${name}...`);
+  artifactsToUpload.forEach((artifact) => {
+    const artifactPath = path.resolve(__dirname, "../artifacts", artifact);
+    // --force because the folder is ignored by git to prevent accidental commits
+    execSync(`git add --force ${artifactPath}`);
+  });
 });
