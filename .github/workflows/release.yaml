@@ -3,7 +3,7 @@ name: Main
 on:
   push:
     tags:
-      - "test*"
+      - "v*"
 
 jobs:
   build-artifacts:
@@ -58,4 +58,3 @@ jobs:
           publish: pnpm ci:publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
