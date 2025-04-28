@@ -7,14 +7,32 @@ settings:
 importers:
 
   .:
-    dependencies:
-      bluebird-lst:
-        specifier: ^1.0.9
-        version: 1.0.9
     devDependencies:
       '@changesets/cli':
         specifier: ^2.29.2
         version: 2.29.2
+
+  packages/AppImage: {}
+
+  packages/fpm: {}
+
+  packages/linux-tools: {}
+
+  packages/nsis: {}
+
+  packages/nsis-resources: {}
+
+  packages/ran: {}
+
+  packages/snap-template: {}
+
+  packages/squirrel.windows: {}
+
+  packages/wine: {}
+
+  packages/wix: {}
+
+  packages/zstd: {}
 
 packages:
 
@@ -116,12 +134,6 @@ packages:
   better-path-resolve@1.0.0:
     resolution: {integrity: sha512-pbnl5XzGBdrFU/wT4jqmJVPn2B6UHPBOhzMQkY/SPUPB6QtUXtmBHBIwCbXJol93mOpGMnQyP/+BB19q04xj7g==}
     engines: {node: '>=4'}
-
-  bluebird-lst@1.0.9:
-    resolution: {integrity: sha512-7B1Rtx82hjnSD4PGLAjVWeYH3tHAcVUmChh85a3lltKQm6FresXh9ErQo6oAv6CqxttczC3/kEg8SY5NluPuUw==}
-
-  bluebird@3.7.2:
-    resolution: {integrity: sha512-XpNj6GDQzdfW+r2Wnn7xiSAd7TM3jzkxGXBGTtWKuSXv1xUV+azxAm8jdWZN06QTQk+2N2XB9jRDkvbmQmcRtg==}
 
   braces@3.0.3:
     resolution: {integrity: sha512-yQbXgO/OSZVD2IsiLlro+7Hf6Q18EJrKSEsdoMzKePKXct3gvD8oLcOQdIzGupr5Fj+EDe8gO/lxc1BzfMpxvA==}
@@ -589,12 +601,6 @@ snapshots:
   better-path-resolve@1.0.0:
     dependencies:
       is-windows: 1.0.2
-
-  bluebird-lst@1.0.9:
-    dependencies:
-      bluebird: 3.7.2
-
-  bluebird@3.7.2: {}
 
   braces@3.0.3:
     dependencies:
