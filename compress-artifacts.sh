@@ -33,7 +33,7 @@ compressArtifact()
     NAME=$1
     VERSION=$2
     ARCHIVE_NAME="$NAME-$VERSION.7z"
-    $BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
+    $BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/packages/$NAME"/*
     hashArtifact "$ARCHIVE_NAME"
 }
 
@@ -43,7 +43,7 @@ VERSION="v1.5.5"
 for FOLDER_NAME in "linux-x64" "mac" "win-ia32" "win-x64"
 do
     ARCHIVE_NAME="$NAME-$VERSION-$FOLDER_NAME.7z"
-    $BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/zstd/$FOLDER_NAME"/*
+    $BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/packages/zstd/$FOLDER_NAME"/*
     hashArtifact "$ARCHIVE_NAME"
 done
 
@@ -51,7 +51,7 @@ done
 NAME="appimage"
 VERSION="13.0.1"
 ARCHIVE_NAME="$NAME-$VERSION.7z"
-$BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/AppImage"/*
+$BASE_DIR/7za a -mx=9 -mfb=64 "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/packages/AppImage"/*
 hashArtifact "$ARCHIVE_NAME"
 
 # nsis
@@ -96,7 +96,7 @@ compressArtifact "$NAME" "$VERSION"
 NAME="nsis-resources"
 VERSION=3.4.1
 ARCHIVE_NAME="$NAME-$VERSION.7z"
-$BASE_DIR/7za a -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/$NAME"/*
+$BASE_DIR/7za a -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on "$ARTIFACTS_DIR/$ARCHIVE_NAME" "$BASE_DIR/packages/$NAME"/*
 hashArtifact "$ARCHIVE_NAME"
 
 # linux-tools-mac
