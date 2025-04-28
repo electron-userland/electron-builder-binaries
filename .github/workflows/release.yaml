@@ -18,6 +18,11 @@ jobs:
     needs: build-artifacts
     timeout-minutes: 15
     steps:
+      - name: Checkout code repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 1
+
       - name: Fetch artifact
         id: artifact-url
         env:
@@ -36,11 +41,6 @@ jobs:
 
       - name: Display structure of downloaded files
         run: ls -R artifacts
-
-      - name: Checkout code repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-        with:
-          fetch-depth: 1
 
       - name: Setup pnpm
         uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
