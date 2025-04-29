@@ -63,8 +63,17 @@ jobs:
         uses: changesets/action@06245a4e0a36c064a573d4150030f5ec548e4fcc # v1.4.1
         with:
           version: pnpm ci:version
+          publish: "pnpm ci:publish"
           commit: 'chore(deploy): Release'
           title: 'chore(deploy): Release'
-          publish: pnpm ci:publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create scoped releases
+        if: steps.changesets.outputs.published == 'true'
+        run: |
+          echo "Releases created with tags: ${{ steps.changesets.outputs.publishedPackages }}"
+          node scripts/changeset-publish.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
