@@ -75,7 +75,7 @@ for (const release of releases) {
     name: releaseName,
     tag_name: releaseName,
     body: `*sha512 checksums*\n\n${checksums.join("\n")}`,
-    assets: artifactsToUpload.map(artifactPath),
+    assets: artifactsToUpload.map(artifact => path.join("artifacts", artifact)),
   };
 
   if (!isCi) {
