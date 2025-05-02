@@ -1,4 +1,4 @@
-name: Test
+name: Build artifacts
 
 on:
   push:
@@ -11,35 +11,122 @@ on:
     outputs:
       artifactUrl:
         description: "The url of the compressed artifacts"
-        value: ${{ jobs.compress-assets.outputs.artifactUrl }}
+        value: ${{ jobs.combine-assets.outputs.artifactUrl }}
 
 permissions:
   contents: read
 
-# env:
-#   TEST_IMAGE_NODE_MAJOR_VERSION: 22
-
 jobs:
-  compress-assets:
+  build-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      matrix:
+        arch: [arm64v8, amd64, i386, arm32v7]
+    steps:
+      - name: Set up QEMU dependency
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2
+      - name: Checkout code repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Build ${{ matrix.arch }}
+        run: |
+          ARCH=${{ matrix.arch }} bash build-linux.sh
+      - name: Archive artifacts
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
+        with:
+          name: build-linux-${{ matrix.arch }}
+          if-no-files-found: error
+          path: |
+            out
+  
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+        with:
+          version: 9.4.0
+      - name: Setup node
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4
+        with:
+          node-version: '22'
+      - name: List Windows Kits versions installed
+        run: |
+          ls "C:\\Program Files (x86)\\Windows Kits"
+          ls "C:\\Program Files (x86)\\Windows Kits\\10\\bin"
+          ls "C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.26100.0"
+      - name: Copy specific Windows Kits assets (makeappx, signtool, etc.)
+        shell: bash
+        run: |
+          rm -rf out
+          node scripts/appx.js
+          ls -R out
+      - name: Archive artifacts
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
+        with:
+          name: windows-artifacts
+          if-no-files-found: error
+          path: |
+            out
+
+  build-mac:
     runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Build
+        run: |
+          rm -rf out
+          bash build-mac.sh
+          ls -R out
+      - name: Archive artifacts
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
+        with:
+          name: mac-artifacts
+          if-no-files-found: error
+          path: |
+            out
+
+  combine-artifacts:
+    runs-on: macos-latest
+    needs: [
+      build-linux,
+      build-mac,
+      build-windows
+    ]
     timeout-minutes: 15
     outputs:
       artifactUrl: ${{ steps.artifact-url.outputs.ARTIFACT_URL }}
       artifactId: ${{ steps.artifact-url.outputs.ARTIFACT_ID }}
     steps:
+      - name: Install `tree`
+        run: |
+          brew install tree
       - name: Checkout code repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Download artifacts
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4
         with:
-          fetch-depth: 1
+          path: artifacts
+          merge-multiple: true
+      - name: Tree the out directory
+        run: |
+          tree ./artifacts
       - name: Compress Artifacts
         run: |
-          sh ./compress-artifacts.sh
+          sh ./scripts/compress-artifacts.sh
       - name: Upload Artifacts
         id: upload-artifacts
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
         with:
           path: artifacts
-          name: artifacts
+          name: merged-artifacts-all
       - name: Extract artifact url
         id: artifact-url
         run: |

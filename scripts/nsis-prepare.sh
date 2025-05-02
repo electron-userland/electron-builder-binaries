@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
+BASEDIR=$(dirname "$0")
+cd "$BASEDIR/.."
+pwd
 cd nsis
 
 rm -rf Docs
@@ -35,6 +38,6 @@ mv a/Plugins/x86-ansi/WinShell.dll Plugins/x86-ansi/WinShell.dll
 unlink a.zip
 rm -rf a
 
-dir=${PWD##*/}
-rm -rf ../${dir}.7z
-7za a -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on ../${dir}.7z .
+# dir=${PWD##*/}
+# rm -rf ../${dir}.7z
+# 7za a -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on ../${dir}.7z .

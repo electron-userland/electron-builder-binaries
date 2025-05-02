@@ -3,7 +3,7 @@
   "description": "Binaries specifically curated for Electron Builder",
   "repository": {
     "type": "git",
-    "url": "https://github.com/electron-userland/electron-builder-binaries"
+    "url": "https://github.com/mmaietta/electron-builder-binaries"
   },
   "private": true,
   "scripts": {

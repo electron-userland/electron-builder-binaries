@@ -1,10 +1,13 @@
 const path = require("path")
-const BluebirdPromise = require("bluebird-lst")
-const copy = BluebirdPromise.promisify(require("fs").copyFile)
+const promisify = require("util").promisify
+const fs = require("fs")
+const copy = promisify(fs.copyFile)
 
-const windowsKitsDir = "/Volumes/[C] Windows 10.hidden/Program Files (x86)/Windows Kits/10"
-const sourceDir = path.join(windowsKitsDir, "bin/10.0.17763.0")
-const destination = path.join(__dirname, "../winCodeSign/windows-10")
+const VERSION = "10.0.26100.0"
+
+const windowsKitsDir = "C:\\Program Files (x86)\\Windows Kits\\10"
+const sourceDir = path.resolve(windowsKitsDir, "bin", VERSION)
+const destination = path.join(__dirname, "../out/winCodeSign/windows-10")
 
 // noinspection SpellCheckingInspection
 const files = [
@@ -33,16 +36,35 @@ const files = [
   "pvk2pfx.exe"
 ]
 
-function copyFiles(files, sourceDir, archWin, archNode) {
-  return BluebirdPromise.map(files, file => copy(path.join(sourceDir, archWin, file), path.join(destination, archNode, file)))
+function copyFiles(files, archWin, archNode) {
+  fs.mkdirSync(path.join(destination, archNode), { recursive: true })
+  return files.map(async file => {
+    await copy(path.join(sourceDir, archWin, file), path.join(destination, archNode, file))
+    return file
+  })
 }
 
+// copy files
 Promise.all([
-  copyFiles(files, sourceDir, "x86", "ia32"),
-  copyFiles(files, sourceDir, "x64", "x64"),
+  ...copyFiles(files, "x86", "ia32"),
+  ...copyFiles(files, "x64", "x64"),
+  ...copyFiles(files, "arm64", "arm64"),
 ])
-  .catch(error => {
-    process.exitCode = 1
-    console.error(error)
+.then(files => {
+  console.log("Files copied successfully")
+  console.log("Files copied:")
+  files.forEach(file => {
+    console.log(`- ${file}`)
   })
+})
+.catch(error => {
+  process.exitCode = 1
+  console.error(error)
+})
 
+// add version file
+fs.writeFileSync(
+  path.join(destination, "VERSION"),
+  VERSION,
+  "utf8"
+)
