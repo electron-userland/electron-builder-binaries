@@ -1,14 +1,24 @@
 {
+  "name": "electron-builder-binaries",
+  "description": "Binaries specifically curated for Electron Builder",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/electron-userland/electron-builder-binaries"
+  },
   "private": true,
   "scripts": {
-    "appx": "node scripts/appx.js",
-    "wix": "NAME=wix VERSION=4.0.0.5512.2 ./publish.sh",
-    "sw": "NAME=Squirrel.Windows VERSION=1.9.0 ./publish.sh",
-    "ran": "NAME=ran VERSION=0.1.3 ./publish.sh",
-    "launchui": "NAME=launchui VERSION=0.1.4-10.13.0 ./publish.sh"
+    "ci:version": "pnpm i && node scripts/changeset-version.js && changeset version",
+    "ci:publish": "changeset tag"
   },
-  "//": "go get -u github.com/develar/tool-releaser",
-  "dependencies": {
-    "bluebird-lst": "^1.0.9"
+  "devDependencies": {
+    "@actions/attest": "^1.6.0",
+    "@changesets/changelog-github": "^0.5.1",
+    "@changesets/cli": "^2.29.2",
+    "gh-release": "^7.0.2"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "gh-release@7.0.2": "patches/gh-release@7.0.2.patch"
+    }
   }
 }
