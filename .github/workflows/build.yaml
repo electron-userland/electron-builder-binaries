@@ -1,4 +1,4 @@
-name: Test
+name: Build artifacts
 
 on:
   push:
@@ -11,38 +11,139 @@ on:
     outputs:
       artifactUrl:
         description: "The url of the compressed artifacts"
-        value: ${{ jobs.compress-assets.outputs.artifactUrl }}
+        value: ${{ jobs.combine-artifacts.outputs.artifactUrl }}
+      artifactId:
+        description: "The Id of the compressed artifacts"
+        value: ${{ jobs.combine-artifacts.outputs.artifactId }}
 
 permissions:
   contents: read
 
-# env:
-#   TEST_IMAGE_NODE_MAJOR_VERSION: 22
-
 jobs:
-  compress-assets:
-    runs-on: macos-latest
+  build-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60 # Increased timeout for linux cross-compilation
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, "386", arm/v7, arm64/v8, ppc64le, s390x]
+    steps:
+      - name: Set up QEMU dependency
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2
+      - name: Checkout code repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          submodules: true
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+        with:
+          version: 9.4.0
+      - name: Setup node
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4
+        with:
+          node-version: '22'
+      - name: Build ${{ matrix.arch }}
+        shell: bash
+        run: |
+          pnpm i --frozen-lockfile
+          export ARCH=${{ matrix.arch }}
+          bash build-linux.sh
+          echo "ARCH_KEY=$(echo $ARCH | tr '/' '-')" >> $GITHUB_ENV
+      - name: Archive artifacts
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
+        with:
+          name: build-linux-${{ env.ARCH_KEY }}
+          if-no-files-found: error
+          retention-days: 5
+          path: |
+            packages/fpm/out
+
+  build-mac:
+    runs-on: ${{ matrix.node }}
     timeout-minutes: 15
-    outputs:
-      artifactUrl: ${{ steps.artifact-url.outputs.ARTIFACT_URL }}
-      artifactId: ${{ steps.artifact-url.outputs.ARTIFACT_ID }}
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [macos-13, macos-15] # macOS x64 and native arm64 runners
     steps:
       - name: Checkout code repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
-          fetch-depth: 1
-      - name: Compress Artifacts
+          submodules: true
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+        with:
+          version: 9.4.0
+      - name: Setup node
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4
+        with:
+          node-version: '22'
+      - name: Install
         run: |
-          sh ./compress-artifacts.sh
+          pnpm i --frozen-lockfile
+      - name: Build
+        shell: bash
+        run: |
+          bash build-mac.sh
+      - name: Archive artifacts
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
+        with:
+          name: mac-artifacts-${{ matrix.node }}
+          if-no-files-found: error
+          retention-days: 5
+          path: |
+            packages/fpm/out
+
+  combine-artifacts:
+    runs-on: macos-latest
+    needs: [
+      build-linux,
+      build-mac
+    ]
+    timeout-minutes: 15
+    outputs:
+      artifactUrl: ${{ steps.upload-artifacts.outputs.artifact-url }}
+      artifactId: ${{ steps.upload-artifacts.outputs.artifact-id }}
+    steps:
+      - name: Install `tree`
+        run: |
+          brew install tree
+      - name: Checkout code repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          submodules: true
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+        with:
+          version: 9.4.0
+      - name: Setup node
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4
+        with:
+          node-version: '22'
+      - name: Download artifacts
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: Tree the out directory
+        run: |
+          tree ./out
+      - name: Compress Artifacts and verify artifact exists from changeset status
+        run: |
+          sh ./scripts/compress-artifacts.sh
+          pnpm i --frozen-lockfile
+          DRY_RUN=true node ./scripts/changeset-version.js
       - name: Upload Artifacts
         id: upload-artifacts
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
         with:
-          path: artifacts
           name: artifacts
+          if-no-files-found: error
+          retention-days: 5
+          path: artifacts
       - name: Extract artifact url
         id: artifact-url
         run: |
           echo "Artifact URL is: ${{ steps.upload-artifacts.outputs.artifact-url }}"
-          echo "ARTIFACT_URL=${{ steps.upload-artifacts.outputs.artifact-url }}" >> $GITHUB_ENV
-          echo "ARTIFACT_ID=${{ steps.upload-artifacts.outputs.artifact-id }}" >> $GITHUB_ENV
