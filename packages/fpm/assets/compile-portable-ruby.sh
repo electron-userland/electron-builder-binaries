@@ -53,6 +53,8 @@ else
             --enable-load-relative \
             --with-openssl-dir=/usr \
             --with-libyaml-dir=/usr \
+            --with-readline-dir=/usr \
+            --with-zlib-dir=/usr \
             --with-baseruby=$(which ruby) \
             --host=i386-linux-gnu \
             CC="gcc -m32" \
@@ -65,6 +67,8 @@ else
             --enable-load-relative \
             --with-openssl-dir=/usr \
             --with-libyaml-dir=/usr \
+            --with-readline-dir=/usr \
+            --with-zlib-dir=/usr \
             --with-baseruby=$(which ruby) 1>/dev/null
     fi
 
