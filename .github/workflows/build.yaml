@@ -26,7 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [amd64, "386", arm/v7, arm64/v8, ppc64le, s390x]
+        arch: [x86_64, "386"] #, arm64/v8, arm/v7, ppc64le, s390x]
     steps:
       - name: Set up QEMU dependency
         uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392
@@ -113,6 +113,7 @@ jobs:
       - name: Checkout code repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
+          fetch-depth: 0
           submodules: true
       - name: Setup pnpm
         uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
@@ -133,16 +134,19 @@ jobs:
       - name: Compress Artifacts and verify artifact exists from changeset status
         run: |
           sh ./scripts/compress-artifacts.sh
+      - name: Validate artifact automation
+        run: |
           pnpm i --frozen-lockfile
+          tree ./artifacts-staging
           DRY_RUN=true node ./scripts/changeset-version.js
       - name: Upload Artifacts
         id: upload-artifacts
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
         with:
-          name: artifacts
+          name: artifacts-staging
           if-no-files-found: error
           retention-days: 5
-          path: artifacts
+          path: artifacts-staging
       - name: Extract artifact url
         id: artifact-url
         run: |

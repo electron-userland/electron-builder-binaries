@@ -16,7 +16,7 @@ releases.forEach((release) => {
   const { name } = release;
   const artifactPath = path.resolve(__dirname, "../artifacts", name);
   if (!process.env.DRY_RUN) {
-    execSync(`git add --force ${artifactPath}`);
+    execSync(`git add --force -A ${artifactPath}`);
     console.log(`Committed ${artifactPath}...`);
   } else {
     console.log(`DRY_RUN: Verified ${artifactPath}...`);

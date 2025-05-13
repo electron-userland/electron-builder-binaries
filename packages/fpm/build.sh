@@ -4,29 +4,32 @@ set -euo pipefail
 export RUBY_VERSION=3.4.3
 
 CWD=$(cd "$(dirname "$BASH_SOURCE")" && pwd)
-BASEDIR=$CWD/out
-mkdir -p $BASEDIR
-
 OS_TARGET=${OS_TARGET:-$(uname | tr '[:upper:]' '[:lower:]')}
 
 if [ "$OS_TARGET" = "darwin" ]; then
     echo "Building for macOS"
     bash "$CWD/assets/compile-portable-ruby.sh"
+    bash "$CWD/assets/patch-portable-ruby.sh"
 else
     # These are the --platform linux/ARCH options available for buildpack-deps:bookworm-curl
     # Pulled from: https://hub.docker.com/_/buildpack-deps/tags?name=bookworm-curl
-    ARCH_OPTIONS="amd64 arm/v5 arm/v7 arm64/v8 386 mips64le ppc64le s390x"
+    ARCH_OPTIONS="x86_64 arm/v5 arm/v7 arm64/v8 386 mips64le ppc64le s390x"
     echo "Building for Linux"
     if [ -z "$ARCH" ]; then
         echo "Architecture not specified. Options are: $ARCH_OPTIONS."
-        echo "Defaulting to amd64."
-        ARCH="amd64"
+        ARCH="x86_64"
+        echo "Defaulting to $ARCH."
     fi
     if [[ "$ARCH_OPTIONS" != *"$ARCH"* ]]; then
         echo "Unknown architecture: $ARCH. Options supported: $ARCH_OPTIONS."
         echo "Please set the ARCH environment variable to one of these values."
-        echo "Example: ARCH=amd64 ./path/to/build.sh"
+        echo "Example: ARCH=x86_64 ./path/to/build.sh"
         exit 1
+    fi
+    if [ "$ARCH" = "386" ]; then
+        PLATFORM_ARCH="x86_64" # for --platform=linux/x86_64 multi-arch image compiling 32-bit
+    else
+        PLATFORM_ARCH="$ARCH"
     fi
     echo "Building for architecture: $ARCH"
 
@@ -61,8 +64,9 @@ else
     docker buildx build \
         --load \
         -f "$CWD/assets/Dockerfile" \
+        --build-arg PLATFORM_ARCH=$PLATFORM_ARCH \
+        --build-arg TARGET_ARCH=$ARCH \
         --build-arg RUBY_VERSION=$RUBY_VERSION \
-        --build-arg TARGETARCH=$ARCH \
         --progress=plain \
         -t $DOCKER_TAG \
         $CWD

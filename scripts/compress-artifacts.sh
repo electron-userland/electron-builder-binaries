@@ -36,10 +36,10 @@ downloadArtifact()
 # fpm
 NAME="fpm"
 DESINTATION_DIR="$ARTIFACTS_DIR/$NAME"
-mkdir -p "$DESINTATION_DIR"
-cp -a "$PACKAGE_PATH/$NAME/out/" "$DESINTATION_DIR/"
+rm -rf "$DESINTATION_DIR"
+cp -a "$BUILD_OUT_DIR/$NAME" "$DESINTATION_DIR"
 for f in "$DESINTATION_DIR"/*; do
-    hashArtifact "fpm/$(basename "$f")"
+    hashArtifact "$NAME/$(basename "$f")"
 done
 
 # ztsd

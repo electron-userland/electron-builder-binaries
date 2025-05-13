@@ -5,7 +5,7 @@ ROOT_DIR=$(cd "$( dirname -- "$BASH_SOURCE"; )/.." && pwd)
 PACKAGE_PATH=$ROOT_DIR/packages
 BUILD_OUT_DIR=$ROOT_DIR/out
 mkdir -p "$BUILD_OUT_DIR"
-ARTIFACTS_DIR=$ROOT_DIR/artifacts
+ARTIFACTS_DIR=$ROOT_DIR/artifacts-staging
 mkdir -p "$ARTIFACTS_DIR"
 
 hashArtifact()
