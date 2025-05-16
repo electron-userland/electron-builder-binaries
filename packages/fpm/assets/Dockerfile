@@ -17,17 +17,19 @@ RUN apt-get update -qq && apt-get install -yq \
     libssl-dev libreadline-dev libyaml-dev \
     zlib1g-dev libffi-dev libgdbm-dev \
     file patchelf tar ruby-dev valgrind \
-    openssl libz-dev libyaml-dev p7zip-full
+    openssl libz-dev libyaml-dev p7zip-full xz-utils \
+    liblzma-dev
 
 # Enable 386 multilib toolchain if needed
 ARG TARGET_ARCH
-RUN if [ "$TARGET_ARCH" = "386" ]; then \
+RUN if [ "$TARGET_ARCH" = "i386" ]; then \
     dpkg --add-architecture i386 && \
     apt-get update -qq && \
     apt-get install -yq \
     gcc-multilib g++-multilib valgrind:i386 libssl-dev:i386 \
     libc6-dev:i386 libgcc-11-dev:i386 libstdc++-11-dev:i386 \
-    libz-dev:i386 libyaml-dev:i386; \
+    libz-dev:i386 libyaml-dev:i386 xz-utils:i386 \
+    liblzma-dev:i386; \
     fi
 
 WORKDIR /tmp/assets

@@ -11,9 +11,9 @@ if [ "$OS_TARGET" = "darwin" ]; then
     bash "$CWD/assets/compile-portable-ruby.sh"
     bash "$CWD/assets/patch-portable-ruby.sh"
 else
-    # These are the --platform linux/ARCH options available for buildpack-deps:bookworm-curl
-    # Pulled from: https://hub.docker.com/_/buildpack-deps/tags?name=bookworm-curl
-    ARCH_OPTIONS="x86_64 arm/v5 arm/v7 arm64/v8 386 mips64le ppc64le s390x"
+    # These are the --platform linux/ARCH options available
+    # Pulled from: https://hub.docker.com/_/buildpack-deps/tags?name=22.04-curl
+    ARCH_OPTIONS="x86_64 arm/v5 arm/v7 arm64/v8 i386 mips64le ppc64le s390x"
     echo "Building for Linux"
     if [ -z "$ARCH" ]; then
         echo "Architecture not specified. Options are: $ARCH_OPTIONS."
@@ -26,7 +26,7 @@ else
         echo "Example: ARCH=x86_64 ./path/to/build.sh"
         exit 1
     fi
-    if [ "$ARCH" = "386" ]; then
+    if [ "$ARCH" = "i386" ]; then
         PLATFORM_ARCH="x86_64" # for --platform=linux/x86_64 multi-arch image compiling 32-bit
     else
         PLATFORM_ARCH="$ARCH"
