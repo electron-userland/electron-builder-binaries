@@ -23,16 +23,17 @@ jobs:
       - name: Checkout code repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
+          submodules: true
 
-      - name: Download artifact
+      - name: Download new artifacts
         id: download-artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           artifact-ids: ${{ needs.build-artifacts.outputs.artifactId }}
 
       - name: Display structure of downloaded files
-        run: ls -R artifacts
+        run: ls -R artifacts-staging
 
       - name: Setup pnpm
         uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
@@ -54,7 +55,7 @@ jobs:
         id: changesets
         uses: changesets/action@06245a4e0a36c064a573d4150030f5ec548e4fcc # v1.4.1
         with:
-          version: pnpm ci:version
+          version: "pnpm ci:version"
           publish: "pnpm ci:publish"
           commit: 'chore(deploy): Release'
           title: 'chore(deploy): Release'
@@ -65,7 +66,6 @@ jobs:
       - name: Create scoped releases
         if: steps.changesets.outputs.published == 'true'
         run: |
-          git reset --hard HEAD
           echo "Releases created with tags: ${{ steps.changesets.outputs.publishedPackages }}"
           node scripts/changeset-publish.js
         env:

@@ -1,6 +1,7 @@
 .idea/
-out/
-node_modules/
+**/out/
+**/node_modules/
 .DS_Store
-artifacts
 changeset-status.json
+artifacts
+artifacts-staging

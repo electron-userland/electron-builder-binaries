@@ -3,6 +3,6 @@
   "changelog": ["@changesets/changelog-github", { "repo": "electron-userland/electron-builder-binaries" }],
   "commit": true,
   "access": "public",
-  "baseBranch": "master",
+  "baseBranch": "origin/master",
   "createGithubReleases": false
 }

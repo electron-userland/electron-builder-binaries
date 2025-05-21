@@ -1,7 +1,6 @@
 const path = require("path");
 const fs = require("fs");
 const { execSync } = require("child_process");
-const packageMap = require("./changeset-packagemap");
 
 // changeset status expects relative __dirname even if we set absolute output path
 const changesetJsonPath = "changeset-status.json";
@@ -12,20 +11,26 @@ const changesetJson = JSON.parse(fs.readFileSync(changesetJsonPath, "utf-8"));
 const releases = changesetJson.releases;
 
 console.log("Release candidates:", releases);
+const stagingDir = path.resolve(__dirname, "../artifacts-staging");
 
 releases.forEach((release) => {
   const { name } = release;
-  const artifactsToUpload = packageMap[name];
-  if (!artifactsToUpload) {
-    throw new Error(`No artifacts found for ${name}`);
+  const artifactDestination = path.resolve(__dirname, "../artifacts", name);
+  const stagingArtifactPath = path.resolve(stagingDir, name);
+  if (!process.env.DRY_RUN) {
+    fs.rmSync(artifactDestination, { recursive: true, force: true });
+    fs.renameSync(stagingArtifactPath, artifactDestination);
+    console.log(`Moved ${stagingArtifactPath} to ${artifactDestination}...`);
+
+    execSync(`git add --force -A ${artifactDestination}`);
+    console.log(`Committed ${artifactDestination}...`);
+  } else {
+    console.log(`DRY_RUN: Verified ${artifactDestination}...`);
   }
-  console.log(`Committing artifacts for ${name}...`);
-  artifactsToUpload.forEach((artifact) => {
-    const artifactPath = path.resolve(__dirname, "../artifacts", artifact);
-    if (!fs.existsSync(artifactPath)) {
-      throw new Error(`Artifact not found: ${artifactPath}. Please check the package<=>file map in 'changeset-packagemap.js'`);
-    }
-    // --force because the folder is ignored by git to prevent accidental commits
-    execSync(`git add --force ${artifactPath}`);
-  });
 });
+
+if (!process.env.DRY_RUN) {
+  // Remove the changeset status file
+  fs.rmSync(stagingDir, { recursive: true, force: true });
+  console.log(`Removed ${stagingDir}...`);
+}

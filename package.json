@@ -7,7 +7,7 @@
   },
   "private": true,
   "scripts": {
-    "ci:version": "pnpm i && node scripts/changeset-version.js && changeset version",
+    "ci:version": "node scripts/changeset-version.js && changeset version",
     "ci:publish": "changeset tag"
   },
   "devDependencies": {
