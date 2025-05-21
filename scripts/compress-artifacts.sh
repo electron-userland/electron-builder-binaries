@@ -42,6 +42,13 @@ for f in "$DESINTATION_DIR"/*; do
     hashArtifact "$NAME/$(basename "$f")"
 done
 
+# squirrel.windows
+NAME="squirrel.windows"
+DESINTATION_DIR="$ARTIFACTS_DIR/$NAME"
+rm -rf "$DESINTATION_DIR"
+cp -a "$BUILD_OUT_DIR/$NAME" "$DESINTATION_DIR"
+hashArtifact "$NAME/$(basename "$DESINTATION_DIR")"
+
 # ztsd
 NAME="zstd"
 VERSION="1.5.5"
@@ -95,12 +102,6 @@ RELEASE_NAME="snap-template-4.0-2"
 ARCHIVE_NAME="snap-template-electron-4.0-2-amd64.tar.7z"
 curl -L https://github.com/electron-userland/electron-builder-binaries/releases/download/$RELEASE_NAME/$ARCHIVE_NAME > "$ARTIFACTS_DIR/$ARCHIVE_NAME"
 hashArtifact "$ARCHIVE_NAME" "PYhiQQ5KE4ezraLE7TOT2aFPGkBNjHLRN7C8qAPaC6VckHU3H+0m+JA/Wmx683fKUT2ZBwo9Mp82EuhmQo5WOQ=="
-
-# Squirrel.Windows
-NAME="Squirrel.Windows"
-VERSION=1.9.0
-ARCHIVE_NAME="$NAME-$VERSION"
-downloadArtifact "$ARCHIVE_NAME" "$ARCHIVE_NAME" "zJHk4CMATM7jHJ2ojRH1n3LkOnaIezDk5FAzJmlSEQSiEdRuB4GGLCegLDtsRCakfHIVfKh3ysJHLjynPkXwhQ==" "squirrel.windows-$VERSION"
 
 # nsis-resources
 NAME="nsis-resources"
