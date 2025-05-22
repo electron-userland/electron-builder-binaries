@@ -284,7 +284,10 @@ echo "fpm: $FPM_VERSION" >>$INSTALL_DIR/VERSION.txt
 
 echo "🔨 Creating portable archive..."
 cd "$INSTALL_DIR"
-ARCHIVE_NAME="fpm-${FPM_VERSION}-ruby-${RUBY_VERSION}-$(uname -s | tr '[:upper:]' '[:lower:]')-${TARGET_ARCH:-$(uname -m)}.7z"
+
+ARCHIVE_OS=$(echo ${OS_TARGET:-$(uname -s)} | tr '[:upper:]' '[:lower:]')
+ARCHIVE_ARCH_SUFFIX=$(echo ${TARGET_ARCH:-$(uname -m)} | tr -d '/' | tr '[:upper:]' '[:lower:]')
+ARCHIVE_NAME="fpm-${FPM_VERSION}-ruby-${RUBY_VERSION}-${ARCHIVE_OS}-${ARCHIVE_ARCH_SUFFIX}.7z"
 
 7za a -mx=9 -mfb=64 "$OUTPUT_DIR/$ARCHIVE_NAME" "$INSTALL_DIR"/*
 echo "🚢 Portable Ruby $RUBY_VERSION built and bundled at:"
