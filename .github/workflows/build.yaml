@@ -2,8 +2,7 @@ name: Build artifacts
 
 on:
   push:
-    branches:
-      master
+    branches: master
   pull_request:
   workflow_dispatch: # Allows you to run this workflow manually from the Actions tab
   workflow_call:
@@ -20,7 +19,7 @@ permissions:
   contents: read
 
 jobs:
-  build-linux:
+  fpm-linux:
     runs-on: ubuntu-latest
     timeout-minutes: 60 # Increased timeout for linux cross-compilation
     strategy:
@@ -56,11 +55,11 @@ jobs:
         with:
           name: build-linux-${{ env.ARCH_KEY }}
           if-no-files-found: error
-          retention-days: 5
+          retention-days: 1
           path: |
             packages/fpm/out
 
-  build-mac:
+  fpm-mac:
     runs-on: ${{ matrix.node }}
     timeout-minutes: 15
     strategy:
@@ -92,16 +91,47 @@ jobs:
         with:
           name: mac-artifacts-${{ matrix.node }}
           if-no-files-found: error
-          retention-days: 5
+          retention-days: 1
           path: |
             packages/fpm/out
+
+  squirrel-windows:
+    runs-on: windows-2019
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      NUGET_XMLDOC_MODE: skip
+      ACTIONS_ALLOW_UNSECURE_COMMANDS: true
+    steps:
+      - name: Enable long paths support
+        run: git config --system core.longpaths true
+      - name: Checkout code repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          submodules: true
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v1.3.1
+      - name: Build Squirrel.Windows
+        shell: pwsh
+        run: |
+          .\packages\squirrel.windows\build.ps1
+      - name: Archive artifacts
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
+        with:
+          name: squirrel-windows-patched
+          if-no-files-found: error
+          retention-days: 1
+          path: |
+            .\packages\squirrel.windows\out
 
   combine-artifacts:
     runs-on: macos-latest
     needs: [
-      build-linux,
-      build-mac
-    ]
+        fpm-linux,
+        fpm-mac,
+        squirrel-windows,
+        ]
     timeout-minutes: 15
     outputs:
       artifactUrl: ${{ steps.upload-artifacts.outputs.artifact-url }}
@@ -144,7 +174,7 @@ jobs:
         with:
           name: artifacts-staging
           if-no-files-found: error
-          retention-days: 5
+          retention-days: 1
           path: artifacts-staging
       - name: Extract artifact url
         id: artifact-url

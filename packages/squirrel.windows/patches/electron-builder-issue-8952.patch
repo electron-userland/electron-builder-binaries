@@ -1,0 +1,25 @@
+diff --git a/src/Update/Program.cs b/src/Update/Program.cs
+index e1330bc..b89a652 100644
+--- a/src/Update/Program.cs
++++ b/src/Update/Program.cs
+@@ -621,12 +621,19 @@ bool isPEFileSigned(string path)
+ 
+         async Task createExecutableStubForExe(string fullName)
+         {
+-            var exe = Utility.FindHelperExecutable(@"StubExecutable.exe");
++            if(fullName.EndsWith("_ExecutionStub.exe")) {
++                return;
++            }
+ 
+             var target = Path.Combine(
+                 Path.GetDirectoryName(fullName),
+                 Path.GetFileNameWithoutExtension(fullName) + "_ExecutionStub.exe");
+ 
++            if (File.Exists(target)) {
++                return;
++            }
++            var exe = Utility.FindHelperExecutable(@"StubExecutable.exe");
++
+             await Utility.CopyToAsync(exe, target);
+ 
+             await Utility.InvokeProcessAsync(
