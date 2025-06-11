@@ -6,7 +6,7 @@ settings:
 
 patchedDependencies:
   gh-release@7.0.2:
-    hash: 2shp4obt62na4vety464kiuec4
+    hash: cb4c6d37687014afed9f6100c3b3d3103aa23f175cee079a1cc16b4f515e4b9d
     path: patches/gh-release@7.0.2.patch
 
 importers:
@@ -24,7 +24,7 @@ importers:
         version: 2.29.2
       gh-release:
         specifier: ^7.0.2
-        version: 7.0.2(patch_hash=2shp4obt62na4vety464kiuec4)(encoding@0.1.13)
+        version: 7.0.2(patch_hash=cb4c6d37687014afed9f6100c3b3d3103aa23f175cee079a1cc16b4f515e4b9d)(encoding@0.1.13)
 
   packages/AppImage: {}
 
@@ -2399,7 +2399,7 @@ snapshots:
       simple-get: 4.0.1
       util-extend: 1.0.3
 
-  gh-release@7.0.2(patch_hash=2shp4obt62na4vety464kiuec4)(encoding@0.1.13):
+  gh-release@7.0.2(patch_hash=cb4c6d37687014afed9f6100c3b3d3103aa23f175cee079a1cc16b4f515e4b9d)(encoding@0.1.13):
     dependencies:
       '@octokit/rest': 19.0.13(encoding@0.1.13)
       changelog-parser: 3.0.1
