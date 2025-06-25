@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -euo pipefail
+set -exuo pipefail
 
 CWD=$(cd "$(dirname "$BASH_SOURCE")" && pwd)
 source "$CWD/constants.sh"
@@ -22,7 +22,12 @@ cd "ruby-${RUBY_VERSION}"
 BASE_FLAGS=(
     "--prefix=$RUBY_PREFIX"
     --disable-install-doc
-    --enable-shared
+    --disable-rpath
+    --disable-dtrace
+    --disable-jit-support
+
+    --disable-shared
+    --with-static-linked-ext
     --enable-load-relative
 )
 echo "🔨 Configuring and compiling Ruby..."
@@ -51,6 +56,10 @@ if [ "$(uname)" = "Darwin" ]; then
         --with-libyaml-dir=$(brew --prefix libyaml) \
         1>/dev/null
 
+    echo "  ⚒️ Clearing default/bundled gems (includes native extensions that can't be portable)..."
+    rm -rf .bundle gems
+    mkdir -p gems && touch gems/bundled_gems
+
     echo "  🔨 Building Ruby..."
     make -j"$(sysctl -n hw.ncpu)" 1>/dev/null
     echo "  ⤵️ Installing Ruby..."
@@ -59,7 +68,6 @@ else
     echo "  🐧 Compiling for Linux."
     autoconf
     ./autogen.sh
-
     COMMON_FLAGS=(
         "${BASE_FLAGS[@]}"
         "--with-opt-dir=/usr"
@@ -68,7 +76,13 @@ else
         "--with-zlib-dir=/usr"
         "--with-readline-dir=/usr"
         "--with-baseruby=$(which ruby)"
+        "--with-out-ext=debug,rbs,syslog,nkf,bigdecimal,racc"
     )
+
+    export CFLAGS="-fPIC -O2"
+    export LDFLAGS="-fPIC -static-libgcc -static-libstdc++"
+    export CPPFLAGS="$CFLAGS"
+
     echo "  ⚙️ Running configure..."
     if [ "$TARGET_ARCH" = "i386" ]; then
         echo " ✏️ Using 32-bit architecture flags."
@@ -83,6 +97,7 @@ else
 
     echo "  🔨 Building Ruby..."
     make -j$(nproc) 1>/dev/null
+
     echo "  ⤵️ Installing Ruby..."
     make install 1>/dev/null
 fi

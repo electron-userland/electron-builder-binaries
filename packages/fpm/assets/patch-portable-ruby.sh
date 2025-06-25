@@ -193,53 +193,40 @@ if [ "$(uname)" = "Darwin" ]; then
 
     echo "✅ All dylib references made portable. Autocopied missing libraries where needed."
 else
-    echo "  🐧 Patching portable Ruby bundle for Linux."
+    WHITELISTED_LIBS=(
+        libssl.so
+        libcrypto.so
+        libreadline.so
+        libz.so
+        libyaml
+        liblzma.so
+        libffi.so
+        libgmp.so
+    )
 
     echo "  ⏩️ Copying shared libraries to $LIB_DIR"
-    SHARED_LIBRARIES=(
-        "libssl.so*"
-        "libcrypto.so*"
-        "libreadline.so*"
-        "libz.so*"
-        "libyaml-cpp.so*"
-        "liblzma.so*"
-    )
-    for pattern in "${SHARED_LIBRARIES[@]}"; do
-        find /usr/lib /lib -type f -name "$pattern" 2>/dev/null | while read -r filepath; do
-            dest="$LIB_DIR/$(basename $filepath)"
-            if [[ ! -f "$dest" ]]; then
-                echo "    📝 Copying $filepath"
-                cp -a "$filepath" "$dest"
-            fi
-        done
-    done
-
-    echo "  🔍 Scanning Ruby extensions for additional shared libraries..."
-    IFS=$'\n'
-    LDD_SEARCH_PATHS=("$RUBY_PREFIX/bin/ruby" $(find "$LIB_DIR/ruby" -type f -name '*.so'))
-    unset IFS
-
-    for ext_so in "${LDD_SEARCH_PATHS[@]}"; do
-        if [[ ! -f "$ext_so" ]]; then
-            echo "  ⏩️ Skipping $ext_so (not a file)"
-            continue
-        fi
-        SO_DIR=$(dirname "$ext_so")
-        REL_RPATH=$(realpath --relative-to="$SO_DIR" "$LIB_DIR")
-        echo "    🩹 Patching $(realpath --relative-to="$RUBY_PREFIX" "$ext_so") to rpath: \$ORIGIN/$REL_RPATH"
-        patchelf --set-rpath "\$ORIGIN/$REL_RPATH" "$ext_so"
-
-        ldd "$ext_so" | awk '/=>/ { print $3 }' | while read -r dep; do
-            if [[ -f "$dep" ]]; then
-                dest="$LIB_DIR/$(basename $dep)"
+    ldd "$RUBY_PREFIX/bin/ruby" | awk '/=>/ { print $3 }' | while read -r filepath; do
+        [[ -z "$filepath" || ! -f "$filepath" ]] && continue
+        
+        filename=$(basename "$filepath")
+        
+        # explicitly skip system libraries
+        [[ "$filename" =~ ^(libc\.so|libm\.so|libdl\.so|libcrypt\.so|librt\.so|libpthread\.so|ld-linux.*\.so).* ]] && continue
+        
+        for prefix in "${WHITELISTED_LIBS[@]}"; do
+            if [[ "$filename" == "$prefix"* ]]; then
+                dest="$LIB_DIR/$filename"
                 if [[ ! -f "$dest" ]]; then
-                    echo "    📝 Copying $dep"
-                    cp -u "$dep" "$LIB_DIR/"
+                    echo "    📝 Copying $filepath"
+                    cp -aL "$filepath" "$LIB_DIR/"
                 fi
+                break
             fi
         done
     done
-    echo "✅ All shared library paths rewritten using @rpath where applicable."
+
+    echo "  🐧 Patching portable Ruby bundle for Linux"
+    patchelf --set-rpath '$ORIGIN/../lib' "$RUBY_PREFIX/bin/ruby"
 fi
 
 echo "✂️ Stripping symbols and measuring size savings..."

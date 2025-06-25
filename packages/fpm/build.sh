@@ -12,22 +12,22 @@ if [ "$OS_TARGET" = "darwin" ]; then
     bash "$CWD/assets/patch-portable-ruby.sh"
 else
     # These are the --platform linux/ARCH options available
-    # Pulled from: https://hub.docker.com/_/buildpack-deps/tags?name=22.04-curl
-    ARCH_OPTIONS="x86_64 arm/v5 arm/v7 arm64/v8 i386 mips64le ppc64le s390x"
+    # Pulled from: https://hub.docker.com/_/debian/tags?name=buster
+    ARCH_OPTIONS="i386 amd64 arm/v5 arm/v7 arm64/v8"
     echo "Building for Linux"
     if [ -z "$ARCH" ]; then
         echo "Architecture not specified. Options are: $ARCH_OPTIONS."
-        ARCH="x86_64"
+        ARCH="amd64"
         echo "Defaulting to $ARCH."
     fi
     if [[ "$ARCH_OPTIONS" != *"$ARCH"* ]]; then
         echo "Unknown architecture: $ARCH. Options supported: $ARCH_OPTIONS."
         echo "Please set the ARCH environment variable to one of these values."
-        echo "Example: ARCH=x86_64 ./path/to/build.sh"
+        echo "Example: ARCH=amd64 ./path/to/build.sh"
         exit 1
     fi
     if [ "$ARCH" = "i386" ]; then
-        PLATFORM_ARCH="x86_64" # for --platform=linux/x86_64 multi-arch image compiling 32-bit
+        PLATFORM_ARCH="386"
     else
         PLATFORM_ARCH="$ARCH"
     fi
@@ -63,14 +63,13 @@ else
     DOCKER_TAG="fpm-builder:$ARCH_KEY"
     docker buildx build \
         --load \
-        -f "$CWD/assets/Dockerfile" \
         --build-arg PLATFORM_ARCH=$PLATFORM_ARCH \
         --build-arg TARGET_ARCH=$ARCH \
         --build-arg RUBY_VERSION=$RUBY_VERSION \
         --progress=plain \
+        -f "$CWD/assets/Dockerfile" \
         -t $DOCKER_TAG \
         $CWD
-    # --no-cache \ # Add to above to force rebuild
     docker run --cidfile="$cidFile" $DOCKER_TAG
 
     containerId=$(cat "$cidFile")
