@@ -1,5 +1,11 @@
 # fpm
 
+## 2.0.1
+
+### Patch Changes
+
+- [#74](https://github.com/electron-userland/electron-builder-binaries/pull/74) [`4e87907`](https://github.com/electron-userland/electron-builder-binaries/commit/4e87907892868c35814a7e5566362f2375422b87) Thanks [@mmaietta](https://github.com/mmaietta)! - fix(fpm): downgrade docker image to debian:buster to support older distros
+
 ## 2.0.0
 
 ### Major Changes
