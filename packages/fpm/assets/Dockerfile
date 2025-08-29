@@ -7,7 +7,9 @@ ARG RUBY_VERSION=3.4.3
 FROM --platform=linux/${PLATFORM_ARCH:-amd64} debian:buster
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install -y \
+RUN sed -i 's|http://deb.debian.org/debian|http://archive.debian.org/debian|g' /etc/apt/sources.list \
+    && echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99no-check-valid-until \
+    && apt-get update && apt-get install -y \
     build-essential \
     libssl-dev \
     libreadline-dev \
