@@ -17,10 +17,10 @@ permissions:
 
 jobs:
   fpm:
-    uses: ./.github/workflows/build-fpm.yml
+    uses: ./.github/workflows/build-fpm.yaml
 
   squirrel:
-    uses: ./.github/workflows/build-squirrel.yml
+    uses: ./.github/workflows/build-squirrel.yaml
 
   combine:
     runs-on: macos-latest
