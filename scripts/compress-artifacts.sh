@@ -43,11 +43,11 @@ for f in "$DESINTATION_DIR"/*; do
 done
 
 # squirrel.windows
-NAME="squirrel.windows"
-DESINTATION_DIR="$ARTIFACTS_DIR/$NAME"
-rm -rf "$DESINTATION_DIR"
-cp -a "$BUILD_OUT_DIR/$NAME" "$DESINTATION_DIR"
-hashArtifact "$NAME/$(basename "$DESINTATION_DIR")"
+# NAME="squirrel.windows"
+# DESINTATION_DIR="$ARTIFACTS_DIR/$NAME"
+# rm -rf "$DESINTATION_DIR"
+# cp -a "$BUILD_OUT_DIR/$NAME" "$DESINTATION_DIR"
+# hashArtifact "$NAME/$(basename "$DESINTATION_DIR")"
 
 # ztsd
 NAME="zstd"

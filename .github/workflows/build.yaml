@@ -19,12 +19,15 @@ jobs:
   fpm:
     uses: ./.github/workflows/build-fpm.yaml
 
-  squirrel:
-    uses: ./.github/workflows/build-squirrel.yaml
+  # squirrel:
+  #   uses: ./.github/workflows/build-squirrel.yaml
 
   combine:
     runs-on: macos-latest
-    needs: [fpm, squirrel]
+    needs: [
+      fpm,
+      # squirrel
+    ]
     outputs:
       artifactUrl: ${{ steps.upload.outputs.artifact-url }}
       artifactId: ${{ steps.upload.outputs.artifact-id }}
