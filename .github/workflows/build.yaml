@@ -32,30 +32,42 @@ jobs:
       artifactUrl: ${{ steps.upload.outputs.artifact-url }}
       artifactId: ${{ steps.upload.outputs.artifact-id }}
     steps:
-      - name: Install `tree`
-        run: |
-          brew install tree
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: { fetch-depth: 0 }
-      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
         with: { version: 9.4.0 }
-      - uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a
         with: { node-version: '22' }
-      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4
+
+      - name: Install tree via Homebrew
+        run: brew install tree
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
         with:
           path: out
           merge-multiple: true
-      - name: Preview artifact tree
+
+      - name: Show artifact tree
         run: tree ./out
+
       - name: Compress artifacts
         run: sh ./scripts/compress-artifacts.sh
-      - name: Dry run publish script to validate artifacts
+
+      - name: Validate artifact automation
         run: |
           pnpm i --frozen-lockfile
           tree ./artifacts-staging
           DRY_RUN=true node ./scripts/changeset-version.js
-      - id: upload
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
+
+      - name: Upload combined artifacts
+        id: upload
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
         with:
           name: artifacts-staging
           path: artifacts-staging

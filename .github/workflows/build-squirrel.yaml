@@ -16,13 +16,18 @@ jobs:
       DOTNET_CLI_TELEMETRY_OPTOUT: true
       NUGET_XMLDOC_MODE: skip
     steps:
-      - run: git config --system core.longpaths true
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Enable Git long paths
+        run: git config --system core.longpaths true
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: { submodules: true }
-      - uses: microsoft/setup-msbuild@4fbf5680f8493fb5ec8a01d9448b5a7efa830f25 # v1.3.1
-      - run: .\packages\squirrel.windows\build.ps1
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@4fbf5680f8493fb5ec8a01d9448b5a7efa830f25
+      - name: Build Squirrel.Windows
+        run: .\packages\squirrel.windows\build.ps1
         shell: pwsh
-      - uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
+      - name: Upload Squirrel artifact
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
         with:
           name: squirrel-windows-patched
           path: .\packages\squirrel.windows\out
