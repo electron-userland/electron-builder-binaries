@@ -5,7 +5,7 @@ set -euo pipefail
 CWD=$(cd "$(dirname "$BASH_SOURCE")" && pwd)
 source "$CWD/constants.sh"
 
-GEM_LIST=("fpm -v 1.16.0" "ruby-xz") # Add other gems (with or without version arg) here
+GEM_LIST=("fpm -v 1.17.0" "ruby-xz") # Add other gems (with or without version arg) here
 ENTRYPOINT_GEMS=("fpm")
 
 # ===== Prepare folders =====
