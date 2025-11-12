@@ -23,11 +23,19 @@ RUBY_BIN="\$RUBY_DIR/bin"
 export PATH="\$RUBY_BIN:\$PATH"
 export GEM_HOME="\$RUBY_DIR/gems"
 export GEM_PATH="\$GEM_HOME"
-export RUBYLIB="\$RUBY_DIR/lib:\$RUBYLIB"
+
+# Include all necessary Ruby library paths:
+#  - Core stdlib (lib/ruby/3.x.x)
+#  - Arch-specific stdlib (lib/ruby/3.x.x/x86_64-linux or equivalent)
+#  - Vendor and site Ruby directories
+RUBY_VERSION_DIR="\$(find "\$RUBY_DIR/lib/ruby" -maxdepth 1 -type d -name '3.*' | sort | tail -n1)"
+ARCH_DIR="\$(find "\$RUBY_VERSION_DIR" -maxdepth 1 -type d -name '*-linux*' | head -n1)"
+export RUBYLIB="\${RUBY_VERSION_DIR}:\${ARCH_DIR}:\${RUBY_DIR}/lib/ruby/vendor_ruby:\${RUBY_DIR}/lib/ruby/site_ruby:\${RUBYLIB}"
+
 if [ "\$(uname)" = "Darwin" ]; then
     # Remove quarantine attribute on macOS
     # This is necessary to avoid the "ruby is damaged and can't be opened" error when running the ruby interpreter for the first time
-    if grep -q "com.apple.quarantine" <<< "\$(xattr "\$RUBY_BIN/ruby")"; then
+    if grep -q "com.apple.quarantine" <<< "\$(xattr "\$RUBY_BIN/ruby" 2>/dev/null || true)"; then
         xattr -d com.apple.quarantine "\$RUBY_BIN/ruby"
     fi
     export DYLD_LIBRARY_PATH="\$RUBY_DIR/lib\${DYLD_LIBRARY_PATH:+:\$DYLD_LIBRARY_PATH}"
