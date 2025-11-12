@@ -21,10 +21,11 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          # This makes Actions fetch all Git history so that Changesets can generate changelogs with the correct commits
           fetch-depth: 0
-          submodules: true
+          persist-credentials: false
 
       - name: Download new artifacts
         id: download-artifact
@@ -46,22 +47,30 @@ jobs:
         with:
           node-version: '22'
           cache: 'pnpm'
-  
+    
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
         shell: bash
+
+      - name: Generate GitHub App token
+        uses: electron/github-app-auth-action@384fd19694fe7b6dcc9a684746c6976ad78228ae
+        id: generate-token
+        with:
+          export-git-user: true
+          creds: ${{ secrets.RELEASE_BOT_APP_CREDS }}
       
       - name: Create versions PR & prepare publish
         id: changesets
-        uses: changesets/action@06245a4e0a36c064a573d4150030f5ec548e4fcc # v1.4.1
+        uses: changesets/action@7af85527bb2f43a404b5823a6cad47661be255c1 # v1.5.3 - @marshallofsound fork
         with:
           version: "pnpm ci:version"
           publish: "pnpm ci:publish"
           commit: 'chore(deploy): Release'
           title: 'chore(deploy): Release'
+          setupGitUser: false
           createGithubReleases: false
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
 
       - name: Create scoped releases
         if: steps.changesets.outputs.published == 'true'
@@ -69,7 +78,7 @@ jobs:
           echo "Releases created with tags: ${{ steps.changesets.outputs.publishedPackages }}"
           node scripts/changeset-publish.js
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
           PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
 
       
