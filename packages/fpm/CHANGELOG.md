@@ -1,5 +1,15 @@
 # fpm
 
+## 2.1.0
+
+### Minor Changes
+
+- [#79](https://github.com/electron-userland/electron-builder-binaries/pull/79) [`cdcdc3e`](https://github.com/electron-userland/electron-builder-binaries/commit/cdcdc3e1f34cc43491b427377ae87ce552d42ba3) Thanks [@mmaietta](https://github.com/mmaietta)! - chore(fpm): updating fpm to 1.17.0
+
+### Patch Changes
+
+- [#82](https://github.com/electron-userland/electron-builder-binaries/pull/82) [`97760e2`](https://github.com/electron-userland/electron-builder-binaries/commit/97760e2a1456f5745d2cd3b125600a3dd7f694bc) Thanks [@mmaietta](https://github.com/mmaietta)! - fix: resolving library import paths with RUBY_HOME and RUBYLIB
+
 ## 2.0.1
 
 ### Patch Changes
