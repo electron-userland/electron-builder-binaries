@@ -6,7 +6,7 @@ settings:
 
 patchedDependencies:
   gh-release@7.0.2:
-    hash: 2shp4obt62na4vety464kiuec4
+    hash: cb4c6d37687014afed9f6100c3b3d3103aa23f175cee079a1cc16b4f515e4b9d
     path: patches/gh-release@7.0.2.patch
 
 importers:
@@ -15,7 +15,7 @@ importers:
     devDependencies:
       '@actions/attest':
         specifier: ^1.6.0
-        version: 1.6.0(@octokit/core@4.2.4(encoding@0.1.13))
+        version: 1.6.0(@octokit/core@5.2.1)
       '@changesets/changelog-github':
         specifier: ^0.5.1
         version: 0.5.1(encoding@0.1.13)
@@ -24,7 +24,7 @@ importers:
         version: 2.29.2
       gh-release:
         specifier: ^7.0.2
-        version: 7.0.2(patch_hash=2shp4obt62na4vety464kiuec4)(encoding@0.1.13)
+        version: 7.0.2(patch_hash=cb4c6d37687014afed9f6100c3b3d3103aa23f175cee079a1cc16b4f515e4b9d)(encoding@0.1.13)
 
   packages/AppImage: {}
 
@@ -1580,12 +1580,12 @@ packages:
 
 snapshots:
 
-  '@actions/attest@1.6.0(@octokit/core@4.2.4(encoding@0.1.13))':
+  '@actions/attest@1.6.0(@octokit/core@5.2.1)':
     dependencies:
       '@actions/core': 1.11.1
       '@actions/github': 6.0.0
       '@actions/http-client': 2.2.3
-      '@octokit/plugin-retry': 6.1.0(@octokit/core@4.2.4(encoding@0.1.13))
+      '@octokit/plugin-retry': 6.1.0(@octokit/core@5.2.1)
       '@sigstore/bundle': 3.1.0
       '@sigstore/sign': 3.1.0
       jose: 5.10.0
@@ -1924,9 +1924,9 @@ snapshots:
       '@octokit/core': 4.2.4(encoding@0.1.13)
       '@octokit/types': 10.0.0
 
-  '@octokit/plugin-retry@6.1.0(@octokit/core@4.2.4(encoding@0.1.13))':
+  '@octokit/plugin-retry@6.1.0(@octokit/core@5.2.1)':
     dependencies:
-      '@octokit/core': 4.2.4(encoding@0.1.13)
+      '@octokit/core': 5.2.1
       '@octokit/request-error': 5.1.1
       '@octokit/types': 13.10.0
       bottleneck: 2.19.5
@@ -2399,7 +2399,7 @@ snapshots:
       simple-get: 4.0.1
       util-extend: 1.0.3
 
-  gh-release@7.0.2(patch_hash=2shp4obt62na4vety464kiuec4)(encoding@0.1.13):
+  gh-release@7.0.2(patch_hash=cb4c6d37687014afed9f6100c3b3d3103aa23f175cee079a1cc16b4f515e4b9d)(encoding@0.1.13):
     dependencies:
       '@octokit/rest': 19.0.13(encoding@0.1.13)
       changelog-parser: 3.0.1
