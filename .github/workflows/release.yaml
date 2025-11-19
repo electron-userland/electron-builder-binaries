@@ -15,6 +15,7 @@ jobs:
     runs-on: macos-latest
     needs: build-artifacts
     permissions:
+      contents: read
       attestations: write # to create attestation during publish step (@actions/attest)
       id-token: write # to create OIDC token for attestation/changesets/commits
     environment: release
