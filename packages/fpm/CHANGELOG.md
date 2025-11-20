@@ -1,5 +1,11 @@
 # fpm
 
+## 2.1.1
+
+### Patch Changes
+
+- [#91](https://github.com/electron-userland/electron-builder-binaries/pull/91) [`484e835`](https://github.com/electron-userland/electron-builder-binaries/commit/484e8358b2135abdc895f62ef9914d9f059c98fe) Thanks [@mmaietta](https://github.com/mmaietta)! - chore: retrigger fpm release
+
 ## 2.1.0
 
 ### Minor Changes
