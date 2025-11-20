@@ -32,13 +32,15 @@ jobs:
       artifactUrl: ${{ steps.upload.outputs.artifact-url }}
       artifactId: ${{ steps.upload.outputs.artifact-id }}
     steps:
+      
+      - name: Enable Corepack for pnpm
+        run: |
+          corepack enable
+        shell: bash
+
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: { fetch-depth: 0 }
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
-        with: { version: 9.4.0 }
 
       - name: Setup Node.js
         uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a

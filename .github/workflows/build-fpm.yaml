@@ -49,6 +49,10 @@ jobs:
       matrix:
         node: [macos-13, macos-15]
     steps:
+      - name: Enable Corepack for pnpm
+        run: |
+          corepack enable
+        shell: bash
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: { submodules: true }

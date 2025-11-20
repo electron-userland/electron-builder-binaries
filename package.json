@@ -11,14 +11,11 @@
     "ci:publish": "changeset tag"
   },
   "devDependencies": {
-    "@actions/attest": "^1.6.0",
+    "@actions/attest": "^2.0.0",
     "@changesets/changelog-github": "^0.5.1",
     "@changesets/cli": "^2.29.2",
-    "gh-release": "^7.0.2"
+    "@octokit/rest": "22.0.1",
+    "mime": "4.1.0"
   },
-  "pnpm": {
-    "patchedDependencies": {
-      "gh-release@7.0.2": "patches/gh-release@7.0.2.patch"
-    }
-  }
+  "packageManager": "pnpm@10.23.0+sha512.21c4e5698002ade97e4efe8b8b4a89a8de3c85a37919f957e7a0f30f38fbc5bbdd05980ffe29179b2fb6e6e691242e098d945d1601772cad0fef5fb6411e2a4b"
 }
