@@ -1,5 +1,11 @@
 # fpm
 
+## 2.1.2
+
+### Patch Changes
+
+- [#93](https://github.com/electron-userland/electron-builder-binaries/pull/93) [`26f2474`](https://github.com/electron-userland/electron-builder-binaries/commit/26f2474b9908f9159d27db047fb649f8613a6bc6) Thanks [@mmaietta](https://github.com/mmaietta)! - chore: bump fpm version again for redeploy
+
 ## 2.1.1
 
 ### Patch Changes
