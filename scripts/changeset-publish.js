@@ -19,7 +19,7 @@ if (!publishedPackages) {
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 
 function getTargetCommitish() {
-  const commit = exec("git rev-parse HEAD", { silent: true }).split("\n")[0];
+  const commit = execSync("git rev-parse HEAD").toString().trim();
   if (commit.indexOf("fatal") === -1) {
     return commit;
   }
@@ -46,7 +46,7 @@ async function uploadAssetStream({ owner, repo, release_id, asset }) {
   console.log(`Uploaded: ${res.data.browser_download_url}`);
 }
 
-async function atomicReleaseWithStreams({ owner, repo, tag, name, body, assets }) {
+async function atomicReleaseWithStreams({ owner, repo, tag, name, body, assets, targetCommit }) {
   //
   // 1. Create release as draft
   //
@@ -54,7 +54,7 @@ async function atomicReleaseWithStreams({ owner, repo, tag, name, body, assets }
     owner,
     repo,
     tag_name: tag,
-    target_commitish: getTargetCommitish(),
+    target_commitish: targetCommit,
     name,
     body,
     draft: true,
@@ -135,6 +135,7 @@ async function run() {
       name: releaseName,
       body: `*checksums*\n\n${bodyText}`,
       assets,
+      targetCommit: getTargetCommitish(), // e.g. "master" or specific commit
     };
 
     if (!isCi) {
