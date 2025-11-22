@@ -1,5 +1,11 @@
 # fpm
 
+## 2.1.4
+
+### Patch Changes
+
+- [#97](https://github.com/electron-userland/electron-builder-binaries/pull/97) [`d2bf129`](https://github.com/electron-userland/electron-builder-binaries/commit/d2bf1296a432217e31ba3c6f6391d797431b9251) Thanks [@mmaietta](https://github.com/mmaietta)! - fix(fpm): codesign to prevent process killed on macos
+
 ## 2.1.3
 
 ### Patch Changes
