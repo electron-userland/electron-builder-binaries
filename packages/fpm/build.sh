@@ -7,6 +7,17 @@ CWD=$(cd "$(dirname "$BASH_SOURCE")" && pwd)
 OS_TARGET=${OS_TARGET:-$(uname | tr '[:upper:]' '[:lower:]')}
 
 if [ "$OS_TARGET" = "darwin" ]; then
+    # cleanup docker container on error
+    f() {
+        errorCode=$? # save the exit code as the first thing done in the trap function
+        echo "error $errorCode"
+        echo "the command executing at the time of the error was"
+        echo "$BASH_COMMAND"
+        echo "on line ${BASH_LINENO[0]}"
+        exit $errorCode
+    }
+    trap f ERR
+
     echo "Building for macOS"
     bash "$CWD/assets/compile-portable-ruby.sh"
     bash "$CWD/assets/patch-portable-ruby.sh"

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -exuo pipefail
+set -euo pipefail
 
 CWD=$(cd "$(dirname "$BASH_SOURCE")" && pwd)
 source "$CWD/constants.sh"
@@ -50,10 +50,12 @@ if [ "$(uname)" = "Darwin" ]; then
     echo "  ⚙️ Running configure..."
     ./configure "${BASE_FLAGS[@]}" \
         --with-opt-dir="$BREW_PREFIX" \
-        --with-openssl-dir="$(brew --prefix openssl@3)" \
-        --with-readline-dir="$(brew --prefix readline)" \
-        --with-zlib-dir="$(brew --prefix zlib)" \
         --with-libyaml-dir=$(brew --prefix libyaml) \
+        --with-openssl-dir="$(brew --prefix openssl@3)" \
+        --with-zlib-dir="$(brew --prefix zlib)" \
+        --with-readline-dir="$(brew --prefix readline)" \
+        --with-baseruby="$(which ruby)" \
+        --with-out-ext=debug,rbs,syslog,nkf,bigdecimal,racc \
         1>/dev/null
 
     echo "  ⚒️ Clearing default/bundled gems (includes native extensions that can't be portable)..."
