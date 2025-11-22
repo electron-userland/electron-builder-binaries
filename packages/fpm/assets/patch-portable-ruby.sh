@@ -270,13 +270,15 @@ find "$RUBY_PREFIX" \( -name '*.dylib' -o -name '*.so' -o -name '*.so.*' -o -nam
 done
 echo "💾 Total space saved: $total_saved bytes (~$((total_saved / 1024)) KB)"
 
-# sign every dylib and the binary
-echo "🔏 Code signing binaries and libraries..."
-for f in "$RUBY_PREFIX"/lib/*.dylib "$RUBY_PREFIX"/bin/*; do
-  /usr/bin/codesign --force --sign - "$f" 2>/tmp/codesign.err || true
-done
-# verify signatures (should not print errors)
-/usr/bin/codesign -v --deep --strict "$RUBY_PREFIX"/bin/ruby || true
+if [ "$(uname)" = "Darwin" ]; then
+    # sign every dylib and the binary
+    echo "🔏 Code signing binaries and libraries..."
+    for f in "$RUBY_PREFIX"/lib/*.dylib "$RUBY_PREFIX"/bin/*; do
+    /usr/bin/codesign --force --sign - "$f" 2>/tmp/codesign.err || true
+    done
+    # verify signatures (should not print errors)
+    /usr/bin/codesign -v --deep --strict "$RUBY_PREFIX"/bin/ruby || true
+fi
 
 # ===== Create VERSION file =====
 echo "🔨 Creating VERSION file..."
