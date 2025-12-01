@@ -42,6 +42,24 @@ for f in "$DESINTATION_DIR"/*; do
     hashArtifact "$NAME/$(basename "$f")"
 done
 
+# # nsis
+# NAME="nsis"
+# DESINTATION_DIR="$ARTIFACTS_DIR/$NAME"
+# rm -rf "$DESINTATION_DIR"
+# cp -a "$BUILD_OUT_DIR/$NAME" "$DESINTATION_DIR"
+# for f in "$DESINTATION_DIR"/*; do
+#     hashArtifact "$NAME/$(basename "$f")"
+# done
+
+# winCodeSign
+NAME="win-codesign"
+DESINTATION_DIR="$ARTIFACTS_DIR/$NAME"
+rm -rf "$DESINTATION_DIR"
+cp -a "$BUILD_OUT_DIR/$NAME" "$DESINTATION_DIR"
+for f in "$DESINTATION_DIR"/*; do
+    hashArtifact "$NAME/$(basename "$f")"
+done
+
 # squirrel.windows
 # NAME="squirrel.windows"
 # DESINTATION_DIR="$ARTIFACTS_DIR/$NAME"
