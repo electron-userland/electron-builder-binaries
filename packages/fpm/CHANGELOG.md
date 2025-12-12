@@ -1,5 +1,11 @@
 # fpm
 
+## 2.2.0
+
+### Minor Changes
+
+- [#84](https://github.com/electron-userland/electron-builder-binaries/pull/84) [`8bb632b`](https://github.com/electron-userland/electron-builder-binaries/commit/8bb632b71ee4fc8f94179eaafaa473e84327a8be) Thanks [@mmaietta](https://github.com/mmaietta)! - chore: upgrading macos build runner from maocos-13 to macos-15-intel
+
 ## 2.1.4
 
 ### Patch Changes
