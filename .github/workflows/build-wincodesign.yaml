@@ -1,6 +1,7 @@
 name: Build Windows Code Sign
 
 on:
+  workflow_dispatch:
   workflow_call:
     outputs:
       artifactName:
