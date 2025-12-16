@@ -36,7 +36,7 @@ downloadArtifact()
 NAMES=(
   fpm
   win-codesign
-  AppImage
+  appimage
 )
 
 for NAME in "${NAMES[@]}"; do
