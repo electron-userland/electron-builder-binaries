@@ -70,6 +70,12 @@ jobs:
         working-directory: ./packages/appimage
         env: { TARGET: linux }
 
+      - name: Download runtime
+        run: bash ./build.sh
+        shell: bash
+        working-directory: ./packages/appimage
+        env: { TARGET: runtime }
+
       - name: Upload appimage artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
         with:
@@ -103,11 +109,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm i --frozen-lockfile
-
-      - name: Download runtime
-        run: bash packages/appimage/build.sh
-        shell: bash
-        env: { TARGET: runtime }
 
       - name: Zip bundle
         run: bash packages/appimage/build.sh

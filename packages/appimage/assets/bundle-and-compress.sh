@@ -4,14 +4,14 @@ set -exuo pipefail
 # Root of the project (can be overridden by caller)
 ROOT=$(cd "$(dirname "$BASH_SOURCE")/.." && pwd)
 BUILD_DIR="${BUILD_DIR:-$ROOT/build}"
-OUT_DIR="${OUT_DIR:-$ROOT/out/appimage}"
+OUT_DIR="${OUT_DIR:-$ROOT/out}"
 
 mkdir -p "$BUILD_DIR" "$OUT_DIR"
 
 # Input directory containing the zip files
 SRC_DIR="${SRC_DIR:-$ROOT/out/build}"
 
-tree $SRC_DIR -L 4 2>/dev/null || find $SRC_DIR -maxdepth 4 -type f
+tree $SRC_DIR -L 5 2>/dev/null || find $SRC_DIR -maxdepth 5 -type f
 
 # ----------------------------
 # Runtime → project root
