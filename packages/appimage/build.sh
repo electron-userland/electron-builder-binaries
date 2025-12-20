@@ -35,7 +35,7 @@ elif [ "$TARGET" = "runtime" ]; then
 elif [ "$TARGET" = "compress" ]; then
     echo "📦 Creating package hierarchy of all AppImage tools and runtimes..."
     tree $ROOT -L 3 2>/dev/null || find $ROOT -maxdepth 3 -type f
-    OUT_DIR="$OUTPUT_DIR/appimage" SRC_DIR="$OUTPUT_DIR" bash $ROOT/assets/bundle-and-compress.sh
+    OUT_DIR="$OUTPUT_DIR/appimage" SRC_DIR="$DEST" bash $ROOT/assets/bundle-and-compress.sh
 else
     echo "❌ Unsupported TARGET: $TARGET"
     exit 1
