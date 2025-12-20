@@ -20,22 +20,22 @@ ROOT=$(cd "$(dirname "$BASH_SOURCE")" && pwd)
 TARGET=${TARGET:-$(uname | tr '[:upper:]' '[:lower:]')}
 
 OUTPUT_DIR="$ROOT/out"
-DEST="$ROOT/build"
-mkdir -p $DEST $OUTPUT_DIR
+BUILD_DIR="$ROOT/build"
+mkdir -p $BUILD_DIR $OUTPUT_DIR
 
 if [ "$TARGET" = "darwin" ]; then
     echo "🍎 Detected macOS target - Building Darwin binaries..."
-    DEST="$DEST/darwin" bash $ROOT/assets/appimage-mac.sh    
+    DEST="$BUILD_DIR/darwin" bash $ROOT/assets/appimage-mac.sh    
 elif [ "$TARGET" = "linux" ]; then
     echo "🐧 Detected Linux target - Building Linux binaries for all architectures..."
-    DEST="$DEST/linux" bash $ROOT/assets/appimage-linux.sh
+    DEST="$BUILD_DIR/linux" bash $ROOT/assets/appimage-linux.sh
 elif [ "$TARGET" = "runtime" ]; then
     echo "📥 Downloading AppImage runtimes into bundle..."
-    OUT_DIR="$OUTPUT_DIR" bash $ROOT/assets/download-runtime.sh --install-directory $DEST/runtimes
+    OUT_DIR="$OUTPUT_DIR" bash $ROOT/assets/download-runtime.sh --install-directory $BUILD_DIR/runtimes
 elif [ "$TARGET" = "compress" ]; then
     echo "📦 Creating package hierarchy of all AppImage tools and runtimes..."
     tree $ROOT -L 3 2>/dev/null || find $ROOT -maxdepth 3 -type f
-    OUT_DIR="$OUTPUT_DIR/appimage" SRC_DIR="$DEST" bash $ROOT/assets/bundle-and-compress.sh
+    OUT_DIR="$OUTPUT_DIR/appimage" SRC_DIR="$OUTPUT_DIR" bash $ROOT/assets/bundle-and-compress.sh
 else
     echo "❌ Unsupported TARGET: $TARGET"
     exit 1
