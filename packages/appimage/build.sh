@@ -31,7 +31,7 @@ elif [ "$TARGET" = "linux" ]; then
     DEST="$DEST/linux" bash $ROOT/assets/appimage-linux.sh
 elif [ "$TARGET" = "runtime" ]; then
     echo "📥 Downloading AppImage runtimes into bundle..."
-    OUT_DIR="$OUTPUT_DIR" bash $ROOT/assets/download-runtime.sh --install-directory $OUTPUT_DIR
+    OUT_DIR="$OUTPUT_DIR" bash $ROOT/assets/download-runtime.sh --install-directory $DEST/runtimes
 elif [ "$TARGET" = "compress" ]; then
     echo "📦 Creating package hierarchy of all AppImage tools and runtimes..."
     tree $ROOT -L 3 2>/dev/null || find $ROOT -maxdepth 3 -type f
