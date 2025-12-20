@@ -1,4 +1,4 @@
-name: Build appimage
+name: Build AppImage
 
 on:
   workflow_call:

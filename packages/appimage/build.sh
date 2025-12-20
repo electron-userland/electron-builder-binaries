@@ -34,7 +34,7 @@ elif [ "$TARGET" = "runtime" ]; then
     OUT_DIR="$OUTPUT_DIR" bash $ROOT/assets/download-runtime.sh --install-directory $DEST
 elif [ "$TARGET" = "compress" ]; then
     echo "📦 Creating package hierarchy of all AppImage tools and runtimes..."
-    OUT_DIR="$OUTPUT_DIR/AppImage" SRC_DIR="$DEST" bash $ROOT/assets/bundle-and-compress.sh
+    OUT_DIR="$OUTPUT_DIR/appimage" SRC_DIR="$DEST" bash $ROOT/assets/bundle-and-compress.sh
 else
     echo "❌ Unsupported TARGET: $TARGET"
     exit 1
