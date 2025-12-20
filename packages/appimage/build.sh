@@ -20,7 +20,7 @@ ROOT=$(cd "$(dirname "$BASH_SOURCE")" && pwd)
 TARGET=${TARGET:-$(uname | tr '[:upper:]' '[:lower:]')}
 
 OUTPUT_DIR="$ROOT/out"
-DEST="$ROOT/dist"
+DEST="$ROOT/build"
 mkdir -p $DEST $OUTPUT_DIR
 
 if [ "$TARGET" = "darwin" ]; then
@@ -34,6 +34,7 @@ elif [ "$TARGET" = "runtime" ]; then
     OUT_DIR="$OUTPUT_DIR" bash $ROOT/assets/download-runtime.sh --install-directory $DEST
 elif [ "$TARGET" = "compress" ]; then
     echo "📦 Creating package hierarchy of all AppImage tools and runtimes..."
+    tree $DEST -L 3 2>/dev/null || find $DEST -maxdepth 3 -type f
     OUT_DIR="$OUTPUT_DIR/appimage" SRC_DIR="$DEST" bash $ROOT/assets/bundle-and-compress.sh
 else
     echo "❌ Unsupported TARGET: $TARGET"

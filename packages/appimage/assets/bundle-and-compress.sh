@@ -8,7 +8,7 @@ OUT_DIR="${OUT_DIR:-$ROOT/out}"
 mkdir -p "$OUT_DIR"
 
 # Input directory containing the zip files
-SRC_DIR="${SRC_DIR:-$ROOT/out/dist}"
+SRC_DIR="${SRC_DIR:-$ROOT/out/build}"
 
 # ----------------------------
 # Runtime → project root
