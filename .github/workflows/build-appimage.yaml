@@ -1,4 +1,4 @@
-name: Build AppImage
+name: Build appimage
 
 on:
   workflow_call:
@@ -30,16 +30,17 @@ jobs:
       - name: Build for macOS
         run: bash ./build.sh
         shell: bash
-        working-directory: ./packages/AppImage
+        working-directory: ./packages/appimage
         env: { TARGET: darwin }
 
-      - name: Upload AppImage artifact
+      - name: Upload appimage artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
         with:
           name: appimage-temp-macos-${{ matrix.node }}
-          path: packages/AppImage/out/**/*.zip
+          path: packages/appimage/out/**/*.zip
           if-no-files-found: error
           retention-days: 1
+
   linux:
     runs-on: ubuntu-latest
     steps:
@@ -66,14 +67,14 @@ jobs:
       - name: Build for Linux
         run: bash ./build.sh
         shell: bash
-        working-directory: ./packages/AppImage
+        working-directory: ./packages/appimage
         env: { TARGET: linux }
 
-      - name: Upload AppImage artifact
+      - name: Upload appimage artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
         with:
           name: appimage-temp-linux
-          path: packages/AppImage/out/**/*.zip
+          path: packages/appimage/out/**/*.zip
           if-no-files-found: error
           retention-days: 1
 
@@ -93,23 +94,23 @@ jobs:
         uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a
         with: { node-version: '22' }
      
-      - name: Download all AppImage artifacts
+      - name: Download all appimage artifacts
         uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
         with:
           pattern: appimage-temp-*
-          path: packages/AppImage/out
+          path: packages/appimage/out
           merge-multiple: true
 
       - name: Install dependencies
         run: pnpm i --frozen-lockfile
 
       - name: Download runtime
-        run: bash packages/AppImage/build.sh
+        run: bash packages/appimage/build.sh
         shell: bash
         env: { TARGET: runtime }
 
       - name: Zip bundle
-        run: bash packages/AppImage/build.sh
+        run: bash packages/appimage/build.sh
         shell: bash
         env: { TARGET: compress }
 
@@ -123,5 +124,5 @@ jobs:
         with:
           name: appimage-bundle
           if-no-files-found: error
-          path: packages/AppImage/out/**/*.zip
+          path: packages/appimage/out/**/*.zip
           retention-days: 1
