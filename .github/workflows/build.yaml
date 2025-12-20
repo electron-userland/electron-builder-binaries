@@ -24,6 +24,9 @@ jobs:
   
   appimage:
     uses: ./.github/workflows/build-appimage.yaml
+  
+  ran:
+    uses: ./.github/workflows/build-ran.yaml
 
   # squirrel:
   #   uses: ./.github/workflows/build-squirrel.yaml
@@ -34,6 +37,7 @@ jobs:
       fpm,
       win-codesign,
       appimage,
+      ran,
       # squirrel
     ]
     outputs:
