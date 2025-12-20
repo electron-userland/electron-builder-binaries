@@ -21,9 +21,9 @@ jobs:
 
   win-codesign:
     uses: ./.github/workflows/build-wincodesign.yaml
-
-  ran:
-    uses: ./.github/workflows/build-ran.yaml
+  
+  appimage:
+    uses: ./.github/workflows/build-appimage.yaml
 
   # squirrel:
   #   uses: ./.github/workflows/build-squirrel.yaml
@@ -33,7 +33,7 @@ jobs:
     needs: [
       fpm,
       win-codesign,
-      ran
+      appimage,
       # squirrel
     ]
     outputs:
