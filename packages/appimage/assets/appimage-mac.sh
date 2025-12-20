@@ -54,7 +54,7 @@ echo "✓ Found mksquashfs at: $MKSQUASHFS"
 echo "✓ Found desktop-file-validate at: $DESKTOP_FILE_VALIDATE"
 
 # Create output directory
-DEST="${DEST:-$ROOT/out/dist}"
+DEST="${DEST:-$ROOT/out/build}"
 OUTPUT_DIR="$DEST/$ARCH_DIR"
 rm -rf "$OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR"

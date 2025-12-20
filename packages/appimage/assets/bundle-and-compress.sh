@@ -13,9 +13,8 @@ SRC_DIR="${SRC_DIR:-$ROOT/out/dist}"
 # ----------------------------
 # Runtime → project root
 # ----------------------------
-RUNTIME_ZIP="$SRC_DIR"/appimage-runtime*.zip
 echo "Extracting runtime to project root"
-unzip -qo "$RUNTIME_ZIP" -d "$OUT_DIR"
+unzip -qo "$SRC_DIR"/appimage-runtime*.zip -d "$OUT_DIR"
 
 # ----------------------------
 # macOS → darwin/<arch>
