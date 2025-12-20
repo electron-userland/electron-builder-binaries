@@ -31,11 +31,11 @@ elif [ "$TARGET" = "linux" ]; then
     DEST="$DEST/linux" bash $ROOT/assets/appimage-linux.sh
 elif [ "$TARGET" = "runtime" ]; then
     echo "📥 Downloading AppImage runtimes into bundle..."
-    OUT_DIR="$OUTPUT_DIR" bash $ROOT/assets/download-runtime.sh --install-directory $DEST
+    OUT_DIR="$OUTPUT_DIR" bash $ROOT/assets/download-runtime.sh --install-directory $OUTPUT_DIR
 elif [ "$TARGET" = "compress" ]; then
     echo "📦 Creating package hierarchy of all AppImage tools and runtimes..."
     tree $ROOT -L 3 2>/dev/null || find $ROOT -maxdepth 3 -type f
-    OUT_DIR="$OUTPUT_DIR/appimage" SRC_DIR="$DEST" bash $ROOT/assets/bundle-and-compress.sh
+    OUT_DIR="$OUTPUT_DIR/appimage" SRC_DIR="$OUTPUT_DIR" bash $ROOT/assets/bundle-and-compress.sh
 else
     echo "❌ Unsupported TARGET: $TARGET"
     exit 1
