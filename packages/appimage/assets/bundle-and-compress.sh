@@ -10,6 +10,8 @@ mkdir -p "$OUT_DIR"
 # Input directory containing the zip files
 SRC_DIR="${SRC_DIR:-$ROOT/out/build}"
 
+tree $SRC_DIR -L 3 2>/dev/null || find $SRC_DIR -maxdepth 3 -type f
+
 # ----------------------------
 # Runtime → project root
 # ----------------------------
