@@ -117,7 +117,6 @@ if is_x64; then
     apt-get install -y libindicator3-7 || { echo "  ❌ Failed to install libindicator3-7"; exit 1; }
     
     USR_LIB_DIR="/usr/lib/x86_64-linux-gnu"
-    OUT_DIR="$LIB_DIR/x64"
 elif is_ia32; then
     echo "  Downloading libappindicator1 from Ubuntu 18.04 archive (not available in 20.04 i386)..."
     cd /tmp
@@ -126,9 +125,9 @@ elif is_ia32; then
     dpkg -x libappindicator1_12.10.1+18.04.20180322.1-0ubuntu1_i386.deb /tmp/appind
     dpkg -x libindicator7_16.10.0+18.04.20180321.1-0ubuntu1_i386.deb /tmp/ind
     USR_LIB_DIR="/usr/lib/i386-linux-gnu"
-    OUT_DIR="$LIB_DIR/ia32"
 fi
-    
+
+OUT_DIR="$LIB_DIR/$ARCH_DIR"
 mkdir -p "$OUT_DIR"
 
 echo "  Copying libraries to $OUT_DIR"
