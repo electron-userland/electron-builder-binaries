@@ -21,7 +21,8 @@ is_arm32() { [ "$TARGETPLATFORM" = "linux/arm/v7" ]; }
 is_x86() { is_x64 || is_ia32; }
 
 ARCH_DIR=$(get_arch_dir)
-OUTPUT_DIR="$CWD/output"
+OUTPUT_DIR="$CWD/linux"
+LIB_DIR="$CWD/lib"
 DEST="$OUTPUT_DIR/$ARCH_DIR"
 echo "Building for $TARGETPLATFORM -> $ARCH_DIR"
 
@@ -65,7 +66,7 @@ fi
 # Build OpenJPEG (only for x64)
 if is_x64; then
     echo "Building OpenJPEG..."
-    cd /build
+    cd /tmp
     wget -q https://github.com/uclouvain/openjpeg/archive/v2.3.0.tar.gz
     tar xzf v2.3.0.tar.gz
     cd openjpeg-2.3.0
@@ -114,8 +115,8 @@ if is_x86; then
         echo "  Installing libindicator3-7..."
         apt-get install -y libindicator3-7 || { echo "  ❌ Failed to install libindicator3-7"; exit 1; }
         
-        LIB_DIR="/usr/lib/x86_64-linux-gnu"
-        OUT_DIR="$OUTPUT_DIR/lib/x64"
+        USR_LIB_DIR="/usr/lib/x86_64-linux-gnu"
+        OUT_DIR="$LIB_DIR/x64"
     else
         echo "  Downloading libappindicator1 from Ubuntu 18.04 archive (not available in 20.04 i386)..."
         cd /tmp
@@ -123,8 +124,8 @@ if is_x86; then
         wget -q http://archive.ubuntu.com/ubuntu/pool/universe/libi/libindicator/libindicator7_16.10.0+18.04.20180321.1-0ubuntu1_i386.deb
         dpkg -x libappindicator1_12.10.1+18.04.20180322.1-0ubuntu1_i386.deb /tmp/appind
         dpkg -x libindicator7_16.10.0+18.04.20180321.1-0ubuntu1_i386.deb /tmp/ind
-        LIB_DIR="/usr/lib/i386-linux-gnu"
-        OUT_DIR="$OUTPUT_DIR/lib/ia32"
+        USR_LIB_DIR="/usr/lib/i386-linux-gnu"
+        OUT_DIR="$LIB_DIR/ia32"
     fi
     
     mkdir -p "$OUT_DIR"
@@ -151,7 +152,7 @@ if is_x86; then
         fi
         
         # Try common locations
-        local search_dirs=("$LIB_DIR" "/usr/lib/i386-linux-gnu" "/usr/lib/x86_64-linux-gnu")
+        local search_dirs=("$USR_LIB_DIR" "/usr/lib/i386-linux-gnu" "/usr/lib/x86_64-linux-gnu")
         
         for dir in "${search_dirs[@]}"; do
             if [ -f "$dir/$libname" ]; then
@@ -183,12 +184,12 @@ if is_x86; then
 fi
 
 echo "Final output directory structure:"
-tree "$OUTPUT_DIR" -L 5 2>/dev/null || find "$OUTPUT_DIR" -maxdepth 5 -type f
+tree "$CWD" -L 5 2>/dev/null || find "$CWD" -maxdepth 5 -type f
 
 # Create tarball
-echo "Creating tarball..."
-cd "$OUTPUT_DIR"
-tar czf "/appimage-tools-${TARGETARCH}${TARGETVARIANT}.tar.gz" .
+echo "Creating zip..."
+cd "$CWD"
+tar czf "/appimage-tools-${TARGETARCH}${TARGETVARIANT}.tar.gz" $(basename "$LIB_DIR") $(basename "$OUTPUT_DIR")
 chmod 644 /appimage-tools-*.tar.gz
 
 echo "✓ Build complete for $ARCH_DIR"

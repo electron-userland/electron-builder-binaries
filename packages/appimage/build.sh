@@ -28,7 +28,8 @@ if [ "$TARGET" = "darwin" ]; then
     DEST="$BUILD_DIR/darwin" bash $ROOT/assets/appimage-mac.sh    
 elif [ "$TARGET" = "linux" ]; then
     echo "🐧 Detected Linux target - Building Linux binaries for all architectures..."
-    DEST="$BUILD_DIR/linux" bash $ROOT/assets/appimage-linux.sh
+    # output to BUILD_DIR because it also extracts lib/
+    DEST="$BUILD_DIR" bash $ROOT/assets/appimage-linux.sh
 elif [ "$TARGET" = "runtime" ]; then
     echo "📥 Downloading AppImage runtimes into bundle..."
     OUT_DIR="$OUTPUT_DIR" bash $ROOT/assets/download-runtime.sh --install-directory $BUILD_DIR/runtimes
