@@ -39,23 +39,7 @@ done
 # ----------------------------
 LINUX_ZIP="$SRC_DIR/appimage-tools-linux-all-architectures.zip"
 echo "Extracting Linux (all architectures)"
-
-tmpdir="$(mktemp -d)"
-trap 'rm -rf "$tmpdir"' EXIT
-
-unzip -qo "$LINUX_ZIP" -d "$tmpdir"
-
-for dir in "$tmpdir"/*; do
-    [[ -d "$dir" ]] || continue
-    
-    arch="$(basename "$dir")"
-    dest="$BUILD_DIR/linux/$arch"
-    
-    echo "  → $dest"
-    rm -rf "$dest"
-    mkdir -p "$dest"
-    cp -a "$dir/." "$dest/"
-done
+unzip -qo "$LINUX_ZIP" -d "$BUILD_DIR"
 
 ARCHIVE_NAME="appimage-tools-runtime-$APPIMAGE_TYPE2_RELEASE.zip"
 echo "📦 Creating ZIP bundle: $ARCHIVE_NAME"

@@ -5,3 +5,4 @@
 changeset-status.json
 artifacts
 artifacts-staging
+**/build

@@ -169,8 +169,8 @@ echo "All files verified successfully." >&2
 ARCHIVE_NAME="appimage-runtime-$APPIMAGE_TYPE2_RELEASE.zip"
 echo "📦 Creating ZIP bundle: $ARCHIVE_NAME"
 (
-cd "$INSTALL_DIR"
-zip -r -9 "$OUT_DIR/$ARCHIVE_NAME" .
+cd "$INSTALL_DIR/.."
+zip -r -9 "$OUT_DIR/$ARCHIVE_NAME" $(basename "$INSTALL_DIR"
 )
 echo "✅ Done!"
 echo "Bundle at: $OUT_DIR/$ARCHIVE_NAME"
