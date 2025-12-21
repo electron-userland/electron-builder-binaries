@@ -89,7 +89,7 @@ if is_x64 || is_arm64; then
 fi
 
 # Extract runtime libraries (only for x86 architectures)
-if is_x86 || is_arm32; then
+if is_x86; then
     echo "Installing runtime libraries..."
     apt-get update -qq
     
@@ -106,9 +106,10 @@ if is_x86 || is_arm32; then
     echo "  Installing libgconf-2-4..."
     apt-get install -y libgconf-2-4 || { echo "  ❌ Failed to install libgconf-2-4"; exit 1; }
 fi
+
 # libappindicator3-1 only available for x64 in Ubuntu 20.04
 # For i386: we'll download the .deb from Ubuntu 18.04 archives
-if is_x64 || is_arm64; then
+if is_x64; then
     echo "  Installing libappindicator3-1..."
     apt-get install -y libappindicator3-1 || { echo "  ❌ Failed to install libappindicator3-1"; exit 1; }
     
@@ -172,10 +173,10 @@ copy_lib "libXtst.so.6" || exit 1
 copy_lib "libnotify.so.4" || exit 1
 copy_lib "libgconf-2.so.4" || exit 1
 
-if is_x64 || is_arm64; then
+if is_x64; then
     copy_lib "libappindicator3.so.1" "libappindicator.so.1" || exit 1
     copy_lib "libindicator3.so.7" "libindicator.so.7" || exit 1
-else
+elif is_ia32; then
     copy_lib "libappindicator.so.1" || exit 1
     copy_lib "libindicator.so.7" || exit 1
 fi
