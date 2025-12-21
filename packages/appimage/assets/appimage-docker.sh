@@ -21,7 +21,8 @@ is_arm32() { [ "$TARGETPLATFORM" = "linux/arm/v7" ]; }
 is_x86() { is_x64 || is_ia32; }
 
 ARCH_DIR=$(get_arch_dir)
-DEST="$CWD/output/$ARCH_DIR"
+OUTPUT_DIR="$CWD/output"
+DEST="$OUTPUT_DIR/$ARCH_DIR"
 echo "Building for $TARGETPLATFORM -> $ARCH_DIR"
 
 # Build squashfs-tools
@@ -114,7 +115,7 @@ if is_x86; then
         apt-get install -y libindicator3-7 || { echo "  ❌ Failed to install libindicator3-7"; exit 1; }
         
         LIB_DIR="/usr/lib/x86_64-linux-gnu"
-        OUT_DIR="/output/lib/x64"
+        OUT_DIR="$OUTPUT_DIR/lib/x64"
     else
         echo "  Downloading libappindicator1 from Ubuntu 18.04 archive (not available in 20.04 i386)..."
         cd /tmp
@@ -123,7 +124,7 @@ if is_x86; then
         dpkg -x libappindicator1_12.10.1+18.04.20180322.1-0ubuntu1_i386.deb /tmp/appind
         dpkg -x libindicator7_16.10.0+18.04.20180321.1-0ubuntu1_i386.deb /tmp/ind
         LIB_DIR="/usr/lib/i386-linux-gnu"
-        OUT_DIR="/output/lib/ia32"
+        OUT_DIR="$OUTPUT_DIR/lib/ia32"
     fi
     
     mkdir -p "$OUT_DIR"
@@ -181,9 +182,12 @@ if is_x86; then
     echo "  ✅ All required libraries copied"
 fi
 
+echo "Final output directory structure:"
+tree "$OUTPUT_DIR" -L 5 2>/dev/null || find "$OUTPUT_DIR" -maxdepth 5 -type f
+
 # Create tarball
 echo "Creating tarball..."
-cd "$DEST/.."
+cd "$OUTPUT_DIR"
 tar czf "/appimage-tools-${TARGETARCH}${TARGETVARIANT}.tar.gz" .
 chmod 644 /appimage-tools-*.tar.gz
 
