@@ -1,5 +1,11 @@
 # appimage
 
+## 1.0.1
+
+### Patch Changes
+
+- [#105](https://github.com/electron-userland/electron-builder-binaries/pull/105) [`c9d3b67`](https://github.com/electron-userland/electron-builder-binaries/commit/c9d3b676ffb8ad21f2278e7b742dcb4e53eb23d1) Thanks [@mmaietta](https://github.com/mmaietta)! - chore(appimage): redeploy full bundle
+
 ## 1.0.0
 
 ### Major Changes
