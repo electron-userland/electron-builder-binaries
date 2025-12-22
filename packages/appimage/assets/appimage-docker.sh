@@ -167,10 +167,12 @@ copy_lib() {
 }
 
 # Copy all required libraries
-copy_lib "libXss.so.1" || exit 1
-copy_lib "libXtst.so.6" || exit 1
-copy_lib "libnotify.so.4" || exit 1
-copy_lib "libgconf-2.so.4" || exit 1
+if is_x86; then 
+    copy_lib "libXss.so.1" || exit 1
+    copy_lib "libXtst.so.6" || exit 1
+    copy_lib "libnotify.so.4" || exit 1
+    copy_lib "libgconf-2.so.4" || exit 1
+fi
 
 if is_x64; then
     copy_lib "libappindicator3.so.1" "libappindicator.so.1" || exit 1
