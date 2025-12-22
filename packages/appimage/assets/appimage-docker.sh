@@ -3,7 +3,7 @@ set -e
 
 CWD=$(cd "$(dirname "$BASH_SOURCE")" && pwd)
 
-# Determine architecture directory based on platform
+# Architecture detection helpers
 get_arch_dir() {
     case "$TARGETPLATFORM" in
         "linux/amd64") echo "x64" ;;
@@ -20,57 +20,67 @@ is_arm64() { [ "$TARGETPLATFORM" = "linux/arm64" ]; }
 is_arm32() { [ "$TARGETPLATFORM" = "linux/arm/v7" ]; }
 is_x86() { is_x64 || is_ia32; }
 
+# Validate platform
 ARCH_DIR=$(get_arch_dir)
 if [ "$ARCH_DIR" = "linux-unknown" ]; then
     echo "❌ Unsupported TARGETPLATFORM: $TARGETPLATFORM"
     exit 1
 fi
+
+# Setup directories
 OUTPUT_DIR="$CWD/linux"
 DEST="$OUTPUT_DIR/$ARCH_DIR"
 LIB_DIR="$CWD/lib"
 LIB_DEST="$LIB_DIR/$ARCH_DIR"
-echo "Building for $TARGETPLATFORM -> $ARCH_DIR"
 
+echo "🏗️  Building for $TARGETPLATFORM → $ARCH_DIR"
+
+# =============================================================================
 # Build squashfs-tools
-echo "Building squashfs-tools..."
+# =============================================================================
+echo "📦 Building squashfs-tools..."
 cd /build/squashfs-tools/squashfs-tools
 make -j$(nproc) GZIP_SUPPORT=1 XZ_SUPPORT=1 LZO_SUPPORT=1 LZ4_SUPPORT=1 ZSTD_SUPPORT=1
 
 mkdir -p "$DEST"
 cp -aL mksquashfs "$DEST/"
-echo "✓ Built mksquashfs"
+echo "   ✅ Built mksquashfs"
 
 # Copy desktop-file-validate
 cp -aL /usr/bin/desktop-file-validate "$DEST/"
-echo "✓ Copied desktop-file-validate"
+echo "   ✅ Copied desktop-file-validate"
 
+# =============================================================================
+# Verify binaries and record versions
+# =============================================================================
 VERSION_FILE="$DEST/VERSION.txt"
-
-echo "Verifying binaries and recording versions..."
+echo "🔍 Verifying binaries and recording versions..."
 : > "$VERSION_FILE"
 
 # Verify mksquashfs
 if MKSQ_VER=$("$DEST/mksquashfs" -version | head -n1 2>&1); then
     echo "mksquashfs: $MKSQ_VER" >> "$VERSION_FILE"
-    echo "✓ mksquashfs verified"
+    echo "   ✅ mksquashfs verified"
 else
-    echo "❌ mksquashfs verification failed"
+    echo "   ❌ mksquashfs verification failed"
     exit 1
 fi
 
-# Verify desktop-file-validate. (There's no --version, so we just run it to see if it works and then use dpkg-query to get version)
-"$DEST/desktop-file-validate" --help > /dev/null 2>&1
-if DFV_VER=$(dpkg-query -W -f='${Version}\n' desktop-file-utils 2>&1); then
+# Verify desktop-file-validate
+if "$DEST/desktop-file-validate" --help > /dev/null 2>&1 && \
+   DFV_VER=$(dpkg-query -W -f='${Version}\n' desktop-file-utils 2>&1); then
     echo "desktop-file-validate: $DFV_VER" >> "$VERSION_FILE"
-    echo "✓ desktop-file-validate verified"
+    echo "   ✅ desktop-file-validate verified"
 else
-    echo "❌ desktop-file-validate verification failed"
+    echo "   ❌ desktop-file-validate verification failed"
     exit 1
 fi
 
-# Build OpenJPEG (only for x64)
+# =============================================================================
+# Build OpenJPEG (x64 and arm64 only)
+# =============================================================================
 if is_x64 || is_arm64; then
-    echo "Building OpenJPEG..."
+    echo "🖼️  Building OpenJPEG..."
     cd /tmp
     wget -q https://github.com/uclouvain/openjpeg/archive/v2.3.0.tar.gz
     tar xzf v2.3.0.tar.gz
@@ -90,64 +100,51 @@ if is_x64 || is_arm64; then
     cd "$DEST/lib"
     ln -sf libopenjp2.so.2.3.0 libopenjp2.so.7
     ln -sf libopenjp2.so.7 libopenjp2.so
-    echo "✓ Built OpenJPEG"
+    echo "   ✅ Built OpenJPEG"
 fi
 
-# Extract runtime libraries (for x86 and ARM architectures)
-echo "Installing runtime libraries..."
+# =============================================================================
+# Install and copy runtime libraries
+# =============================================================================
+echo "📚 Installing runtime libraries..."
 apt-get update -qq
 
-# Install packages and verify they succeeded
-echo "  Installing libxss1..."
-apt-get install -y libxss1 || { echo "  ❌ Failed to install libxss1"; exit 1; }
+# Common dependencies for all architectures
+declare -a common_deps=("libxss1" "libxtst6" "libnotify4" "libgconf-2-4")
+for dep in "${common_deps[@]}"; do
+    echo "   📥 Installing $dep..."
+    if ! apt-get install -y "$dep" > /dev/null 2>&1; then
+        echo "   ❌ Failed to install $dep"
+        exit 1
+    fi
+done
 
-echo "  Installing libxtst6..."
-apt-get install -y libxtst6 || { echo "  ❌ Failed to install libxtst6"; exit 1; }
-
-echo "  Installing libnotify4..."
-apt-get install -y libnotify4 || { echo "  ❌ Failed to install libnotify4"; exit 1; }
-
-echo "  Installing libgconf-2-4..."
-apt-get install -y libgconf-2-4 || { echo "  ❌ Failed to install libgconf-2-4"; exit 1; }
-
-# Determine library directory and output directory based on architecture
-if is_x64; then
-    echo "  Installing libappindicator3-1..."
-    apt-get install -y libappindicator3-1 || { echo "  ❌ Failed to install libappindicator3-1"; exit 1; }
-    
-    echo "  Installing libindicator3-7..."
-    apt-get install -y libindicator3-7 || { echo "  ❌ Failed to install libindicator3-7"; exit 1; }
-    
-    LIB_DIR="/usr/lib/x86_64-linux-gnu"
-elif is_ia32; then
-    echo "  Downloading libappindicator1 from Ubuntu 18.04 archive (not available in 20.04 i386)..."
+# Architecture-specific setup
+if is_ia32; then
+    echo "   📥 Downloading libappindicator1 from Ubuntu 18.04 archive..."
     cd /tmp
     wget -q http://archive.ubuntu.com/ubuntu/pool/universe/liba/libappindicator/libappindicator1_12.10.1+18.04.20180322.1-0ubuntu1_i386.deb
     wget -q http://archive.ubuntu.com/ubuntu/pool/universe/libi/libindicator/libindicator7_16.10.0+18.04.20180321.1-0ubuntu1_i386.deb
     dpkg -x libappindicator1_12.10.1+18.04.20180322.1-0ubuntu1_i386.deb /tmp/appind
     dpkg -x libindicator7_16.10.0+18.04.20180321.1-0ubuntu1_i386.deb /tmp/ind
-    LIB_DIR="/usr/lib/i386-linux-gnu"
-elif is_arm64; then
-    echo "  Installing libappindicator3-1..."
-    apt-get install -y libappindicator3-1 || { echo "  ❌ Failed to install libappindicator3-1"; exit 1; }
-    
-    echo "  Installing libindicator3-7..."
-    apt-get install -y libindicator3-7 || { echo "  ❌ Failed to install libindicator3-7"; exit 1; }
-    
-    LIB_DIR="/usr/lib/aarch64-linux-gnu"
-elif is_arm32; then
-    echo "  Installing libappindicator3-1..."
-    apt-get install -y libappindicator3-1 || { echo "  ❌ Failed to install libappindicator3-1"; exit 1; }
-    
-    echo "  Installing libindicator3-7..."
-    apt-get install -y libindicator3-7 || { echo "  ❌ Failed to install libindicator3-7"; exit 1; }
-    
-    LIB_DIR="/usr/lib/arm-linux-gnueabihf"
+    SYS_LIB_DIR="/usr/lib/i386-linux-gnu"
+else
+    echo "   📥 Installing libappindicator3-1 & libindicator3-7..."
+    apt-get install -y libappindicator3-1 libindicator3-7 > /dev/null 2>&1 || {
+        echo "   ❌ Failed to install libappindicator/libindicator"
+        exit 1
+    }
+    if is_x64; then
+        SYS_LIB_DIR="/usr/lib/x86_64-linux-gnu"
+    elif is_arm64; then
+        SYS_LIB_DIR="/usr/lib/aarch64-linux-gnu"
+    elif is_arm32; then
+        SYS_LIB_DIR="/usr/lib/arm-linux-gnueabihf"
+    fi
 fi
 
 mkdir -p "$LIB_DEST"
-
-echo "  Copying libraries to $LIB_DEST"
+echo "   📋 Copying libraries to $LIB_DEST..."
 
 # Helper function to find and copy library
 copy_lib() {
@@ -156,34 +153,37 @@ copy_lib() {
     
     # For i386 appindicator, check extracted .deb first
     if is_ia32 && [[ "$libname" == "libappindicator"* || "$libname" == "libindicator"* ]]; then
-        if [ -f "/tmp/appind/usr/lib/i386-linux-gnu/$libname" ]; then
-            cp "/tmp/appind/usr/lib/i386-linux-gnu/$libname" "$LIB_DEST/$outname"
-            echo "  ✓ Copied $libname from extracted .deb"
-            return 0
-        fi
-        if [ -f "/tmp/ind/usr/lib/i386-linux-gnu/$libname" ]; then
-            cp "/tmp/ind/usr/lib/i386-linux-gnu/$libname" "$LIB_DEST/$outname"
-            echo "  ✓ Copied $libname from extracted .deb"
-            return 0
-        fi
+        for deb_dir in /tmp/appind /tmp/ind; do
+            if [ -f "$deb_dir/usr/lib/i386-linux-gnu/$libname" ]; then
+                cp "$deb_dir/usr/lib/i386-linux-gnu/$libname" "$LIB_DEST/$outname"
+                echo "      ✅ $libname"
+                return 0
+            fi
+        done
     fi
     
-    # Try common locations
-    local search_dirs=("$LIB_DIR" "/usr/lib/i386-linux-gnu" "/usr/lib/x86_64-linux-gnu" "/usr/lib/aarch64-linux-gnu" "/usr/lib/arm-linux-gnueabihf")
+    # Search standard library directories
+    local search_dirs=(
+        "$SYS_LIB_DIR"
+        "/usr/lib/i386-linux-gnu"
+        "/usr/lib/x86_64-linux-gnu"
+        "/usr/lib/aarch64-linux-gnu"
+        "/usr/lib/arm-linux-gnueabihf"
+    )
     
     for dir in "${search_dirs[@]}"; do
         if [ -f "$dir/$libname" ]; then
             cp "$dir/$libname" "$LIB_DEST/$outname"
-            echo "  ✓ Copied $libname from $dir"
+            echo "      ✅ $libname"
             return 0
         fi
     done
     
-    echo "  ❌ $libname not found"
+    echo "      ❌ $libname not found"
     return 1
 }
 
-# Copy all required libraries
+# Copy required libraries
 copy_lib "libXss.so.1" || exit 1
 copy_lib "libXtst.so.6" || exit 1
 copy_lib "libnotify.so.4" || exit 1
@@ -197,15 +197,25 @@ else
     copy_lib "libindicator3.so.7" "libindicator.so.7" || exit 1
 fi
 
-echo "  ✅ All required libraries copied"
+echo "   ✅ All libraries copied successfully"
 
-echo "Final output directory structure:"
+# =============================================================================
+# Display final structure
+# =============================================================================
+echo ""
+echo "📂 Final output structure:"
 tree "$CWD" -L 5 2>/dev/null || find "$CWD" -maxdepth 5 -type f
 
+# =============================================================================
 # Create tarball
-echo "Creating zip..."
+# =============================================================================
+echo ""
+echo "📦 Creating tarball..."
 cd "$CWD"
-tar czf "/appimage-tools-${TARGETARCH}${TARGETVARIANT}.tar.gz" $(basename "$LIB_DIR") $(basename "$OUTPUT_DIR")
+tar czf "/appimage-tools-${TARGETARCH}${TARGETVARIANT}.tar.gz" \
+    "$(basename "$LIB_DIR")" \
+    "$(basename "$OUTPUT_DIR")"
 chmod 644 /appimage-tools-*.tar.gz
 
-echo "✓ Build complete for $ARCH_DIR"
+echo ""
+echo "🎉 Build complete for $ARCH_DIR!"
