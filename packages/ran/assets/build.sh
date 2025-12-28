@@ -140,7 +140,7 @@ echo ""
 echo "📦 Creating ZIP bundle: $ARCHIVE_NAME"
 (
     cd "$OUTPUT_DIR"
-    zip -r -9 "../$ARCHIVE_NAME" . >/dev/null
+    zip -r -9 "$OUTPUT_DIR/$ARCHIVE_NAME" . >/dev/null
 )
 
 echo ""
