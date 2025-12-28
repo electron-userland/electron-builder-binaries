@@ -134,7 +134,7 @@ echo "📝 Creating VERSION.txt..."
 echo "$VERSION" > "$OUTPUT_DIR/VERSION.txt"
 
 # Create final ZIP bundle
-ARCHIVE_NAME="ran_${VERSION}_all_platforms.zip"
+ARCHIVE_NAME="ran-${VERSION}-all-platforms.zip"
 
 echo ""
 echo "📦 Creating ZIP bundle: $ARCHIVE_NAME"
