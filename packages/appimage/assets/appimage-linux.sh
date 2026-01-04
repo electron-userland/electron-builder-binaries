@@ -4,6 +4,7 @@ set -eo pipefail
 
 SQUASHFS_TOOLS_VERSION_TAG=${SQUASHFS_TOOLS_VERSION_TAG:-"4.6.1"}
 DESKTOP_UTILS_DEPS_VERSION_TAG=${DESKTOP_UTILS_DEPS_VERSION_TAG:-"0.28"}
+OPENJPEG_VERSION=${OPENJPEG_VERSION:-"2.5.4"}
 
 ROOT=$(cd "$(dirname "$BASH_SOURCE")/.." && pwd)
 
@@ -41,6 +42,7 @@ docker buildx build \
     --platform   "linux/amd64,linux/arm64,linux/arm/v7,linux/386" \
     --build-arg  DESKTOP_UTILS_DEPS_VERSION_TAG="$DESKTOP_UTILS_DEPS_VERSION_TAG" \
     --build-arg  SQUASHFS_TOOLS_VERSION_TAG="$SQUASHFS_TOOLS_VERSION_TAG" \
+    --build-arg  OPENJPEG_VERSION="$OPENJPEG_VERSION" \
     --cache-from type=local,src=.buildx-cache \
     --cache-to   type=local,dest=.buildx-cache,mode=max \
     --output     type=local,dest="${TMP_DOCKER_CONTEXT}" \

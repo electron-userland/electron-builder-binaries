@@ -25,30 +25,50 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
+          
       - name: Detect changed packages
         id: set
-        shell: bash
+        shell: sh
         run: |
-          set -ex
-          
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            RANGE="origin/${{ github.base_ref }}...HEAD"
-            git fetch origin ${{ github.base_ref }} --depth=1
+          set -eu
+
+          # Ensure full history
+          git rev-parse --is-shallow-repository 2>/dev/null | grep -q true && \
+            git fetch --unshallow
+
+          # Determine diff range
+          if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ]; then
+            git fetch origin "${GITHUB_BASE_REF}" --depth=1
+            RANGE="origin/${GITHUB_BASE_REF}...HEAD"
           else
-            RANGE="${{ github.event.before }}...${{ github.sha }}"
+            BEFORE="${GITHUB_EVENT_BEFORE:-}"
+            SHA="${GITHUB_SHA:-}"
+
+            if [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || [ -z "$BEFORE" ]; then
+              RANGE="$SHA"
+            else
+              RANGE="$BEFORE...$SHA"
+            fi
           fi
 
-          FILES=$(git diff --name-only $RANGE || true)
+          FILES=$(git diff --name-only $RANGE || :)
 
-          CHANGED_PACKAGES=$(echo "$FILES" \
-            | grep '^packages/' || true \
+          # Extract unique top-level package names
+          PACKAGES=$(printf '%s\n' "$FILES" \
+            | grep '^packages/' \
             | cut -d/ -f2 \
             | sort -u)
 
-          # Convert to JSON array (one line)
-          MATRIX_JSON=$(printf '%s\n' $CHANGED_PACKAGES | jq -R -s -c 'split("\n")[:-1]')
+          # Convert to JSON array (single line)
+          if [ -n "$PACKAGES" ]; then
+            MATRIX_JSON=$(printf '%s\n' "$PACKAGES" \
+              | jq -R -s -c 'split("\n")[:-1]')
+          else
+            MATRIX_JSON='[]'
+          fi
 
-          echo "matrix=$MATRIX_JSON" >> "$GITHUB_OUTPUT"
+          printf 'matrix=%s\n' "$MATRIX_JSON" >> "$GITHUB_OUTPUT"
+
       - name: Show detected packages
         run: |
           echo "Detected packages: ${{ steps.set.outputs.matrix }}"

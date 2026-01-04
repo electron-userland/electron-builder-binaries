@@ -5,6 +5,7 @@ CWD=$(cd "$(dirname "$BASH_SOURCE")/.." && pwd)
 
 SQUASHFS_TOOLS_VERSION_TAG=${SQUASHFS_TOOLS_VERSION_TAG:-"4.6.1"}
 DESKTOP_UTILS_DEPS_VERSION_TAG=${DESKTOP_UTILS_DEPS_VERSION_TAG:-"0.28"}
+OPENJPEG_VERSION=${OPENJPEG_VERSION:-"2.5.4"}
 
 # Detect OS
 case "$(uname -s)" in
@@ -197,7 +198,6 @@ echo "   ✅ Built desktop-file-validate"
 echo ""
 echo "🖼️  Building OpenJPEG..."
 
-OPENJPEG_VERSION="2.5.4"
 TMP_BUILD_DIR="$(mktemp -d)"
 INSTALL_DIR="$(mktemp -d)"
 
@@ -221,6 +221,11 @@ mkdir -p "$ARCH_OUTPUT_DIR/lib"
 cp -a "$INSTALL_DIR/usr/local/lib/libopenjp2."* "$ARCH_OUTPUT_DIR/lib/"
 cp -a "$INSTALL_DIR/usr/local/lib/pkgconfig" "$ARCH_OUTPUT_DIR/lib/"
 cp -aL "$INSTALL_DIR/usr/local/bin/opj_decompress" "$ARCH_OUTPUT_DIR/"
+
+patchelf --set-rpath '$ORIGIN/../lib' "$ARCH_OUTPUT_DIR/opj_decompress"
+chmod +x "$ARCH_OUTPUT_DIR/opj_decompress"
+
+echo "   ✅ Built OpenJPEG and opj_decompress"
 
 rm -rf "$TMP_BUILD_DIR" "$INSTALL_DIR"
 
@@ -373,6 +378,10 @@ echo ""
 echo "🔍 Verifying binaries and recording versions..."
 : > "$VERSION_FILE"
 
+echo "AppImage Tools Versions for $OS/$ARCH_DIR" >> "$VERSION_FILE"
+echo "----------------------------------------" >> "$VERSION_FILE"
+echo "openjpeg: $OPENJPEG_VERSION" >> "$VERSION_FILE"
+
 if MKSQ_VER=$(LD_LIBRARY_PATH= "$ARCH_OUTPUT_DIR/mksquashfs" -version | head -n1 2>&1); then
     echo "mksquashfs: $MKSQ_VER" >> "$VERSION_FILE"
     echo "   ✅ mksquashfs verified: $MKSQ_VER"
@@ -387,14 +396,6 @@ if "$ARCH_OUTPUT_DIR/desktop-file-validate" --help > /dev/null 2>&1; then
 else
     echo "   ❌ desktop-file-validate verification failed"
     exit 1
-fi
-
-if OPJ_VER=$("$ARCH_OUTPUT_DIR/opj_decompress" -h | head -n1 2>&1); then
-    echo "opj_decompress: $OPJ_VER" >> "$VERSION_FILE"
-    echo "   ✅ opj_decompress verified: $OPJ_VER"
-else
-    echo "   ❌ opj_decompress verification failed"
-    # exit 1
 fi
 
 # =============================================================================

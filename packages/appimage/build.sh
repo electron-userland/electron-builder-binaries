@@ -15,6 +15,7 @@ echo ""
 export SQUASHFS_TOOLS_VERSION_TAG="4.6.1"
 export APPIMAGE_TYPE2_RELEASE="20251108"
 export DESKTOP_UTILS_DEPS_VERSION_TAG="0.28"
+export OPENJPEG_VERSION="2.5.4"
 
 # Detect OS
 ROOT=$(cd "$(dirname "$BASH_SOURCE")" && pwd)
