@@ -41,12 +41,14 @@ jobs:
           FILES=$(git diff --name-only $RANGE || true)
 
           CHANGED_PACKAGES=$(echo "$FILES" \
-            | grep '^packages/' || true \
+            | grep '^packages/' \
             | cut -d/ -f2 \
-            | sort -u \
-            | jq -R -s -c 'split("\n")[:-1]')
+            | sort -u)
 
-          echo "matrix=$CHANGED_PACKAGES" >> "$GITHUB_OUTPUT"
+          # Convert to JSON array (one line)
+          MATRIX_JSON=$(printf '%s\n' $CHANGED_PACKAGES | jq -R -s -c 'split("\n")[:-1]')
+
+          echo "matrix=$MATRIX_JSON" >> "$GITHUB_OUTPUT"
       - name: Show detected packages
         run: |
           echo "Detected packages: ${{ steps.set.outputs.matrix }}"
