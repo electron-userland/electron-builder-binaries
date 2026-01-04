@@ -41,7 +41,7 @@ jobs:
           FILES=$(git diff --name-only $RANGE || true)
 
           CHANGED_PACKAGES=$(echo "$FILES" \
-            | grep '^packages/' \
+            | grep '^packages/' || true \
             | cut -d/ -f2 \
             | sort -u)
 
