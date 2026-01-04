@@ -37,6 +37,7 @@ NAMES=(
   fpm
   win-codesign
   appimage
+  ran
 )
 
 for NAME in "${NAMES[@]}"; do
