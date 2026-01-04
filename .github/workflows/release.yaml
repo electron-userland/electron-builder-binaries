@@ -39,8 +39,14 @@ jobs:
         with:
           artifact-ids: ${{ needs.build-artifacts.outputs.artifactId }}
 
-      - name: Display structure of downloaded files
-        run: ls -R artifacts-staging
+      - name: Install tree for displaying structure
+        run: |
+          brew install tree
+          mkdir -p artifacts-staging
+
+      - name: Display structure of previously built artifacts
+        run: |
+          tree artifacts-staging
   
       - name: Setup node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4

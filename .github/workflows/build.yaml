@@ -16,17 +16,62 @@ permissions:
   contents: read
 
 jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - name: Checkout code repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - name: Detect changed packages
+        id: set
+        shell: bash
+        run: |
+          set -ex
+          
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            RANGE="origin/${{ github.base_ref }}...HEAD"
+            git fetch origin ${{ github.base_ref }} --depth=1
+          else
+            RANGE="${{ github.event.before }}...${{ github.sha }}"
+          fi
+
+          FILES=$(git diff --name-only $RANGE || true)
+
+          CHANGED_PACKAGES=$(echo "$FILES" \
+            | grep '^packages/' || true \
+            | cut -d/ -f2 \
+            | sort -u)
+
+          # Convert to JSON array (one line)
+          MATRIX_JSON=$(printf '%s\n' $CHANGED_PACKAGES | jq -R -s -c 'split("\n")[:-1]')
+
+          echo "matrix=$MATRIX_JSON" >> "$GITHUB_OUTPUT"
+      - name: Show detected packages
+        run: |
+          echo "Detected packages: ${{ steps.set.outputs.matrix }}"
+ 
   fpm:
+    if: contains(needs.detect.outputs.matrix, '"fpm"')
     uses: ./.github/workflows/build-fpm.yaml
+    needs: detect
 
   win-codesign:
+    if: contains(needs.detect.outputs.matrix, '"win-codesign"')
     uses: ./.github/workflows/build-wincodesign.yaml
+    needs: detect
   
   appimage:
+    if: contains(needs.detect.outputs.matrix, '"appimage"')
     uses: ./.github/workflows/build-appimage.yaml
+    needs: detect
   
   ran:
+    if: contains(needs.detect.outputs.matrix, '"ran"')
     uses: ./.github/workflows/build-ran.yaml
+    needs: detect
 
   # squirrel:
   #   uses: ./.github/workflows/build-squirrel.yaml
@@ -40,9 +85,15 @@ jobs:
       ran,
       # squirrel
     ]
+    if: |
+      always() &&
+      !contains(needs.*.result, 'failure') &&
+      contains(needs.*.result, 'success')
+
     outputs:
       artifactUrl: ${{ steps.upload.outputs.artifact-url }}
       artifactId: ${{ steps.upload.outputs.artifact-id }}
+
     steps:
       
       - name: Enable Corepack for pnpm
@@ -59,7 +110,9 @@ jobs:
         with: { node-version: '22' }
 
       - name: Install tree via Homebrew
-        run: brew install tree
+        run: |
+          brew install tree
+          mkdir -p out
 
       - name: Download all artifacts
         uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
@@ -68,7 +121,8 @@ jobs:
           merge-multiple: true
 
       - name: Show artifact tree
-        run: tree ./out
+        run: |
+          tree ./out
 
       - name: Compress artifacts
         run: sh ./scripts/compress-artifacts.sh
@@ -85,5 +139,5 @@ jobs:
         with:
           name: artifacts-staging
           path: artifacts-staging
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 1
