@@ -24,46 +24,22 @@ jobs:
       - name: Enable Corepack for pnpm
         run: |
           corepack enable
+
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: { fetch-depth: 0 }
+
       - name: Setup Node.js
         uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a
         with: { node-version: "22" }
+
       - name: Install dependencies & build
         run: |
           pnpm i --frozen-lockfile
 
       - name: Detect packages to release
         id: set
-        shell: sh
-        run: |
-          set -exu
-
-          # Output changesets release candidates to a temporary file
-          TMP_JSON=$(mktemp)
-          changeset status --output "$TMP_JSON" || echo '[]' > "$TMP_JSON"
-
-          # Ensure the file exists and is valid JSON
-          if [ ! -s "$TMP_JSON" ]; then
-            echo '[]' > "$TMP_JSON"
-          fi
-
-          # Extract package names from JSON
-          PACKAGES=$(jq -r '.[].name' "$TMP_JSON" 2>/dev/null || echo '' | sort -u)
-
-          # Convert to JSON array for GitHub Actions
-          if [ -n "$PACKAGES" ]; then
-            MATRIX_JSON=$(printf '%s\n' $PACKAGES | jq -R -s -c 'split("\n")[:-1]')
-          else
-            MATRIX_JSON='[]'
-          fi
-
-          # Output for GitHub Actions
-          printf 'matrix=%s\n' "$MATRIX_JSON" >> "$GITHUB_OUTPUT"
-
-          # Clean up temp file
-          rm -f "$TMP_JSON"
+        run: sh ./scripts/detect-packages.sh
 
       - name: Show detected packages
         run: |
@@ -78,12 +54,12 @@ jobs:
     if: contains(needs.detect.outputs.matrix, '"win-codesign"')
     uses: ./.github/workflows/build-wincodesign.yaml
     needs: detect
-  
+
   appimage:
     if: contains(needs.detect.outputs.matrix, '"appimage"')
     uses: ./.github/workflows/build-appimage.yaml
     needs: detect
-  
+
   ran:
     if: contains(needs.detect.outputs.matrix, '"ran"')
     uses: ./.github/workflows/build-ran.yaml
@@ -95,12 +71,12 @@ jobs:
   combine:
     runs-on: macos-latest
     needs: [
-      fpm,
-      win-codesign,
-      appimage,
-      ran,
-      # squirrel
-    ]
+        fpm,
+        win-codesign,
+        appimage,
+        ran,
+        # squirrel
+      ]
     if: |
       always() &&
       !contains(needs.*.result, 'failure') &&
@@ -111,7 +87,6 @@ jobs:
       artifactId: ${{ steps.upload.outputs.artifact-id }}
 
     steps:
-      
       - name: Enable Corepack for pnpm
         run: |
           corepack enable
@@ -123,7 +98,7 @@ jobs:
 
       - name: Setup Node.js
         uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a
-        with: { node-version: '22' }
+        with: { node-version: "22" }
 
       - name: Install tree via Homebrew
         run: |
