@@ -114,9 +114,7 @@ fi
 # macOS: remove quarantine attribute if present
 if [[ "$APPIMAGE_TOOLS_PLATFORM" == "darwin" ]]; then
     if command -v xattr >/dev/null 2>&1; then
-        if xattr "$BIN" 2>/dev/null | grep -q 'com.apple.quarantine'; then
-            xattr -d com.apple.quarantine "$BIN" || true
-        fi
+        xattr -dr com.apple.quarantine "$APPIMAGE_TOOLS_DIR" 2>/dev/null || true
     fi
 fi
 
