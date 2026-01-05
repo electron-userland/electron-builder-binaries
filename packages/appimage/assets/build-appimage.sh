@@ -361,7 +361,11 @@ if [ "$OS" = "darwin" ]; then
     # sign every dylib and executable with adhoc identity
     echo "🔏 Code signing binaries and libraries..."
     for f in "$ARCH_OUTPUT_DIR"/lib/*.dylib "$ARCH_OUTPUT_DIR"/*; do
-        /usr/bin/codesign --force --sign - "$f" 2>/tmp/codesign.err || true
+        if [ ! -f "$f" ]; then
+            continue
+        fi
+        echo "   Signing $f"
+        /usr/bin/codesign --force --sign - "$f" 2>/dev/null || ( echo "   ❌ Failed to sign $f"; exit 1 )
     done
     # verify signatures (should not print errors)
     /usr/bin/codesign -v --deep --strict "$ARCH_OUTPUT_DIR"/mksquashfs
