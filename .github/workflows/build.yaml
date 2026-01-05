@@ -21,22 +21,18 @@ jobs:
     outputs:
       matrix: ${{ steps.set.outputs.matrix }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install Node.js & Changesets
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      
-      - name: corepack it
-        shell: bash
+      - name: Enable Corepack for pnpm
         run: |
           corepack enable
-          pnpm install --frozen-lockfile
-          
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Setup Node.js
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a
+        with: { node-version: "22" }
+      - name: Install dependencies & build
+        run: |
+          pnpm i --frozen-lockfile
+
       - name: Detect packages to release
         id: set
         shell: sh
