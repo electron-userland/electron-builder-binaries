@@ -213,7 +213,11 @@ cd "openjpeg-${OPENJPEG_VERSION}" || exit 1
 # Build
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local > /dev/null
-make -j"$(nproc)" > /dev/null
+if [ "$OS" = "linux" ]; then
+    make -j$(nproc)
+else
+    make -j$(sysctl -n hw.ncpu)
+fi
 make install DESTDIR="$INSTALL_DIR"
 
 # Prepare output directory
