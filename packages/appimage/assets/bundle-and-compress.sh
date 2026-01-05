@@ -111,6 +111,15 @@ if [[ "${1:-}" == "--debug" || "${1:-}" == "-d" ]]; then
     exit 0
 fi
 
+# macOS: remove quarantine attribute if present
+if [[ "$APPIMAGE_TOOLS_PLATFORM" == "darwin" ]]; then
+    if command -v xattr >/dev/null 2>&1; then
+        if xattr "$BIN" 2>/dev/null | grep -q 'com.apple.quarantine'; then
+            xattr -d com.apple.quarantine "$BIN" || true
+        fi
+    fi
+fi
+
 # Execute normally
 exec "$BIN" "$@"
 EOF
