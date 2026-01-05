@@ -40,7 +40,7 @@ jobs:
           set -eu
 
           # Get release candidates
-          RELEASE_CANDIDATES=$(changeset status --json)
+          RELEASE_CANDIDATES=$(./node_modules/@changesets/cli/bin.js status --json)
 
           # Extract unique package names
           PACKAGES=$(echo "$RELEASE_CANDIDATES" \
