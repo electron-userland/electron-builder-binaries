@@ -222,9 +222,6 @@ cp -a "$INSTALL_DIR/usr/local/lib/libopenjp2."* "$ARCH_OUTPUT_DIR/lib/"
 cp -a "$INSTALL_DIR/usr/local/lib/pkgconfig" "$ARCH_OUTPUT_DIR/lib/"
 cp -aL "$INSTALL_DIR/usr/local/bin/opj_decompress" "$ARCH_OUTPUT_DIR/"
 
-patchelf --set-rpath '$ORIGIN/../lib' "$ARCH_OUTPUT_DIR/opj_decompress"
-chmod +x "$ARCH_OUTPUT_DIR/opj_decompress"
-
 echo "   ✅ Built OpenJPEG and opj_decompress"
 
 rm -rf "$TMP_BUILD_DIR" "$INSTALL_DIR"
@@ -453,7 +450,7 @@ if [ "$OS" = "linux" ]; then
         return 1
     }
     
-    # Copy required libraries
+    # Copy required librariesq
     mkdir -p "$LIB_DEST"
     
     copy_lib "libXss.so.1" || exit 1
