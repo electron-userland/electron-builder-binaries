@@ -106,10 +106,14 @@ jobs:
           path: packages/nsis/out
           merge-multiple: true
 
+      - name: brew tree
+        run: |
+          brew install tree
+        shell: bash
+
       - name: List downloaded artifacts
         run: |
-          echo "Downloaded artifacts:"
-          ls -lhR packages/nsis/out
+          tree packages/nsis/out
         shell: bash
 
       - name: Combine bundles
@@ -128,7 +132,7 @@ jobs:
           name: nsis-bundle
           path: packages/nsis/out/**/*.tar.gz
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 1
 
   test-nsis:
     name: Test NSIS Bundle (${{ matrix.platform }})
