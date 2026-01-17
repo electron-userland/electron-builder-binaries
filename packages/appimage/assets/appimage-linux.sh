@@ -1,8 +1,10 @@
 #!/bin/bash
 
-set -e
+set -eo pipefail
 
 SQUASHFS_TOOLS_VERSION_TAG=${SQUASHFS_TOOLS_VERSION_TAG:-"4.6.1"}
+DESKTOP_UTILS_DEPS_VERSION_TAG=${DESKTOP_UTILS_DEPS_VERSION_TAG:-"0.28"}
+OPENJPEG_VERSION=${OPENJPEG_VERSION:-"2.5.4"}
 
 ROOT=$(cd "$(dirname "$BASH_SOURCE")/.." && pwd)
 
@@ -13,79 +15,84 @@ if ! docker buildx version &> /dev/null; then
     exit 1
 fi
 
-# Create a new builder instance if it doesn't exist
-if ! docker buildx ls | grep -q appimage-builder; then
-    echo "🏗️  Creating buildx builder instance..."
-    docker buildx create --name appimage-builder --use
-fi
+DEST="${DEST:-$ROOT/out/build}"
+TMP_DOCKER_CONTEXT="/tmp/appimage-docker-context"
+TEMP_DIR="/tmp/appimage-build-linux"
 
-# Use the builder
+cleanup() {
+    docker buildx rm appimage-builder || true
+    echo "Cleaning up temporary directories..."
+    rm -rf "$TEMP_DIR" "$TMP_DOCKER_CONTEXT"
+}
+trap 'errorCode=$?; echo "Error $errorCode at command: $BASH_COMMAND"; cleanup; exit $errorCode' ERR
+
+echo "🏗️  Preparing build environment..."
+cleanup
+mkdir -p "$TEMP_DIR" "$TMP_DOCKER_CONTEXT"
+
+# Create a new builder instance if it doesn't exist
+echo "🏗️  Creating buildx builder instance..."
+docker buildx create --name appimage-builder
 docker buildx use appimage-builder
 
-DEST="${DEST:-$ROOT/out/build}"
-mkdir -p $DEST
-
-# Build i386 separately with i386/ prefix
+# Build all Linux architectures
 echo ""
-echo "🚀 Building for linux/386 (i386)..."
+echo "🚀 Building for amd64, arm64, armv7, i386 platforms..."
 docker buildx build \
-    --platform linux/386 \
-    --build-arg PLATFORM_PREFIX="i386/" \
-    --build-arg TARGETPLATFORM="linux/386" \
-    --build-arg TARGETARCH="386" \
-    --build-arg SQUASHFS_TOOLS_VERSION_TAG="$SQUASHFS_TOOLS_VERSION_TAG" \
-    --output type=local,dest="${DEST}/linux_386" \
-    -f "$ROOT/assets/Dockerfile" \
+    --platform   "linux/amd64,linux/arm64,linux/arm/v7,linux/386" \
+    --build-arg  DESKTOP_UTILS_DEPS_VERSION_TAG="$DESKTOP_UTILS_DEPS_VERSION_TAG" \
+    --build-arg  SQUASHFS_TOOLS_VERSION_TAG="$SQUASHFS_TOOLS_VERSION_TAG" \
+    --build-arg  OPENJPEG_VERSION="$OPENJPEG_VERSION" \
+    --cache-from type=local,src=.buildx-cache \
+    --cache-to   type=local,dest=.buildx-cache,mode=max \
+    --output     type=local,dest="${TMP_DOCKER_CONTEXT}" \
+    -f           "$ROOT/assets/Dockerfile" \
     $ROOT
-
-echo "🚀 Building for amd64, arm64, armv7 platforms..."
-docker buildx build \
-    --platform "linux/amd64,linux/arm64,linux/arm/v7" \
-    --build-arg SQUASHFS_TOOLS_VERSION_TAG="$SQUASHFS_TOOLS_VERSION_TAG" \
-    --output type=local,dest="${DEST}" \
-    -f "$ROOT/assets/Dockerfile" \
-    $ROOT
-
 
 echo ""
 echo "📦 Extracting all tarballs..."
 
-# Find and extract all .tar.gz files to DEST root
-find "${DEST}" -name "*.tar.gz" -type f | while read -r tarball; do
-    echo "  Extracting $(basename "$tarball")..."
-    tar xzf "$tarball" -C "${DEST}"
-    rm -r "$(dirname "$tarball")"
+# Find and extract all .tar.gz files to TMP_DIR root
+find "${TMP_DOCKER_CONTEXT}" -name "*.tar.gz" -type f | while read -r tarfile; do
+    echo "  Extracting $(basename "$tarfile")..."
+    tar -xzf "$tarfile" -C "${TEMP_DIR}"
+    rm -f "$tarfile"
 done
+
 
 echo "✅ All builds completed and extracted"
 
 # Verify executables have correct permissions
 echo "🔐 Verifying executable permissions..."
-chmod +x $DEST/linux/x64/mksquashfs \
-    $DEST/linux/x64/desktop-file-validate \
-    $DEST/linux/x64/opj_decompress \
-    $DEST/linux/ia32/mksquashfs \
-    $DEST/linux/ia32/desktop-file-validate \
-    $DEST/linux/arm64/mksquashfs \
-    $DEST/linux/arm64/desktop-file-validate \
-    $DEST/linux/arm32/mksquashfs
+chmod +x $TEMP_DIR/linux/x64/mksquashfs \
+    $TEMP_DIR/linux/x64/desktop-file-validate \
+    $TEMP_DIR/linux/x64/opj_decompress \
+    $TEMP_DIR/linux/ia32/mksquashfs \
+    $TEMP_DIR/linux/ia32/desktop-file-validate \
+    $TEMP_DIR/linux/arm64/mksquashfs \
+    $TEMP_DIR/linux/arm64/desktop-file-validate \
+    $TEMP_DIR/linux/arm64/opj_decompress \
+    $TEMP_DIR/linux/arm32/mksquashfs \
+    $TEMP_DIR/linux/arm32/desktop-file-validate
+
+echo "✅ Executable permissions set"
 
 echo ""
 echo "✨ Extraction complete!"
 echo ""
 echo "📂 Directory structure:"
-tree $DEST -L 4 2>/dev/null || find $DEST -type f
+tree $TEMP_DIR -L 4 2>/dev/null || find $TEMP_DIR -type f -maxdepth 4
 
 echo ""
-echo "Creating zip archive of all builds..."
-ARCHIVE_NAME="appimage-tools-linux-all-architectures.zip"
+echo "Creating tar.gz archive of all builds..."
+ARCHIVE_NAME="appimage-tools-linux-all-architectures.tar.gz"
 (
-    cd "$DEST"
-    zip -r -9 "$ROOT/out/$ARCHIVE_NAME" .
+    cd "$TEMP_DIR"
+    tar czf "$DEST/$ARCHIVE_NAME" .
 )
-echo "✓ Archive created: $ROOT/out/$ARCHIVE_NAME"
+echo "✓ Archive created: $DEST/$ARCHIVE_NAME"
 
-docker buildx rm appimage-builder
+cleanup
 
 echo ""
 echo "🎉 Done!"

@@ -2,7 +2,7 @@
 
 # Build script for AppImage tools for multiple platforms
 # Compile for all builds possible if on MacOS w/ docker buildx.
-# rm -rf out; TARGET=linux sh build.sh && TARGET=darwin sh build.sh && TARGET=runtime sh build.sh && TARGET=compress sh build.sh
+# rm -rf build out; TARGET=linux sh build.sh && TARGET=darwin sh build.sh && TARGET=runtime sh build.sh && TARGET=compress sh build.sh
 
 set -e
 
@@ -14,6 +14,8 @@ echo ""
 # VERSIONS
 export SQUASHFS_TOOLS_VERSION_TAG="4.6.1"
 export APPIMAGE_TYPE2_RELEASE="20251108"
+export DESKTOP_UTILS_DEPS_VERSION_TAG="0.28"
+export OPENJPEG_VERSION="2.5.4"
 
 # Detect OS
 ROOT=$(cd "$(dirname "$BASH_SOURCE")" && pwd)
@@ -25,17 +27,16 @@ mkdir -p $BUILD_DIR $OUTPUT_DIR
 
 if [ "$TARGET" = "darwin" ]; then
     echo "🍎 Detected macOS target - Building Darwin binaries..."
-    DEST="$BUILD_DIR/darwin" bash $ROOT/assets/appimage-mac.sh    
+    DEST="$OUTPUT_DIR" bash $ROOT/assets/build-appimage.sh  
 elif [ "$TARGET" = "linux" ]; then
     echo "🐧 Detected Linux target - Building Linux binaries for all architectures..."
-    # output to BUILD_DIR because it also extracts lib/
-    DEST="$BUILD_DIR" bash $ROOT/assets/appimage-linux.sh
+    DEST="$OUTPUT_DIR" bash $ROOT/assets/appimage-linux.sh
 elif [ "$TARGET" = "runtime" ]; then
     echo "📥 Downloading AppImage runtimes into bundle..."
     OUT_DIR="$OUTPUT_DIR" bash $ROOT/assets/download-runtime.sh --install-directory $BUILD_DIR/runtimes
 elif [ "$TARGET" = "compress" ]; then
     echo "📦 Creating package hierarchy of all AppImage tools and runtimes..."
-    OUT_DIR="$OUTPUT_DIR/appimage" BUILD_DIR="$BUILD_DIR" SRC_DIR="$OUTPUT_DIR" bash $ROOT/assets/bundle-and-compress.sh
+    OUT_DIR="$OUTPUT_DIR/appimage" ZIP_DIR="$OUTPUT_DIR" bash $ROOT/assets/bundle-and-compress.sh
 else
     echo "❌ Unsupported TARGET: $TARGET"
     exit 1

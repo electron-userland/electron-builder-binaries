@@ -17,7 +17,7 @@ APPIMAGE_TYPE2_RELEASE="${APPIMAGE_TYPE2_RELEASE:-20251108}"
 
 BASE_URL="https://github.com/AppImage/type2-runtime/releases/download/${APPIMAGE_TYPE2_RELEASE}"
 
-FILES="runtime-x86_64:runtime-x64 runtime-i686:runtime-ia32 runtime-aarch64:runtime-arm64 runtime-armhf:runtime-armv7l"
+FILES="runtime-x86_64:runtime-x64 runtime-i686:runtime-ia32 runtime-aarch64:runtime-arm64 runtime-armhf:runtime-arm32"
 
 # Expected checksums (sha256) for files downloaded above.
 # Format: <hex>  <path>
@@ -27,7 +27,7 @@ CHECKSUMS=$(cat <<'CHECKSUMS'
 2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d  runtime-x64
 e72ea0b140a0a16e680713238a6f30aad278b62c4ca17919c554864124515498  runtime-ia32
 00cbdfcf917cc6c0ff6d3347d59e0ca1f7f45a6df1a428a0d6d8a78664d87444  runtime-arm64
-e9060d37577b8a29914ec12d8740add24e19ff29012fb1fa0f60daf62db0688d  runtime-armv7l
+e9060d37577b8a29914ec12d8740add24e19ff29012fb1fa0f60daf62db0688d  runtime-arm32
 CHECKSUMS
 )
 
@@ -164,13 +164,14 @@ if [ "$failed" -ne 0 ]; then
 fi
 
 echo "AppImage/type2-runtime release: $APPIMAGE_TYPE2_RELEASE" > "$INSTALL_DIR/VERSION.txt"
+echo "$CHECKSUMS" >> "$INSTALL_DIR/VERSION.txt"
 echo "All files verified successfully." >&2
 
-ARCHIVE_NAME="appimage-runtime-$APPIMAGE_TYPE2_RELEASE.zip"
-echo "📦 Creating ZIP bundle: $ARCHIVE_NAME"
+ARCHIVE_NAME="appimage-runtime-$APPIMAGE_TYPE2_RELEASE.tar.gz"
+echo "📦 Creating tar.gz bundle: $ARCHIVE_NAME"
 (
 cd "$INSTALL_DIR/.."
-zip -r -9 "$OUT_DIR/$ARCHIVE_NAME" $(basename "$INSTALL_DIR")
+tar czf "$OUT_DIR/$ARCHIVE_NAME" $(basename "$INSTALL_DIR")
 )
 echo "✅ Done!"
 echo "Bundle at: $OUT_DIR/$ARCHIVE_NAME"

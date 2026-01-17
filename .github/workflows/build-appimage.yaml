@@ -37,7 +37,7 @@ jobs:
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
         with:
           name: appimage-temp-macos-${{ matrix.node }}
-          path: packages/appimage/out/**/*.zip
+          path: packages/appimage/out/**/*.tar.gz
           if-no-files-found: error
           retention-days: 1
 
@@ -80,7 +80,7 @@ jobs:
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
         with:
           name: appimage-temp-linux
-          path: packages/appimage/out/**/*.zip
+          path: packages/appimage/out/**/*.tar.gz
           if-no-files-found: error
           retention-days: 1
 
@@ -125,5 +125,5 @@ jobs:
         with:
           name: appimage-bundle
           if-no-files-found: error
-          path: packages/appimage/out/**/*.zip
+          path: packages/appimage/out/**/*.tar.gz
           retention-days: 1
