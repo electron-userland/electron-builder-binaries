@@ -138,5 +138,5 @@ jobs:
         with:
           name: artifacts-staging
           path: artifacts-staging
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 1
