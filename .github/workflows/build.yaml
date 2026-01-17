@@ -65,18 +65,15 @@ jobs:
     uses: ./.github/workflows/build-ran.yaml
     needs: detect
 
-  nsis:
-    if: contains(needs.detect.outputs.matrix, '"nsis"')
-    uses: ./.github/workflows/build-nsis.yaml
-    needs: detect
-
   dmg-builder:
     if: contains(needs.detect.outputs.matrix, '"dmg-builder"')
     uses: ./.github/workflows/build-dmg-builder.yaml
     needs: detect
-
-  # squirrel:
-  #   uses: ./.github/workflows/build-squirrel.yaml
+    
+  squirrel:
+    if: contains(needs.detect.outputs.matrix, '"squirrel"')
+    uses: ./.github/workflows/build-squirrel.yaml
+    needs: detect
 
   combine:
     runs-on: macos-latest
@@ -85,9 +82,8 @@ jobs:
         win-codesign,
         appimage,
         ran,
-        nsis,
-        dmg-builder
-        # squirrel
+        dmg-builder,
+        squirrel
       ]
     if: |
       always() &&
