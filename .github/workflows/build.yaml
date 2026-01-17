@@ -16,17 +16,64 @@ permissions:
   contents: read
 
 jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - name: Enable Corepack for pnpm
+        run: |
+          corepack enable
+
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { fetch-depth: 0 }
+
+      - name: Setup Node.js
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a
+        with: { node-version: "22" }
+
+      - name: Install dependencies & build
+        run: |
+          pnpm i --frozen-lockfile
+
+      - name: Detect packages to release
+        id: set
+        run: sh ./scripts/detect-packages.sh
+
+      - name: Show detected packages
+        run: |
+          echo "Packages to build for release: ${{ steps.set.outputs.matrix }}"
+
   fpm:
+    if: contains(needs.detect.outputs.matrix, '"fpm"')
     uses: ./.github/workflows/build-fpm.yaml
+    needs: detect
 
   win-codesign:
+    if: contains(needs.detect.outputs.matrix, '"win-codesign"')
     uses: ./.github/workflows/build-wincodesign.yaml
-  
+    needs: detect
+
   appimage:
+    if: contains(needs.detect.outputs.matrix, '"appimage"')
     uses: ./.github/workflows/build-appimage.yaml
-  
+    needs: detect
+
   ran:
+    if: contains(needs.detect.outputs.matrix, '"ran"')
     uses: ./.github/workflows/build-ran.yaml
+    needs: detect
+
+  nsis:
+    if: contains(needs.detect.outputs.matrix, '"nsis"')
+    uses: ./.github/workflows/build-nsis.yaml
+    needs: detect
+
+  dmg-builder:
+    if: contains(needs.detect.outputs.matrix, '"dmg-builder"')
+    uses: ./.github/workflows/build-dmg-builder.yaml
+    needs: detect
 
   # squirrel:
   #   uses: ./.github/workflows/build-squirrel.yaml
@@ -34,17 +81,24 @@ jobs:
   combine:
     runs-on: macos-latest
     needs: [
-      fpm,
-      win-codesign,
-      appimage,
-      ran,
-      # squirrel
-    ]
+        fpm,
+        win-codesign,
+        appimage,
+        ran,
+        nsis,
+        dmg-builder
+        # squirrel
+      ]
+    if: |
+      always() &&
+      !contains(needs.*.result, 'failure') &&
+      contains(needs.*.result, 'success')
+
     outputs:
       artifactUrl: ${{ steps.upload.outputs.artifact-url }}
       artifactId: ${{ steps.upload.outputs.artifact-id }}
+
     steps:
-      
       - name: Enable Corepack for pnpm
         run: |
           corepack enable
@@ -56,10 +110,12 @@ jobs:
 
       - name: Setup Node.js
         uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a
-        with: { node-version: '22' }
+        with: { node-version: "22" }
 
       - name: Install tree via Homebrew
-        run: brew install tree
+        run: |
+          brew install tree
+          mkdir -p out
 
       - name: Download all artifacts
         uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
@@ -68,7 +124,8 @@ jobs:
           merge-multiple: true
 
       - name: Show artifact tree
-        run: tree ./out
+        run: |
+          tree ./out
 
       - name: Compress artifacts
         run: sh ./scripts/compress-artifacts.sh
@@ -85,5 +142,5 @@ jobs:
         with:
           name: artifacts-staging
           path: artifacts-staging
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 1
