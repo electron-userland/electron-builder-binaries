@@ -74,8 +74,7 @@ run_arch ./configure \
 --prefix="$PREFIX" \
 --enable-optimizations \
 --disable-shared \
---disable-test-modules \
-ac_cv_func_clock_gettime=no
+--disable-test-modules
 
 ### ================================
 ### BUILD & INSTALL
