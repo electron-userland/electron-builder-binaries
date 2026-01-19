@@ -93,6 +93,17 @@ run_arch "$PREFIX/bin/python3" -m pip install --upgrade pip --no-warn-script-loc
 run_arch "$PREFIX/bin/python3" -m pip install --no-warn-script-location --no-cache git+https://github.com/dmgbuild/dmgbuild.git@${DMGBUILD_VERSION}
 
 ###############################################################################
+# ADD VERSION.txt FILE with python version and versions of each major package
+###############################################################################
+echo "📝 Creating VERSION.txt…"
+{
+    echo "dmgbuild version/commit hash: ${DMGBUILD_VERSION}"
+    echo "Python version: ${PYTHON_VERSION}"
+    echo -n "dmgbuild package version: "
+    run_arch "$PREFIX/bin/python3" -m pip show dmgbuild | grep ^Version: | awk '{print $2}'
+} > "$DIR_TO_ARCHIVE/VERSION.txt"
+
+###############################################################################
 # MINIMAL SIZE REDUCTION
 ###############################################################################
 
@@ -241,8 +252,8 @@ codesign --verify --strict --verbose=1 "$DIR_TO_ARCHIVE/python/bin/python3"
 codesign --verify --strict --verbose=1 "$DIR_TO_ARCHIVE/dmgbuild"
 
 find "$DIR_TO_ARCHIVE" -type f \
-\( -perm +111 -o -name "*.so" -o -name "*.dylib" \) \
--exec codesign --verify --strict --verbose=1 {} \;
+    \( -perm +111 -o -name "*.so" -o -name "*.dylib" \) \
+    -exec codesign --verify --strict --verbose=1 {} \;
 
 ###############################################################################
 # TESTING

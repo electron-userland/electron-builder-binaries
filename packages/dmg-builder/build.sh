@@ -5,7 +5,7 @@ set -euo pipefail
 PYTHON_VERSION="3.14.2"
 # https://github.com/dmgbuild/dmgbuild
 # base: #1.6.7
-DMGBUILD_VERSION="9614277" # commit 9614277f759768cfc156a3493dd2b60fae7d63d5
+DMGBUILD_VERSION="9614277f759768cfc156a3493dd2b60fae7d63d5" # commit
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
