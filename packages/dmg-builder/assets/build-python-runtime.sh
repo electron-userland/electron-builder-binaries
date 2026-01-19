@@ -92,24 +92,6 @@ echo "🐍 Installing pip and dmgbuild"
 run_arch "$PREFIX/bin/python3" -m pip install --upgrade pip --no-warn-script-location --no-cache 
 run_arch "$PREFIX/bin/python3" -m pip install --no-warn-script-location --no-cache git+https://github.com/dmgbuild/dmgbuild.git@${DMGBUILD_VERSION}
 
-### ===============================
-### PATCH INSTALLATION WITH GIT PATCHES
-### ===============================
-# if [[ "$DMGBUILD_VERSION" =~ ^[0-9a-f]{7,40}$ ]]; then
-    echo "🔧 Applying dmgbuild patches…"
-    PATCHES_DIR="${ROOT}/assets/patches"
-    if [ -d "$PATCHES_DIR" ]; then
-        for patch in $(ls "$PATCHES_DIR"/*.patch | sort); do
-            echo "Applying patch: $(basename "$patch")"
-            git -C "$PREFIX/lib/python${PYTHON_VERSION%.*}/site-packages/dmgbuild" am --whitespace=fix "$patch"
-        done
-    else
-        echo "No patches directory found at $PATCHES_DIR, skipping patching."
-    fi
-# else
-#     echo "No git patches to apply for dmgbuild version ${DMGBUILD_VERSION}"
-# fi
-
 ###############################################################################
 # MINIMAL SIZE REDUCTION
 ###############################################################################
