@@ -1,0 +1,40 @@
+From e6edd7c04e46ce298d9bcd8ac86c4be7bbe78d05 Mon Sep 17 00:00:00 2001
+From: Mike Maietta <mmaietta@users.noreply.github.com>
+Date: Sun, 18 Jan 2026 15:06:10 -0800
+Subject: [PATCH] Allow hex color definitions to be case insensitive (#277)
+
+Co-authored-by: Russell Keith-Magee <russell@keith-magee.com>
+---
+ src/dmgbuild/colors.py | 2 +-
+ src/dmgbuild/core.py   | 2 --
+ 2 files changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/src/dmgbuild/colors.py b/src/dmgbuild/colors.py
+index 76ffed9..af4a2d9 100644
+--- a/src/dmgbuild/colors.py
++++ b/src/dmgbuild/colors.py
+@@ -257,7 +257,7 @@ _x11_colors = {
+ 
+ _ws_re = re.compile(r"\s+")
+ _token_re = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+-_hex_re = re.compile(r"#([0-9a-f]{3}(?:[0-9a-f]{3})?)$")
++_hex_re = re.compile(r"#([0-9a-f]{3}(?:[0-9a-f]{3})?)$", re.IGNORECASE)
+ _number_re = re.compile(r"[0-9]*(\.[0-9]*)")
+ 
+ 
+diff --git a/src/dmgbuild/core.py b/src/dmgbuild/core.py
+index e2ba0b1..d8ea6d3 100644
+--- a/src/dmgbuild/core.py
++++ b/src/dmgbuild/core.py
+@@ -25,8 +25,6 @@ except ImportError:
+     badge = None
+ 
+ 
+-_hexcolor_re = re.compile(r"#[0-9a-f]{3}(?:[0-9a-f]{3})?")
+-
+ # The first element in the platform.mac_ver() tuple is a string containing the
+ # macOS version (e.g., '10.15.6'). Parse into an integer tuple.
+ MACOS_VERSION = tuple(int(v) for v in platform.mac_ver()[0].split("."))
+-- 
+2.50.1 (Apple Git-155)
+
