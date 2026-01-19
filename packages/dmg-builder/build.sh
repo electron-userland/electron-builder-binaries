@@ -4,8 +4,8 @@ set -euo pipefail
 # CONFIG
 PYTHON_VERSION="3.14.2"
 # https://github.com/dmgbuild/dmgbuild
-# base: #1.6.7
-DMGBUILD_VERSION="9614277f759768cfc156a3493dd2b60fae7d63d5" # commit
+# base: v1.6.7
+DMGBUILD_VERSION_OR_HASH="9614277" # commit 9614277f759768cfc156a3493dd2b60fae7d63d5
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
@@ -23,5 +23,5 @@ for ARCH in $ARCHS; do
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "🏗️  Building Python runtime for ${ARCH}"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    bash "$ROOT/assets/build-python-runtime.sh" "$ROOT" "$OUTPUT_DIR" $PYTHON_VERSION $DMGBUILD_VERSION "-" "${ARCH}"
+    bash "$ROOT/assets/build-python-runtime.sh" "$ROOT" "$OUTPUT_DIR" $PYTHON_VERSION $DMGBUILD_VERSION_OR_HASH "-" "${ARCH}"
 done
