@@ -247,7 +247,7 @@ jobs:
         if: runner.os == 'Windows' && endsWith(matrix.binary, '.ps1')
         shell: pwsh
         run: |
-          $BINARY_PATH = Join-Path $env:GITHUB_WORKSPACE ${{ env.NSIS_BUNDLE }} ${{ matrix.binary }}
+          $BINARY_PATH = Join-Path (Join-Path $env:GITHUB_WORKSPACE "${{ env.NSIS_BUNDLE }}") "${{ matrix.binary }}"
           if (-not (Test-Path $BINARY_PATH)) {
               Write-Host "❌ makensis.exe not found!"
               exit 1

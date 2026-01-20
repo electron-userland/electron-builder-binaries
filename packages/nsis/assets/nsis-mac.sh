@@ -137,7 +137,7 @@ echo "🧪 Verifying binary..."
 if file "$COMPILED_BINARY" | grep -q "Mach-O"; then
     echo "  ✓ Valid macOS Mach-O binary"
 else
-    echo "  ⚠️  Binary verification inconclusive"
+    echo "  ❌ Binary verification failed: not a valid macOS Mach-O binary"
     exit 1
 fi
 

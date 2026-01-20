@@ -15,8 +15,8 @@ OUT_DIR="$BASE_DIR/out/nsis"
 TEMP_DIR="$OUT_DIR/temp"
 
 # Version configuration
-NSIS_VERSION=${NSIS_VERSION:-3.10}
-NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v310}
+NSIS_VERSION=${NSIS_VERSION:-3.11}
+NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v311}
 
 BUNDLE_DIR="$OUT_DIR/nsis-bundle"
 OUTPUT_ARCHIVE="$OUT_DIR/nsis-bundle-base-$NSIS_BRANCH.tar.gz"
@@ -139,7 +139,7 @@ PLUGIN_NAMES=(
 PLUGIN_URLS=(
     "https://github.com/DigitalMediaServer/NSIS-INetC-plugin/releases/download/v1.0.5.6/INetC.zip"
     "https://github.com/lordmulder/stdutils/releases/download/1.14/StdUtils.2018-10-27.zip"
-    "http://nsis.sourceforge.net/mediawiki/images/4/4c/SpiderBanner_plugin.zip"
+    "https://nsis.sourceforge.io/mediawiki/images/4/4c/SpiderBanner_plugin.zip"
     "https://nsis.sourceforge.io/mediawiki/images/1/18/NsProcess.zip"
     "https://nsis.sourceforge.io/mediawiki/images/8/8f/UAC.zip"
     "https://nsis.sourceforge.io/mediawiki/images/5/54/WinShell.zip"
@@ -194,7 +194,7 @@ elif command -v 7za &> /dev/null; then
     EXTRACT_ARGS="x -y"
 else
     EXTRACT_CMD="unzip"
-    EXTRACT_ARGS="-oq"
+    EXTRACT_ARGS="-q -o"
 fi
 
 # Process ZIP plugins

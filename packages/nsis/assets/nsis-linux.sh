@@ -155,7 +155,8 @@ echo "  → Verifying binary..."
 if file "$TEMP_DIR/nsis-bundle/linux/makensis" | grep -q "ELF"; then
     echo "  ✓ Valid Linux ELF binary"
 else
-    echo "  ⚠️  Binary verification inconclusive"
+    echo "  ❌ Binary verification failed: not a valid Linux ELF binary"
+    exit 1
 fi
 
 # =============================================================================
