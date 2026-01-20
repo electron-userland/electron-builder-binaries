@@ -1,0 +1,27 @@
+name: Install and archive macos dmg-builder bundle
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  dmg-builder:
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15-intel, macos-15]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Build
+        run: |
+          bash ./packages/dmg-builder/build.sh
+      - name: Upload dmg-builder artifact
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        with:
+          name: dmg-builder-${{ matrix.runner }}
+          path: ./packages/dmg-builder/out/**/*.tar.gz
+          if-no-files-found: error
+          retention-days: 1
