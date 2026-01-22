@@ -11,9 +11,9 @@
     "ci:publish": "changeset tag"
   },
   "devDependencies": {
-    "@actions/attest": "^2.0.0",
-    "@changesets/changelog-github": "^0.5.1",
-    "@changesets/cli": "^2.29.2",
+    "@actions/attest": "^2.2.0",
+    "@changesets/changelog-github": "^0.5.2",
+    "@changesets/cli": "^2.29.8",
     "@octokit/rest": "22.0.1",
     "mime-types": "^3.0.2"
   },
