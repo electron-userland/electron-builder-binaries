@@ -200,7 +200,7 @@ if [[ ! -x "$BINARY" ]]; then
   chmod +x "$BINARY"
 fi
 
-export NSISDIR="$SCRIPT_DIR/share/nsis"
+export NSISDIR="$SCRIPT_DIR/windows"
 
 exec "$BINARY" "$@"
 
@@ -238,7 +238,7 @@ if not defined NSISDIR (
 )
 
 REM Execute makensis.exe with all passed arguments
-"%NSISDIR%\makensis.exe" %*
+"%NSISDIR%\Bin\makensis.exe" %*
 set EXITCODE=%ERRORLEVEL%
 
 endlocal & exit /b %EXITCODE%
@@ -270,7 +270,7 @@ if ($ScriptDir -match '^/([a-zA-Z])/(.*)') {
 }
 
 $env:NSISDIR = Join-Path (Join-Path $ScriptDir "share") "nsis"
-$Makensis   = Join-Path $env:NSISDIR "makensis.exe"
+$Makensis   = Join-Path (Join-Path $env:NSISDIR "Bin") "makensis.exe"
 if (-not (Test-Path $Makensis)) {
     Write-Error "makensis.exe not found at: $Makensis"
     exit 1
@@ -302,10 +302,10 @@ This bundle contains NSIS (Nullsoft Scriptable Install System) binaries for mult
 
 ## Contents
 
-- **Windows**: \`share/nsis/makensis.exe\` (official pre-built binary)
+- **Windows**: \`windows/makensis.exe\` (official pre-built binary)
 - **Linux**: \`linux/makensis\` (native ELF binary, compiled from source)
 - **macOS**: \`mac/makensis\` (native Mach-O binary, compiled from source)
-- **NSIS Data**: \`share/nsis/\` (Contrib, Include, Plugins, Stubs)
+- **NSIS Data**: \`windows/\` (Contrib, Include, Plugins, Stubs)
 - **Universal Wrapper**: \`makensis\` (auto-detects platform, sets \`NSISDIR\`) [.cmd and .ps1 versions for Windows]
 
 ## Quick Start
@@ -329,7 +329,7 @@ makensis.cmd your-script.nsi
 
 \`\`\`bash
 # Set NSISDIR manually
-export NSISDIR="\$(pwd)/share/nsis"
+export NSISDIR="\$(pwd)/windows"
 
 # Run platform-specific binary
 ./windows/makensis.exe your-script.nsi  # Windows
@@ -359,7 +359,7 @@ This bundle includes 8 additional community plugins:
 ## Environment Variables
 
 - **NSISDIR**: Path to NSIS data directory (auto-set by wrapper)
-- Set manually if needed: \`export NSISDIR=/path/to/share/nsis\`
+- Set manually if needed: \`export NSISDIR=/path/to/windows\`
 
 ## More Information
 

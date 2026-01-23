@@ -142,19 +142,19 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: Windows
+          - platform: Windows (powershell)
             runner: windows-latest
             binary: makensis.ps1
-          - platform: Windows
+          - platform: Windows (cmd)
             runner: windows-latest
             binary: makensis.cmd
           - platform: Linux
             runner: ubuntu-latest
             binary: makensis
-          - platform: macOS-x64
+          - platform: macOS (x64)
             runner: macos-15-intel
             binary: makensis
-          - platform: macOS-arm64
+          - platform: macOS (arm64)
             runner: macos-15
             binary: makensis
     steps:
@@ -204,7 +204,8 @@ jobs:
 
           # Verify contents
           echo "Listing extracted files:"
-          ls -lh "$NSIS_BUNDLE/nsis-bundle" || ls -lh "$NSIS_BUNDLE"
+          ls -lh "$NSIS_BUNDLE"
+          ls -lh "$NSIS_BUNDLE"/windows
 
           # Final sanity check
           if [ ! -d "$NSIS_BUNDLE" ]; then

@@ -72,6 +72,7 @@ build_all() {
     build_base
     build_mac
     build_linux
+    combine
 }
 
 combine() {

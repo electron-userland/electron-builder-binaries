@@ -32,7 +32,7 @@ echo ""
 
 echo "🧹 Setting up directories..."
 rm -rf "$TEMP_DIR" "$BUNDLE_DIR"
-mkdir -p "$TEMP_DIR" "$BUNDLE_DIR/windows" "$BUNDLE_DIR/share"
+mkdir -p "$TEMP_DIR" "$BUNDLE_DIR/windows"
 
 # =============================================================================
 # Check Dependencies
@@ -104,6 +104,17 @@ fi
 echo "  ✓ Extracted base NSIS"
 
 # =============================================================================
+# Copy Windows Binaries
+# =============================================================================
+
+echo ""
+echo "📋 Copying Windows binaries..."
+
+mkdir -p "$BUNDLE_DIR/windows"
+
+echo "  ✓ Windows makensis.exe (strlen_8192)"
+
+# =============================================================================
 # Extract and Apply strlen_8192 Patch
 # =============================================================================
 
@@ -118,27 +129,11 @@ if ! unzip -q "$STRLEN_ZIP" -d "$STRLEN_EXTRACTED"; then
 fi
 
 # Patch over the base NSIS files
-echo "  → Patching Bin/ (makensis.exe, zlib1.dll)"
-cp -f "$STRLEN_EXTRACTED/Bin"/* "$NSIS_EXTRACTED/Bin/"
+echo "  → Patching NSIS files"
 
-echo "  → Patching root makensis.exe"
-cp -f "$STRLEN_EXTRACTED/makensis.exe" "$NSIS_EXTRACTED/"
-
-echo "  → Patching Stubs/"
-cp -f "$STRLEN_EXTRACTED/Stubs"/* "$NSIS_EXTRACTED/Stubs/"
+rsync -av "$STRLEN_EXTRACTED/" "$NSIS_EXTRACTED/"
 
 echo "  ✓ Applied strlen_8192 patch"
-
-# =============================================================================
-# Copy Windows Binaries
-# =============================================================================
-
-echo ""
-echo "📋 Copying Windows binaries..."
-
-find "$NSIS_EXTRACTED" -maxdepth 1 -type f -exec cp {} "$BUNDLE_DIR/share/nsis/" \;
-
-echo "  ✓ Windows makensis.exe (strlen_8192)"
 
 # =============================================================================
 # Copy NSIS Data Files
@@ -148,10 +143,13 @@ echo ""
 echo "📚 Copying NSIS data files..."
 
 for item in Bin Contrib Include Plugins Stubs; do
-    echo "  → $item/"
-    mkdir -p "$BUNDLE_DIR/share/nsis/$item"
-    cp -r "$NSIS_EXTRACTED/$item" "$BUNDLE_DIR/share/nsis/"
+    rsync -a "$NSIS_EXTRACTED/$item/" "$BUNDLE_DIR/windows/$item/"
 done
+
+echo "  → Installing root-level files"
+rsync -a "$NSIS_EXTRACTED/"*.{exe,dll,nsh} "$BUNDLE_DIR/windows/" 2>/dev/null || true
+
+echo "  ✓ Copied NSIS data files"
 
 # =============================================================================
 # Download Additional Plugins
@@ -262,32 +260,32 @@ for plugin_zip in "$PLUGINS_DIR"/*.zip; do
         case "$relative_path" in
             # x64 architectures
             *x64-ansi*|*/x64-ansi/*|*/ANSI64/*)
-                mkdir -p "$BUNDLE_DIR/share/nsis/Plugins/x64-ansi"
-                cp "$dll_file" "$BUNDLE_DIR/share/nsis/Plugins/x64-ansi/" 2>/dev/null || true
+                mkdir -p "$BUNDLE_DIR/windows/Plugins/x64-ansi"
+                cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x64-ansi/" 2>/dev/null || true
                 ;;
             *x64-unicode*|*/x64-unicode/*|*/Unicode64/*)
-                mkdir -p "$BUNDLE_DIR/share/nsis/Plugins/x64-unicode"
-                cp "$dll_file" "$BUNDLE_DIR/share/nsis/Plugins/x64-unicode/" 2>/dev/null || true
+                mkdir -p "$BUNDLE_DIR/windows/Plugins/x64-unicode"
+                cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x64-unicode/" 2>/dev/null || true
                 ;;
             # x86 architectures
             *x86-ansi*|*/x86-ansi/*|*/ansi/*|*/Ansi/*|*/ANSI/*)
-                mkdir -p "$BUNDLE_DIR/share/nsis/Plugins/x86-ansi"
-                cp "$dll_file" "$BUNDLE_DIR/share/nsis/Plugins/x86-ansi/" 2>/dev/null || true
+                mkdir -p "$BUNDLE_DIR/windows/Plugins/x86-ansi"
+                cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-ansi/" 2>/dev/null || true
                 ;;
             *x86-unicode*|*/x86-unicode/*|*/unicode/*|*/Unicode/*)
-                mkdir -p "$BUNDLE_DIR/share/nsis/Plugins/x86-unicode"
-                cp "$dll_file" "$BUNDLE_DIR/share/nsis/Plugins/x86-unicode/" 2>/dev/null || true
+                mkdir -p "$BUNDLE_DIR/windows/Plugins/x86-unicode"
+                cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-unicode/" 2>/dev/null || true
                 ;;
             *)
                 # Heuristic detection by filename
                 case "$dll_basename" in
                     *W.dll|*Unicode*|*unicode*)
-                        mkdir -p "$BUNDLE_DIR/share/nsis/Plugins/x86-unicode"
-                        cp "$dll_file" "$BUNDLE_DIR/share/nsis/Plugins/x86-unicode/" 2>/dev/null || true
+                        mkdir -p "$BUNDLE_DIR/windows/Plugins/x86-unicode"
+                        cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-unicode/" 2>/dev/null || true
                         ;;
                     *)
-                        mkdir -p "$BUNDLE_DIR/share/nsis/Plugins/x86-ansi"
-                        cp "$dll_file" "$BUNDLE_DIR/share/nsis/Plugins/x86-ansi/" 2>/dev/null || true
+                        mkdir -p "$BUNDLE_DIR/windows/Plugins/x86-ansi"
+                        cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-ansi/" 2>/dev/null || true
                         ;;
                 esac
                 ;;
@@ -296,7 +294,7 @@ for plugin_zip in "$PLUGINS_DIR"/*.zip; do
     
     # Install header files
     find "$extract_dir" -type f -name "*.nsh" 2>/dev/null | while read -r nsh_file; do
-        cp "$nsh_file" "$BUNDLE_DIR/share/nsis/Include/" 2>/dev/null || true
+        cp "$nsh_file" "$BUNDLE_DIR/windows/Include/" 2>/dev/null || true
     done
     
     find "$extract_dir" -type f -name "*.nsi" \
@@ -304,7 +302,7 @@ for plugin_zip in "$PLUGINS_DIR"/*.zip; do
         ! -iname '*test*' \
         ! -iname '*demo*' \
         2>/dev/null | while read -r nsi_file; do
-        cp "$nsi_file" "$BUNDLE_DIR/share/nsis/Include/" 2>/dev/null || true
+        cp "$nsi_file" "$BUNDLE_DIR/windows/Include/" 2>/dev/null || true
     done
     
     echo "  ✓ $plugin_name"
@@ -323,14 +321,14 @@ if test -f "$PLUGINS_DIR/nsis7z.7z"; then
         # Install nsis7z DLLs
         for arch in x64-unicode x86-ansi x86-unicode; do
             if test -f "$nsis7z_dir/Plugins/$arch/nsis7z.dll"; then
-                mkdir -p "$BUNDLE_DIR/share/nsis/Plugins/$arch"
-                cp "$nsis7z_dir/Plugins/$arch/nsis7z.dll" "$BUNDLE_DIR/share/nsis/Plugins/$arch/"
+                mkdir -p "$BUNDLE_DIR/windows/Plugins/$arch"
+                cp "$nsis7z_dir/Plugins/$arch/nsis7z.dll" "$BUNDLE_DIR/windows/Plugins/$arch/"
             fi
         done
         
         # Install headers if present
         find "$nsis7z_dir" -type f -name "*.nsh" 2>/dev/null | while read -r nsh_file; do
-            cp "$nsh_file" "$BUNDLE_DIR/share/nsis/Include/" 2>/dev/null || true
+            cp "$nsh_file" "$BUNDLE_DIR/windows/Include/" 2>/dev/null || true
         done
         
         echo "  ✓ nsis7z"
@@ -345,7 +343,7 @@ echo ""
 echo "🔧 Applying language file patches..."
 
 FIXES_DIR="$BASE_DIR/assets/nsis-lang-fixes"
-LANG_FILES_DIR="$BUNDLE_DIR/share/nsis/Contrib/Language files"
+LANG_FILES_DIR="$BUNDLE_DIR/windows/Contrib/Language files"
 
 PATCHED_COUNT=0
 ls -1 "$LANG_FILES_DIR"/*.n* >/dev/null 2>&1 || {
@@ -419,8 +417,8 @@ echo "================================================================"
 echo "  📁 Archive: $OUTPUT_ARCHIVE"
 echo "  📊 Size:    $(du -h "$OUTPUT_ARCHIVE" | cut -f1)"
 
-if [ -d "$BUNDLE_DIR/share/nsis/Plugins" ]; then
-    plugin_count=$(find "$BUNDLE_DIR/share/nsis/Plugins" -name "*.dll" 2>/dev/null | wc -l | xargs)
+if [ -d "$BUNDLE_DIR/windows/Plugins" ]; then
+    plugin_count=$(find "$BUNDLE_DIR/windows/Plugins" -name "*.dll" 2>/dev/null | wc -l | xargs)
     echo "  🔌 Plugins: $plugin_count DLLs"
 fi
 
