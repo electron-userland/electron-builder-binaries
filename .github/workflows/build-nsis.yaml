@@ -180,8 +180,8 @@ jobs:
 
           # Convert path for Windows runners
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            # GitHub Actions /d/... -> D:\...
-            WIN_NSIS_BUNDLE=$(echo "$NSIS_BUNDLE" | sed -E 's#^/([a-zA-Z])/#\1:\\#; s#/#\\#g')
+            # Use cygpath for reliable path conversion
+            WIN_NSIS_BUNDLE=$(cygpath -w "$NSIS_BUNDLE")
             echo "NSIS_BUNDLE=$WIN_NSIS_BUNDLE" >> $GITHUB_ENV
           else
             echo "NSIS_BUNDLE=$NSIS_BUNDLE" >> $GITHUB_ENV
