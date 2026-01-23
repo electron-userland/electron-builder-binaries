@@ -21,7 +21,7 @@ NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v311}
 BUNDLE_DIR="$OUT_DIR/nsis-bundle"
 OUTPUT_ARCHIVE="$OUT_DIR/nsis-bundle-base-$NSIS_BRANCH.tar.gz"
 
-echo "📦 Building NSIS Base Bundle..."
+echo "📦 Building NSIS Base Bundle (strlen_8192)..."
 echo "   Version: $NSIS_VERSION"
 echo "   Branch:  $NSIS_BRANCH"
 echo ""
@@ -66,6 +66,23 @@ fi
 echo "  ✓ Downloaded $(du -h "$NSIS_ZIP" | cut -f1)"
 
 # =============================================================================
+# Download NSIS strlen_8192 Patch
+# =============================================================================
+
+echo ""
+echo "📥 Downloading NSIS $NSIS_VERSION strlen_8192 patch..."
+
+STRLEN_ZIP_URL="https://sourceforge.net/projects/nsis/files/NSIS%203/$NSIS_VERSION/nsis-$NSIS_VERSION-strlen_8192.zip/download"
+STRLEN_ZIP="$TEMP_DIR/nsis-$NSIS_VERSION-strlen_8192.zip"
+
+if ! curl -L "$STRLEN_ZIP_URL" -o "$STRLEN_ZIP" --progress-bar; then
+    echo "❌ Failed to download strlen_8192 patch"
+    exit 1
+fi
+
+echo "  ✓ Downloaded $(du -h "$STRLEN_ZIP" | cut -f1)"
+
+# =============================================================================
 # Extract NSIS
 # =============================================================================
 
@@ -84,6 +101,34 @@ if [ ! -d "$NSIS_EXTRACTED" ]; then
     exit 1
 fi
 
+echo "  ✓ Extracted base NSIS"
+
+# =============================================================================
+# Extract and Apply strlen_8192 Patch
+# =============================================================================
+
+echo ""
+echo "🔧 Extracting and applying strlen_8192 patch..."
+
+STRLEN_EXTRACTED="$TEMP_DIR/nsis-$NSIS_VERSION-strlen_8192"
+
+if ! unzip -q "$STRLEN_ZIP" -d "$TEMP_DIR"; then
+    echo "❌ Failed to extract strlen_8192 patch"
+    exit 1
+fi
+
+# Patch over the base NSIS files
+echo "  → Patching Bin/ (makensis.exe, zlib1.dll)"
+cp -f "$STRLEN_EXTRACTED/Bin"/* "$NSIS_EXTRACTED/Bin/"
+
+echo "  → Patching root makensis.exe"
+cp -f "$STRLEN_EXTRACTED/makensis.exe" "$NSIS_EXTRACTED/"
+
+echo "  → Patching Stubs/"
+cp -f "$STRLEN_EXTRACTED/Stubs"/* "$NSIS_EXTRACTED/Stubs/"
+
+echo "  ✓ Applied strlen_8192 patch"
+
 # =============================================================================
 # Copy Windows Binaries
 # =============================================================================
@@ -91,14 +136,12 @@ fi
 echo ""
 echo "📋 Copying Windows binaries..."
 
-# Copy Windows binaries - THIS IS THE KEY PART
-# Copy the ACTUAL makensis.exe and ALL its dependencies
-cp -r ${NSIS_EXTRACTED}/Bin/* "$BUNDLE_DIR/windows/"
+cp ${NSIS_EXTRACTED}/*.exe "$BUNDLE_DIR/windows/"
 cp ${NSIS_EXTRACTED}/*.dll "$BUNDLE_DIR/windows/" 2>/dev/null || true
 cp ${NSIS_EXTRACTED}/nsisconf.nsh "$BUNDLE_DIR/windows/" 2>/dev/null || true
 
 
-echo "  ✓ Windows makensis.exe"
+echo "  ✓ Windows makensis.exe (strlen_8192)"
 
 # =============================================================================
 # Copy NSIS Data Files
@@ -107,7 +150,7 @@ echo "  ✓ Windows makensis.exe"
 echo ""
 echo "📚 Copying NSIS data files..."
 
-for item in Contrib Include Plugins Stubs; do
+for item in Bin Contrib Include Plugins Stubs; do
     echo "  → $item/"
     mkdir -p "$BUNDLE_DIR/share/nsis/$item"
     cp -r "$NSIS_EXTRACTED/$item" "$BUNDLE_DIR/share/nsis/"
@@ -347,8 +390,9 @@ fi
 
 cat > "$BUNDLE_DIR/windows/VERSION.txt" <<EOF
 Platform: Windows
-Binary: makensis.exe (official pre-built)
+Binary: makensis.exe (official pre-built with strlen_8192 patch)
 Architecture: x86 (runs on all Windows via WoW64)
+Max String Length: 8192
 EOF
 
 # =============================================================================
@@ -373,7 +417,7 @@ rm -rf "$TEMP_DIR"
 
 echo ""
 echo "================================================================"
-echo "  ✅ Base Bundle Complete!"
+echo "  ✅ Base Bundle Complete (strlen_8192)!"
 echo "================================================================"
 echo "  📁 Archive: $OUTPUT_ARCHIVE"
 echo "  📊 Size:    $(du -h "$OUTPUT_ARCHIVE" | cut -f1)"
