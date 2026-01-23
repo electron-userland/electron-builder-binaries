@@ -245,7 +245,9 @@ endlocal & exit /b %EXITCODE%
 EOF
 
 # Force CRLF line endings for CMD (always)
-sed -i '' 's/$/\r/' "$BUILD_DIR/nsis-bundle/makensis.cmd"
+tmp_cmd="$BUILD_DIR/nsis-bundle/makensis.cmd.tmp"
+sed 's/$/\r/' "$BUILD_DIR/nsis-bundle/makensis.cmd" > "$tmp_cmd"
+mv "$tmp_cmd" "$BUILD_DIR/nsis-bundle/makensis.cmd"
 
 echo "  ✓ makensis.cmd created"
 
