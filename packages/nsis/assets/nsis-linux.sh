@@ -92,6 +92,7 @@ RUN scons \
     SKIPUTILS=all \
     SKIPMISC=all \
     NSIS_CONFIG_CONST_DATA_PATH=no \
+    NSIS_CONFIG_LOG=yes \
     NSIS_MAX_STRLEN=8192 \
     PREFIX=/build/install \
     install-compiler
