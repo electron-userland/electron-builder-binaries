@@ -1,5 +1,11 @@
 # dmg-builder
 
+## 1.1.0
+
+### Minor Changes
+
+- [#127](https://github.com/electron-userland/electron-builder-binaries/pull/127) [`9232590`](https://github.com/electron-userland/electron-builder-binaries/commit/9232590fb3ebc28546309cccfde34a866f2126af) Thanks [@mmaietta](https://github.com/mmaietta)! - feat: adding badge_icons support via optional dependency
+
 ## 1.0.1
 
 ### Patch Changes
