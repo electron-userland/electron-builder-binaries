@@ -111,8 +111,8 @@ echo ""
 echo "🔧 Extracting and applying strlen_8192 patch..."
 
 STRLEN_EXTRACTED="$TEMP_DIR/nsis-$NSIS_VERSION-strlen_8192"
-
-if ! unzip -q "$STRLEN_ZIP" -d "$TEMP_DIR"; then
+mkdir -p "$STRLEN_EXTRACTED"
+if ! unzip -q "$STRLEN_ZIP" -d "$STRLEN_EXTRACTED"; then
     echo "❌ Failed to extract strlen_8192 patch"
     exit 1
 fi
@@ -136,10 +136,7 @@ echo "  ✓ Applied strlen_8192 patch"
 echo ""
 echo "📋 Copying Windows binaries..."
 
-cp ${NSIS_EXTRACTED}/*.exe "$BUNDLE_DIR/windows/"
-cp ${NSIS_EXTRACTED}/*.dll "$BUNDLE_DIR/windows/" 2>/dev/null || true
-cp ${NSIS_EXTRACTED}/nsisconf.nsh "$BUNDLE_DIR/windows/" 2>/dev/null || true
-
+find "$NSIS_EXTRACTED" -maxdepth 1 -type f -exec cp {} "$BUNDLE_DIR/share/nsis/" \;
 
 echo "  ✓ Windows makensis.exe (strlen_8192)"
 

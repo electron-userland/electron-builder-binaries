@@ -238,7 +238,7 @@ if not defined NSISDIR (
 )
 
 REM Execute makensis.exe with all passed arguments
-"%SCRIPT_DIR%\windows\makensis.exe" %*
+"%NSISDIR%\makensis.exe" %*
 set EXITCODE=%ERRORLEVEL%
 
 endlocal & exit /b %EXITCODE%
@@ -267,8 +267,8 @@ if ($ScriptDir -match '^/([a-zA-Z])/(.*)') {
     $ScriptDir = "$($matches[1]):\$($matches[2] -replace '/', '\')"
 }
 
-$env:NSISDIR = Join-Path $ScriptDir "share" "nsis"
-$Makensis = Join-Path $ScriptDir "windows" "makensis.exe"
+$env:NSISDIR = Join-Path (Join-Path $ScriptDir "share") "nsis"
+$Makensis   = Join-Path $env:NSISDIR "makensis.exe"
 if (-not (Test-Path $Makensis)) {
     Write-Error "makensis.exe not found at: $Makensis"
     exit 1
@@ -300,7 +300,7 @@ This bundle contains NSIS (Nullsoft Scriptable Install System) binaries for mult
 
 ## Contents
 
-- **Windows**: \`windows/makensis.exe\` (official pre-built binary)
+- **Windows**: \`share/nsis/makensis.exe\` (official pre-built binary)
 - **Linux**: \`linux/makensis\` (native ELF binary, compiled from source)
 - **macOS**: \`mac/makensis\` (native Mach-O binary, compiled from source)
 - **NSIS Data**: \`share/nsis/\` (Contrib, Include, Plugins, Stubs)
