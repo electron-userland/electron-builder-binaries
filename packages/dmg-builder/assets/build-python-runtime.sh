@@ -91,6 +91,7 @@ echo "🐍 Installing pip and dmgbuild"
 
 run_arch "$PREFIX/bin/python3" -m pip install --upgrade pip --no-warn-script-location --no-cache 
 run_arch "$PREFIX/bin/python3" -m pip install --no-warn-script-location --no-cache git+https://github.com/dmgbuild/dmgbuild.git@${DMGBUILD_VERSION}
+run_arch "$PREFIX/bin/python3" -m pip install --no-warn-script-location --no-cache git+https://github.com/dmgbuild/dmgbuild.git@${DMGBUILD_VERSION}#egg=dmgbuild[badge_icons]
 
 ###############################################################################
 # ADD VERSION.txt FILE with python version and versions of each major package
