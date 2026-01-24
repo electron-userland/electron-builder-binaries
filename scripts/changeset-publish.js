@@ -123,8 +123,13 @@ async function run() {
       throw new Error(`No artifacts found for ${releaseName}`);
     }
 
-    const bodyText = assets
+    const appBuilderChecksums = assets
       .map(({ artifactName, checksum512 }) => `\`${artifactName}\`: \`${checksum512}\``)
+      .sort()
+      .join("\n");
+
+    const formattedAssetDigests = assets
+      .map(({ artifactName, digest256 }) => `${digest256}  ${artifactName}`)
       .sort()
       .join("\n");
 
@@ -133,7 +138,7 @@ async function run() {
       repo: "electron-builder-binaries",
       tag: releaseName,
       name: releaseName,
-      body: `*checksums*\n\n${bodyText}`,
+      body: `*checksums*\n\n${appBuilderChecksums}\n\n---\n\n*digest256*\n\n${formattedAssetDigests}`,
       assets,
       targetCommit: getTargetCommitish(), // e.g. "master" or specific commit
     };
