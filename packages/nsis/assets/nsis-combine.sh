@@ -191,12 +191,12 @@ esac
 # ----------------------------------------
 # Validate + execute
 # ----------------------------------------
-if [[ ! -f "$BINARY" ]]; then
+if [ ! -f "$BINARY" ]; then
   echo "❌ makensis binary not found: $BINARY" >&2
   exit 1
 fi
 
-if [[ ! -x "$BINARY" ]]; then
+if [ ! -x "$BINARY" ]; then
   chmod +x "$BINARY"
 fi
 
@@ -285,7 +285,9 @@ exit $LASTEXITCODE
 EOF
 
 # Force CRLF line endings for PS1 (always)
-sed -i '' 's/$/\r/' "$BUILD_DIR/nsis-bundle/makensis.ps1"
+tmp_ps1="$BUILD_DIR/nsis-bundle/makensis.ps1.tmp"
+sed 's/$/\r/' "$BUILD_DIR/nsis-bundle/makensis.ps1" > "$tmp_ps1"
+mv "$tmp_ps1" "$BUILD_DIR/nsis-bundle/makensis.ps1"
 
 echo "  ✓ makensis.ps1 created"
 
