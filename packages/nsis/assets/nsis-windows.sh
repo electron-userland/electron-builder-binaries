@@ -17,14 +17,11 @@ TEMP_DIR="$OUT_DIR/temp"
 # Version configuration
 NSIS_VERSION=${NSIS_VERSION:-3.11}
 NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v311}
+NSIS_SHA256=${NSIS_SHA256:-c7d27f780ddb6cffb4730138cd1591e841f4b7edb155856901cdf5f214394fa1}
+STRLEN_SHA256=${STRLEN_SHA256:-b1025ccf412a8662fb9a61c661370a8cfdc0da675b0c541ad0c27c2b615833ec}
 
 BUNDLE_DIR="$OUT_DIR/nsis-bundle"
 OUTPUT_ARCHIVE="$OUT_DIR/nsis-bundle-base-$NSIS_BRANCH.tar.gz"
-
-# Checksum configuration (SHA256)
-# Update these when NSIS version changes
-NSIS_SHA256="c7d27f780ddb6cffb4730138cd1591e841f4b7edb155856901cdf5f214394fa1"
-STRLEN_SHA256="b1025ccf412a8662fb9a61c661370a8cfdc0da675b0c541ad0c27c2b615833ec"
 
 echo "📦 Building NSIS Base Bundle (strlen_8192)..."
 echo "   Version: $NSIS_VERSION"
