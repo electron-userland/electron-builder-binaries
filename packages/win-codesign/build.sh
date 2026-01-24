@@ -4,7 +4,7 @@ set -euo pipefail
 # ----------------------------
 # Configuration for ./assets build scripts
 # ----------------------------
-export OSSLSIGNCODE_VER="${OSSLSIGNCODE_VER:-2.9}"
+export OSSLSIGNCODE_VER="${OSSLSIGNCODE_VER:-2.11}"
 export RCEDIT_VERSION="${RCEDIT_VERSION:-2.0.0}"
 export PLATFORM_ARCH="${PLATFORM_ARCH:-x86_64}"
 # ----------------------------
