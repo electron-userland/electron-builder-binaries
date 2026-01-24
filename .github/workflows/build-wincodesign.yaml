@@ -89,10 +89,19 @@ jobs:
             cmake:p
             openssl:p
             curl:p
-            libgsf:p
             zlib:p
             pkgconf:p
-            nodejs:p 
+
+      - name: Install architecture-specific packages
+        run: |
+          # libgsf and nodejs aren't available for all architectures
+          if [[ "${{ matrix.arch }}" == "x86" ]]; then
+            # For x86, skip libgsf and nodejs (not available in mingw32)
+            echo "Skipping libgsf and nodejs for x86 (not available)"
+          else
+            # For x64 and arm64, install libgsf and nodejs
+            pacboy --noconfirm -S --needed libgsf:p nodejs:p
+          fi 
 
       - name: Build osslsigncode (${{ matrix.arch }})
         run: |
