@@ -35,25 +35,8 @@ jobs:
           retention-days: 1
 
   windows:
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 30
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: x64
-            msystem: MINGW64
-            mingw_prefix: mingw-w64-x86_64
-            runner: windows-2025
-          - arch: x86
-            msystem: MINGW32
-            mingw_prefix: mingw-w64-i686
-            runner: windows-2025
-          - arch: arm64
-            msystem: CLANGARM64
-            mingw_prefix: mingw-w64-clang-aarch64
-            runner: windows-2025
+    runs-on: windows-2025
+    timeout-minutes: 20
 
     defaults:
       run:
@@ -66,7 +49,7 @@ jobs:
       - name: Setup MSYS2
         uses: msys2/setup-msys2@fb197b72ce45fb24f17bf3f807a388985654d1f2 # v2.29.0
         with:
-          msystem: ${{ matrix.msystem }}
+          msystem: MINGW64
           update: true
           install: >-
             git
@@ -78,28 +61,19 @@ jobs:
             cmake:p
             openssl:p
             curl:p
+            libgsf:p
             zlib:p
             pkgconf:p
+            nodejs:p 
 
-      - name: Install architecture-specific packages
+      - name: Build osslsigncode (x64)
         run: |
-          # libgsf and nodejs aren't available for all architectures
-          if [[ "${{ matrix.arch }}" == "x86" ]]; then
-            # For x86, skip libgsf and nodejs (not available in mingw32)
-            echo "Skipping libgsf and nodejs for x86 (not available)"
-          else
-            # For x64 and arm64, install libgsf and nodejs
-            pacboy --noconfirm -S --needed libgsf:p nodejs:p
-          fi
-
-      - name: Build osslsigncode (${{ matrix.arch }})
-        run: |
-          PLATFORM_ARCH=${{ matrix.arch }} bash ./packages/win-codesign/build.sh
+          PLATFORM_ARCH=x64 bash ./packages/win-codesign/build.sh
 
       - name: Upload artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
         with:
-          name: win-codesign-windows-${{ matrix.arch }}
+          name: win-codesign-windows-x64
           path: ./packages/win-codesign/out/**/*.zip
           if-no-files-found: error
           retention-days: 1
@@ -116,6 +90,9 @@ jobs:
           - arch: arm64
             node: macos-15
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
       - name: Install grealpath
         run: brew install coreutils
 
@@ -123,7 +100,7 @@ jobs:
         shell: bash
         run: |
           PLATFORM_ARCH=${{ matrix.arch }} bash packages/win-codesign/build.sh
-
+      
       - name: Upload win-codesign macOS artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
         with:
