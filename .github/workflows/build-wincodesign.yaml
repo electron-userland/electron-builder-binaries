@@ -60,7 +60,7 @@ jobs:
           - arch: arm64
             msystem: CLANGARM64
             mingw_prefix: mingw-w64-clang-aarch64
-            runner: windows-11
+            runner: windows-2025
 
     defaults:
       run:
@@ -105,9 +105,6 @@ jobs:
 
       - name: Build osslsigncode (${{ matrix.arch }})
         run: |
-          npm install -g corepack pnpm
-          corepack enable
-          pnpm i --frozen-lockfile
           PLATFORM_ARCH=${{ matrix.arch }} bash ./packages/win-codesign/build.sh
 
       - name: Upload artifact
