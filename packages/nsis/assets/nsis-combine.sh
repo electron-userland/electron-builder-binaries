@@ -234,11 +234,11 @@ set SCRIPT_DIR=%SCRIPT_DIR:~0,-1%
 
 REM Set NSISDIR if not already defined
 if not defined NSISDIR (
-  set NSISDIR=%SCRIPT_DIR%\share\nsis
+  set NSISDIR=%SCRIPT_DIR%\windows
 )
 
 REM Execute makensis.exe with all passed arguments
-"%NSISDIR%\Bin\makensis.exe" %*
+"%NSISDIR%\makensis.exe" %*
 set EXITCODE=%ERRORLEVEL%
 
 endlocal & exit /b %EXITCODE%
@@ -269,8 +269,8 @@ if ($ScriptDir -match '^/([a-zA-Z])/(.*)') {
     $ScriptDir = "$($matches[1]):\$($matches[2] -replace '/', '\')"
 }
 
-$env:NSISDIR = Join-Path (Join-Path $ScriptDir "share") "nsis"
-$Makensis   = Join-Path (Join-Path $env:NSISDIR "Bin") "makensis.exe"
+$env:NSISDIR = Join-Path $ScriptDir "windows"
+$Makensis   = Join-Path $env:NSISDIR "makensis.exe"
 if (-not (Test-Path $Makensis)) {
     Write-Error "makensis.exe not found at: $Makensis"
     exit 1
