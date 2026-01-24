@@ -43,6 +43,7 @@ jobs:
 
   windows:
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
 
     strategy:
       fail-fast: false
@@ -52,10 +53,14 @@ jobs:
             msystem: MINGW64
             mingw_prefix: mingw-w64-x86_64
             runner: windows-2025
-          # - arch: arm64
-          #   msystem: CLANGARM64
-          #   mingw_prefix: mingw-w64-clang-aarch64
-          #   runner: windows-10-arm
+          - arch: x86
+            msystem: MINGW32
+            mingw_prefix: mingw-w64-i686
+            runner: windows-2025
+          - arch: arm64
+            msystem: CLANGARM64
+            mingw_prefix: mingw-w64-clang-aarch64
+            runner: windows-11
 
     defaults:
       run:
