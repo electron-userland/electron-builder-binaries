@@ -21,6 +21,11 @@ NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v311}
 BUNDLE_DIR="$OUT_DIR/nsis-bundle"
 OUTPUT_ARCHIVE="$OUT_DIR/nsis-bundle-base-$NSIS_BRANCH.tar.gz"
 
+# Checksum configuration (SHA256)
+# Update these when NSIS version changes
+NSIS_SHA256="c7d27f780ddb6cffb4730138cd1591e841f4b7edb155856901cdf5f214394fa1"
+STRLEN_SHA256="b1025ccf412a8662fb9a61c661370a8cfdc0da675b0c541ad0c27c2b615833ec"
+
 echo "📦 Building NSIS Base Bundle (strlen_8192)..."
 echo "   Version: $NSIS_VERSION"
 echo "   Branch:  $NSIS_BRANCH"
@@ -53,39 +58,90 @@ if ! command -v rsync &> /dev/null; then
     exit 1
 fi
 
+if ! command -v sha256sum &> /dev/null && ! command -v shasum &> /dev/null; then
+    echo "❌ sha256sum or shasum is required but not installed"
+    exit 1
+fi
+
+# =============================================================================
+# Helper Functions
+# =============================================================================
+
+# Cross-platform SHA256 verification
+verify_sha256() {
+    local file="$1"
+    local expected="$2"
+    local actual=""
+    
+    if command -v sha256sum &> /dev/null; then
+        actual=$(sha256sum "$file" | awk '{print $1}')
+    elif command -v shasum &> /dev/null; then
+        actual=$(shasum -a 256 "$file" | awk '{print $1}')
+    else
+        echo "❌ No SHA256 tool available"
+        return 1
+    fi
+    
+    if [ "$actual" = "$expected" ]; then
+        echo "  ✓ Checksum verified"
+        return 0
+    else
+        echo "❌ Checksum mismatch!"
+        echo "   Expected: $expected"
+        echo "   Got:      $actual"
+        return 1
+    fi
+}
+
+# Download with checksum verification
+download_and_verify() {
+    local url="$1"
+    local output="$2"
+    local expected_sha256="$3"
+    local description="$4"
+    
+    echo "📥 Downloading $description..."
+    
+    if ! curl -L "$url" -o "$output" --progress-bar; then
+        echo "❌ Failed to download $description"
+        return 1
+    fi
+    
+    echo "  ✓ Downloaded $(du -h "$output" | cut -f1)"
+    echo "  🔍 Verifying checksum..."
+    
+    if ! verify_sha256 "$output" "$expected_sha256"; then
+        echo "❌ Checksum verification failed for $description"
+        rm -f "$output"
+        return 1
+    fi
+    
+    return 0
+}
+
 # =============================================================================
 # Download Official NSIS
 # =============================================================================
 
 echo ""
-echo "📥 Downloading official NSIS $NSIS_VERSION from SourceForge..."
-
 NSIS_ZIP_URL="https://sourceforge.net/projects/nsis/files/NSIS%203/$NSIS_VERSION/nsis-$NSIS_VERSION.zip/download"
 NSIS_ZIP="$TEMP_DIR/nsis-$NSIS_VERSION.zip"
 
-if ! curl -L "$NSIS_ZIP_URL" -o "$NSIS_ZIP" --progress-bar; then
-    echo "❌ Failed to download NSIS"
+if ! download_and_verify "$NSIS_ZIP_URL" "$NSIS_ZIP" "$NSIS_SHA256" "official NSIS $NSIS_VERSION"; then
     exit 1
 fi
-
-echo "  ✓ Downloaded $(du -h "$NSIS_ZIP" | cut -f1)"
 
 # =============================================================================
 # Download NSIS strlen_8192 Patch
 # =============================================================================
 
 echo ""
-echo "📥 Downloading NSIS $NSIS_VERSION strlen_8192 patch..."
-
 STRLEN_ZIP_URL="https://sourceforge.net/projects/nsis/files/NSIS%203/$NSIS_VERSION/nsis-$NSIS_VERSION-strlen_8192.zip/download"
 STRLEN_ZIP="$TEMP_DIR/nsis-$NSIS_VERSION-strlen_8192.zip"
 
-if ! curl -L "$STRLEN_ZIP_URL" -o "$STRLEN_ZIP" --progress-bar; then
-    echo "❌ Failed to download strlen_8192 patch"
+if ! download_and_verify "$STRLEN_ZIP_URL" "$STRLEN_ZIP" "$STRLEN_SHA256" "NSIS $NSIS_VERSION strlen_8192 patch"; then
     exit 1
 fi
-
-echo "  ✓ Downloaded $(du -h "$STRLEN_ZIP" | cut -f1)"
 
 # =============================================================================
 # Extract NSIS
@@ -166,9 +222,6 @@ PLUGIN_NAMES=(
     "NsProcess"
     "UAC"
     "WinShell"
-    "NsJSON"
-    "NsArray"
-    "NsisMultiUser"
     "EmbedHTML"
     "Nsisunz"
     "NSISunzU"
@@ -181,43 +234,84 @@ PLUGIN_URLS=(
     "https://nsis.sourceforge.io/mediawiki/images/1/18/NsProcess.zip"
     "https://nsis.sourceforge.io/mediawiki/images/8/8f/UAC.zip"
     "https://nsis.sourceforge.io/mediawiki/images/5/54/WinShell.zip"
-    "https://nsis.sourceforge.io/mediawiki/images/5/5a/NsJSON.zip"
-    "https://nsis.sourceforge.io/mediawiki/images/4/4c/NsArray.zip"
-    "https://nsis.sourceforge.io/mediawiki/images/5/5d/NsisMultiUser.zip"
     "https://nsis.sourceforge.io/mediawiki/images/7/7c/EmbedHTML.zip"
     "https://nsis.sourceforge.io/mediawiki/images/1/1c/Nsisunz.zip"
     "https://nsis.sourceforge.io/mediawiki/images/5/5a/NSISunzU.zip"
 )
 
+# SHA256 checksums for plugins
+PLUGIN_SHA256=(
+    "eece0270f6a37e51ddc63d18d5cf63f49d767ce1925f381dc810fac6faaddefa"  # INetC
+    "3ffe893dc7477fdb1cac551a86ae017509e1f2d0ebdc7185fd0fbaf20870688c"  # StdUtils
+    "45c79a024e5122834a3473a87649757bc11958a11602a3ce2d9f7ce006f0e2b7"  # SpiderBanner
+    "fc19fc66a5219a233570fafd5daeb0c9b85387b379f6df5ac8898159a57c5944"  # NsProcess
+    "20e3192af5598568887c16d88de59a52c2ce4a26e42c5fb8bee8105dcbbd1760"  # UAC
+    "34e111f8aacf64c540d848fd06b9d6f3e2c10cb825ec9329a01d1141973e749b"  # WinShell
+    "f00732a93660fa71c8bfcac35e68242780262a46929274cb9182117094475a1a"  # EmbedHTML
+    "599029776df526def921ea178a6f66325b6f719772c38318e349a5c92a03afe9"  # Nsisunz
+    "8c2b7ad6984e3137e4c51c763ec64cbd36364e72838b85e14fa287dac976c46b"  # NSISunzU
+)
+
 # Special handling for nsis7z (7z archive)
 NSIS7Z_URL="https://nsis.sourceforge.io/mediawiki/images/6/69/Nsis7z_19.00.7z"
+NSIS7Z_SHA256="6f2f3730049926f40442ee0c8b7d3e3dee7ace544d82467ff8059ea3f4201c58"
 
 DOWNLOADED_COUNT=0
+FAILED_DOWNLOADS=()
 
 # Download regular plugins
 for i in "${!PLUGIN_NAMES[@]}"; do
     plugin_name="${PLUGIN_NAMES[$i]}"
     plugin_url="${PLUGIN_URLS[$i]}"
+    plugin_sha256="${PLUGIN_SHA256[$i]}"
     plugin_zip="$PLUGINS_DIR/${plugin_name}.zip"
     
+    echo ""
     echo "  → $plugin_name"
     
-    if curl -sL "$plugin_url" -o "$plugin_zip"; then
-        DOWNLOADED_COUNT=$((DOWNLOADED_COUNT + 1))
+    if curl -sL "$plugin_url" -o "$plugin_zip" 2>/dev/null; then
+        echo "    Downloaded $(du -h "$plugin_zip" | cut -f1)"
+        echo "    🔍 Verifying checksum..."
+        if verify_sha256 "$plugin_zip" "$plugin_sha256"; then
+            DOWNLOADED_COUNT=$((DOWNLOADED_COUNT + 1))
+        else
+            echo "    ⚠️  Checksum verification failed - plugin will be skipped"
+            FAILED_DOWNLOADS+=("$plugin_name (checksum)")
+            rm -f "$plugin_zip"
+        fi
     else
         echo "    ⚠️  Failed to download"
+        FAILED_DOWNLOADS+=("$plugin_name (download)")
     fi
 done
 
 # Download nsis7z separately (7z format)
+echo ""
 echo "  → nsis7z"
-if curl -sL "$NSIS7Z_URL" -o "$PLUGINS_DIR/nsis7z.7z"; then
-    DOWNLOADED_COUNT=$((DOWNLOADED_COUNT + 1))
+if curl -sL "$NSIS7Z_URL" -o "$PLUGINS_DIR/nsis7z.7z" 2>/dev/null; then
+    echo "    Downloaded $(du -h "$PLUGINS_DIR/nsis7z.7z" | cut -f1)"
+    echo "    🔍 Verifying checksum..."
+    if verify_sha256 "$PLUGINS_DIR/nsis7z.7z" "$NSIS7Z_SHA256"; then
+        DOWNLOADED_COUNT=$((DOWNLOADED_COUNT + 1))
+    else
+        echo "    ⚠️  Checksum verification failed - plugin will be skipped"
+        FAILED_DOWNLOADS+=("nsis7z (checksum)")
+        rm -f "$PLUGINS_DIR/nsis7z.7z"
+    fi
 else
     echo "    ⚠️  Failed to download nsis7z"
+    FAILED_DOWNLOADS+=("nsis7z (download)")
 fi
 
-echo "  ✓ Downloaded $DOWNLOADED_COUNT plugins"
+echo ""
+echo "  ✓ Downloaded and verified $DOWNLOADED_COUNT plugins"
+
+if [ ${#FAILED_DOWNLOADS[@]} -gt 0 ]; then
+    echo "  ⚠️  Failed downloads/verifications:"
+    for failed in "${FAILED_DOWNLOADS[@]}"; do
+        echo "     - $failed"
+    done
+fi
 
 # =============================================================================
 # Install Plugins
