@@ -265,8 +265,7 @@ cat > "$BUILD_DIR/nsis-bundle/makensis.ps1" <<'EOF'
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 # Ensure Windows-style paths
-if ($ScriptDir -notmatch '^[a-zA-Z]:[\\/]'
-    -and $ScriptDir -match '^/([a-zA-Z])/(.*)') {
+if ($ScriptDir -notmatch '^[a-zA-Z]:[\\/]' -and $ScriptDir -match '^/([a-zA-Z])/(.*)') {
     $ScriptDir = "$($matches[1]):\$($matches[2] -replace '/', '\')"
 }
 
