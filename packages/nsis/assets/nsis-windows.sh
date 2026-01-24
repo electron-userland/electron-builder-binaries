@@ -48,6 +48,11 @@ if ! command -v tar &> /dev/null; then
     exit 1
 fi
 
+if ! command -v rsync &> /dev/null; then
+    echo "❌ rsync is required but not installed"
+    exit 1
+fi
+
 # =============================================================================
 # Download Official NSIS
 # =============================================================================
@@ -104,17 +109,6 @@ fi
 echo "  ✓ Extracted base NSIS"
 
 # =============================================================================
-# Copy Windows Binaries
-# =============================================================================
-
-echo ""
-echo "📋 Copying Windows binaries..."
-
-mkdir -p "$BUNDLE_DIR/windows"
-
-echo "  ✓ Windows makensis.exe (strlen_8192)"
-
-# =============================================================================
 # Extract and Apply strlen_8192 Patch
 # =============================================================================
 
@@ -123,15 +117,15 @@ echo "🔧 Extracting and applying strlen_8192 patch..."
 
 STRLEN_EXTRACTED="$TEMP_DIR/nsis-$NSIS_VERSION-strlen_8192"
 mkdir -p "$STRLEN_EXTRACTED"
+
 if ! unzip -q "$STRLEN_ZIP" -d "$STRLEN_EXTRACTED"; then
     echo "❌ Failed to extract strlen_8192 patch"
     exit 1
 fi
 
-# Patch over the base NSIS files
+# Patch over the base NSIS files using rsync
 echo "  → Patching NSIS files"
-
-rsync -av "$STRLEN_EXTRACTED/" "$NSIS_EXTRACTED/"
+rsync -a "$STRLEN_EXTRACTED/" "$NSIS_EXTRACTED/"
 
 echo "  ✓ Applied strlen_8192 patch"
 
@@ -143,7 +137,10 @@ echo ""
 echo "📚 Copying NSIS data files..."
 
 for item in Bin Contrib Include Plugins Stubs; do
-    rsync -a "$NSIS_EXTRACTED/$item/" "$BUNDLE_DIR/windows/$item/"
+    if [ -d "$NSIS_EXTRACTED/$item" ]; then
+        echo "  → $item/"
+        rsync -a "$NSIS_EXTRACTED/$item/" "$BUNDLE_DIR/windows/$item/"
+    fi
 done
 
 echo "  → Installing root-level files"
@@ -172,6 +169,9 @@ PLUGIN_NAMES=(
     "NsJSON"
     "NsArray"
     "NsisMultiUser"
+    "EmbedHTML"
+    "Nsisunz"
+    "NSISunzU"
 )
 
 PLUGIN_URLS=(
@@ -184,6 +184,9 @@ PLUGIN_URLS=(
     "https://nsis.sourceforge.io/mediawiki/images/5/5a/NsJSON.zip"
     "https://nsis.sourceforge.io/mediawiki/images/4/4c/NsArray.zip"
     "https://nsis.sourceforge.io/mediawiki/images/5/5d/NsisMultiUser.zip"
+    "https://nsis.sourceforge.io/mediawiki/images/7/7c/EmbedHTML.zip"
+    "https://nsis.sourceforge.io/mediawiki/images/1/1c/Nsisunz.zip"
+    "https://nsis.sourceforge.io/mediawiki/images/5/5a/NSISunzU.zip"
 )
 
 # Special handling for nsis7z (7z archive)
@@ -235,6 +238,10 @@ else
     EXTRACT_ARGS="-q -o"
 fi
 
+# Create plugin directories
+mkdir -p "$BUNDLE_DIR/windows/Plugins"/{x64-ansi,x64-unicode,x86-ansi,x86-unicode}
+mkdir -p "$BUNDLE_DIR/windows/Include"
+
 # Process ZIP plugins
 for plugin_zip in "$PLUGINS_DIR"/*.zip; do
     test -f "$plugin_zip" || continue
@@ -246,64 +253,85 @@ for plugin_zip in "$PLUGINS_DIR"/*.zip; do
     
     # Extract (suppress output)
     if test "$EXTRACT_CMD" = "unzip"; then
-        $EXTRACT_CMD $EXTRACT_ARGS "$plugin_zip" -d "$extract_dir" 2>/dev/null || true
+        $EXTRACT_CMD $EXTRACT_ARGS "$plugin_zip" -d "$extract_dir" >/dev/null 2>&1 || true
     else
         $EXTRACT_CMD $EXTRACT_ARGS "$plugin_zip" -o"$extract_dir" >/dev/null 2>&1 || true
     fi
     
-    # Install DLL files based on architecture
-    find "$extract_dir" -type f -name "*.dll" 2>/dev/null | while read -r dll_file; do
-        relative_path=$(dirname "${dll_file#$extract_dir}")
-        dll_basename=$(basename "$dll_file")
-        
-        # Determine target architecture directories
-        case "$relative_path" in
-            # x64 architectures
-            *x64-ansi*|*/x64-ansi/*|*/ANSI64/*)
-                mkdir -p "$BUNDLE_DIR/windows/Plugins/x64-ansi"
+    # Install DLL files using rsync with better filtering
+    # Skip common test/example/tiny directories
+    if [ -d "$extract_dir/Plugins" ]; then
+        # Standard plugin structure with Plugins/ directory
+        for arch_dir in "$extract_dir/Plugins"/*; do
+            [ -d "$arch_dir" ] || continue
+            arch_name=$(basename "$arch_dir")
+            
+            case "$arch_name" in
+                x64-ansi|x64-unicode|x86-ansi|x86-unicode)
+                    rsync -a --include='*.dll' --exclude='*' "$arch_dir/" "$BUNDLE_DIR/windows/Plugins/$arch_name/"
+                    ;;
+                ANSI64)
+                    rsync -a --include='*.dll' --exclude='*' "$arch_dir/" "$BUNDLE_DIR/windows/Plugins/x64-ansi/"
+                    ;;
+                Unicode64)
+                    rsync -a --include='*.dll' --exclude='*' "$arch_dir/" "$BUNDLE_DIR/windows/Plugins/x64-unicode/"
+                    ;;
+                [Aa]nsi|ANSI)
+                    rsync -a --include='*.dll' --exclude='*' "$arch_dir/" "$BUNDLE_DIR/windows/Plugins/x86-ansi/"
+                    ;;
+                [Uu]nicode|Unicode)
+                    rsync -a --include='*.dll' --exclude='*' "$arch_dir/" "$BUNDLE_DIR/windows/Plugins/x86-unicode/"
+                    ;;
+            esac
+        done
+    else
+        # Find DLLs with improved heuristics - exclude test/example/tiny dirs
+        find "$extract_dir" -type f -name "*.dll" \
+            ! -path "*/[Tt]iny/*" \
+            ! -path "*/[Ee]xample*/*" \
+            ! -path "*/[Tt]est*/*" \
+            ! -path "*/[Dd]emo*/*" \
+            ! -path "*/[Dd]oc*/*" \
+            ! -path "*/.git/*" \
+            2>/dev/null | while read -r dll_file; do
+            
+            dll_path=$(dirname "$dll_file")
+            dll_basename=$(basename "$dll_file")
+            
+            # Determine architecture by path
+            if echo "$dll_path" | grep -qiE 'x64.*(ansi|ANSI)'; then
                 cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x64-ansi/" 2>/dev/null || true
-                ;;
-            *x64-unicode*|*/x64-unicode/*|*/Unicode64/*)
-                mkdir -p "$BUNDLE_DIR/windows/Plugins/x64-unicode"
+            elif echo "$dll_path" | grep -qiE 'x64.*(unicode|Unicode)'; then
                 cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x64-unicode/" 2>/dev/null || true
-                ;;
-            # x86 architectures
-            *x86-ansi*|*/x86-ansi/*|*/ansi/*|*/Ansi/*|*/ANSI/*)
-                mkdir -p "$BUNDLE_DIR/windows/Plugins/x86-ansi"
-                cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-ansi/" 2>/dev/null || true
-                ;;
-            *x86-unicode*|*/x86-unicode/*|*/unicode/*|*/Unicode/*)
-                mkdir -p "$BUNDLE_DIR/windows/Plugins/x86-unicode"
+            elif echo "$dll_path" | grep -qiE 'x86.*(unicode|Unicode)|unicode|Unicode'; then
                 cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-unicode/" 2>/dev/null || true
-                ;;
-            *)
-                # Heuristic detection by filename
-                case "$dll_basename" in
-                    *W.dll|*Unicode*|*unicode*)
-                        mkdir -p "$BUNDLE_DIR/windows/Plugins/x86-unicode"
-                        cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-unicode/" 2>/dev/null || true
-                        ;;
-                    *)
-                        mkdir -p "$BUNDLE_DIR/windows/Plugins/x86-ansi"
-                        cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-ansi/" 2>/dev/null || true
-                        ;;
-                esac
-                ;;
-        esac
-    done
+            elif echo "$dll_path" | grep -qiE 'x86.*(ansi|ANSI)|ansi|ANSI'; then
+                cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-ansi/" 2>/dev/null || true
+            else
+                # Filename-based heuristics
+                if echo "$dll_basename" | grep -qE 'W\.dll$|Unicode|unicode'; then
+                    cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-unicode/" 2>/dev/null || true
+                elif echo "$plugin_name" | grep -qiE 'NSISunzU'; then
+                    cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-unicode/" 2>/dev/null || true
+                else
+                    cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-ansi/" 2>/dev/null || true
+                fi
+            fi
+        done
+    fi
     
-    # Install header files
-    find "$extract_dir" -type f -name "*.nsh" 2>/dev/null | while read -r nsh_file; do
-        cp "$nsh_file" "$BUNDLE_DIR/windows/Include/" 2>/dev/null || true
-    done
+    # Install header files using rsync
+    rsync -a --include='*.nsh' --exclude='*' \
+        --exclude='[Ee]xample*/' --exclude='[Tt]est*/' --exclude='[Dd]emo*/' \
+        "$extract_dir/" "$BUNDLE_DIR/windows/Include/" 2>/dev/null || true
     
+    # Install .nsi files (exclude examples/tests/demos)
     find "$extract_dir" -type f -name "*.nsi" \
-        ! -iname '*example*' \
-        ! -iname '*test*' \
-        ! -iname '*demo*' \
-        2>/dev/null | while read -r nsi_file; do
-        cp "$nsi_file" "$BUNDLE_DIR/windows/Include/" 2>/dev/null || true
-    done
+        ! -ipath '*example*' \
+        ! -ipath '*test*' \
+        ! -ipath '*demo*' \
+        ! -ipath '*doc*' \
+        -exec cp {} "$BUNDLE_DIR/windows/Include/" \; 2>/dev/null || true
     
     echo "  ✓ $plugin_name"
 done
@@ -318,18 +346,17 @@ if test -f "$PLUGINS_DIR/nsis7z.7z"; then
     else
         $EXTRACT_CMD $EXTRACT_ARGS "$PLUGINS_DIR/nsis7z.7z" -o"$nsis7z_dir" >/dev/null 2>&1 || true
         
-        # Install nsis7z DLLs
+        # Install nsis7z DLLs using rsync
         for arch in x64-unicode x86-ansi x86-unicode; do
-            if test -f "$nsis7z_dir/Plugins/$arch/nsis7z.dll"; then
-                mkdir -p "$BUNDLE_DIR/windows/Plugins/$arch"
-                cp "$nsis7z_dir/Plugins/$arch/nsis7z.dll" "$BUNDLE_DIR/windows/Plugins/$arch/"
+            if [ -d "$nsis7z_dir/Plugins/$arch" ]; then
+                rsync -a --include='nsis7z.dll' --exclude='*' \
+                    "$nsis7z_dir/Plugins/$arch/" "$BUNDLE_DIR/windows/Plugins/$arch/"
             fi
         done
         
-        # Install headers if present
-        find "$nsis7z_dir" -type f -name "*.nsh" 2>/dev/null | while read -r nsh_file; do
-            cp "$nsh_file" "$BUNDLE_DIR/windows/Include/" 2>/dev/null || true
-        done
+        # Install headers using rsync
+        rsync -a --include='*.nsh' --exclude='*' \
+            "$nsis7z_dir/" "$BUNDLE_DIR/windows/Include/" 2>/dev/null || true
         
         echo "  ✓ nsis7z"
     fi
@@ -350,6 +377,7 @@ ls -1 "$LANG_FILES_DIR"/*.n* >/dev/null 2>&1 || {
     echo "  ⚠️  No language files found to patch"
     exit 1
 }
+
 for fixfile in "$FIXES_DIR"/*; do
     [ -f "$fixfile" ] || continue
     
