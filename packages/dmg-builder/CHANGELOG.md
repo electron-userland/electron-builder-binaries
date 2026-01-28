@@ -1,5 +1,11 @@
 # dmg-builder
 
+## 1.2.0
+
+### Minor Changes
+
+- [#135](https://github.com/electron-userland/electron-builder-binaries/pull/135) [`a9d7692`](https://github.com/electron-userland/electron-builder-binaries/commit/a9d7692c6c68607368b2596d765bc867d0cc2d2a) Thanks [@BarakXYZ](https://github.com/BarakXYZ)! - feat: update dmgbuild to include size and shrink options
+
 ## 1.1.0
 
 ### Minor Changes
