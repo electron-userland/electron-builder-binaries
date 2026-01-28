@@ -6,7 +6,7 @@ settings:
 
 overrides:
   glob: ^10.5.0
-  tar: ^7.5.4
+  tar: ^7.5.7
 
 importers:
 
@@ -14,13 +14,13 @@ importers:
     devDependencies:
       '@actions/attest':
         specifier: ^2.2.0
-        version: 2.2.0(@octokit/core@7.0.6)
+        version: 2.2.1(@octokit/core@7.0.6)
       '@changesets/changelog-github':
         specifier: ^0.5.2
         version: 0.5.2(encoding@0.1.13)
       '@changesets/cli':
         specifier: ^2.29.8
-        version: 2.29.8(@types/node@24.10.9)
+        version: 2.29.8
       '@octokit/rest':
         specifier: 22.0.1
         version: 22.0.1
@@ -54,11 +54,11 @@ importers:
 
 packages:
 
-  '@actions/attest@2.2.0':
-    resolution: {integrity: sha512-EscCEd9UqqT8Lu615vq+0ENbWGU1CN8dp818+EPCfoFDIxDor1po/XdrBWSDdenHBcW8ACG5M3QFS1KPGkBqVg==}
+  '@actions/attest@2.2.1':
+    resolution: {integrity: sha512-FzEj4Lf70lM/Pj3t9Uqk7mdhURNYHkZF0SWpQd+Snbb5P6x96Y0xIaQ/PxAw9kLB0gfnOz15n/8gH4SZeTZ7TA==}
 
-  '@actions/core@2.0.2':
-    resolution: {integrity: sha512-Ast1V7yHbGAhplAsuVlnb/5J8Mtr/Zl6byPPL+Qjq3lmfIgWF1ak1iYfF/079cRERiuTALTXkSuEUdZeDCfGtA==}
+  '@actions/core@2.0.3':
+    resolution: {integrity: sha512-Od9Thc3T1mQJYddvVPM4QGiLUewdh+3txmDYHHxoNdkqysR1MbCT+rFOtNUxYAz+7+6RIsqipVahY2GJqGPyxA==}
 
   '@actions/exec@2.0.0':
     resolution: {integrity: sha512-k8ngrX2voJ/RIN6r9xB82NVqKpnMRtxDoiO+g3olkIUpQNqjArXrCQceduQZCQj3P3xm32pChRLqRrtXTlqhIw==}
@@ -66,8 +66,8 @@ packages:
   '@actions/github@7.0.0':
     resolution: {integrity: sha512-PyGODO938aoBTZd/IfN/+e+Pd5hUcVpyf+thm4CPESLeqhdSkq5QwMTGX9v84XHE1ifmHWBQ60KB8kIgm96opw==}
 
-  '@actions/http-client@3.0.1':
-    resolution: {integrity: sha512-SbGS8c/vySbNO3kjFgSW77n83C4MQx/Yoe+b1hAdpuvfHxnkHzDq2pWljUpAA56Si1Gae/7zjeZsV0CYjmLo/w==}
+  '@actions/http-client@3.0.2':
+    resolution: {integrity: sha512-JP38FYYpyqvUsz+Igqlc/JG6YO9PaKuvqjM3iGvaLqFnJ7TFmcLyy2IDrY0bI0qCQug8E9K+elv5ZNfw62ZJzA==}
 
   '@actions/io@2.0.0':
     resolution: {integrity: sha512-Jv33IN09XLO+0HS79aaODsvIRyduiF7NY/F6LYeK5oeUmrsz7aFdRphQjFoESF4jS7lMauDOttKALcpapVDIAg==}
@@ -192,8 +192,8 @@ packages:
     resolution: {integrity: sha512-P4YJBPdPSpWTQ1NU4XYdvHvXJJDxM6YwpS0FZHRgP7YFkdVxsWcpWGy/NVqlAA7PcPCnMacXlRm1y2PFZRWL/w==}
     engines: {node: '>= 20'}
 
-  '@octokit/core@5.2.2':
-    resolution: {integrity: sha512-/g2d4sW9nUDJOMz3mabVQvOGhVa4e/BN/Um7yca9Bb2XTzPPnfTWHWQg+IsEYO7M3Vx+EXvaM/I2pJWIMun1bg==}
+  '@octokit/core@5.2.1':
+    resolution: {integrity: sha512-dKYCMuPO1bmrpuogcjQ8z7ICCH3FP6WmxpwC03yjzGfZhj9fTJg6+bS1+UAplekbN2C+M61UNllGOOoAfGCrdQ==}
     engines: {node: '>= 18'}
 
   '@octokit/core@7.0.6':
@@ -312,9 +312,6 @@ packages:
 
   '@types/node@12.20.55':
     resolution: {integrity: sha512-J8xLz7q2OFulZ2cyGTLE1TbbZcjpno7FaN6zdJNrgAdrJ+DZzh/uFR6YrTb4C+nXakvud8Q4+rbhoIWlYQbUFQ==}
-
-  '@types/node@24.10.9':
-    resolution: {integrity: sha512-ne4A0IpG3+2ETuREInjPNhUGis1SFjv1d5asp8MzEAGtOZeTeHVDOYqOgqfhvseqg/iXty2hjBf1zAOb7RNiNw==}
 
   agent-base@7.1.3:
     resolution: {integrity: sha512-jRR5wdylq8CkOe6hei19GGZnxM6rBGwFl3Bg0YItGDimvjGtAvdZk4Pu6Cl4u4Igsws4a1fd1Vq3ezrhn4KmFw==}
@@ -847,10 +844,9 @@ packages:
     resolution: {integrity: sha512-vavAMRXOgBVNF6nyEEmL3DBK19iRpDcoIwW+swQ+CbGiu7lju6t+JklA1MHweoWtadgt4ISVUsXLyDq34ddcwA==}
     engines: {node: '>=4'}
 
-  tar@7.5.6:
-    resolution: {integrity: sha512-xqUeu2JAIJpXyvskvU3uvQW8PAmHrtXp2KDuMJwQqW8Sqq0CaZBAQ+dKS3RBXVhU4wC5NjAdKrmh84241gO9cA==}
+  tar@7.5.7:
+    resolution: {integrity: sha512-fov56fJiRuThVFXD6o6/Q354S7pnWMJIVlDBYijsTNx6jKSE4pvrDTs6lUnmGvNyfJwFQQwWy3owKz1ucIhveQ==}
     engines: {node: '>=18'}
-    deprecated: Old versions of tar are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exhorbitant rates) by contacting i@izs.me
 
   term-size@2.2.1:
     resolution: {integrity: sha512-wK0Ri4fOGjv/XPy8SBHZChl8CM7uMc5VML7SqiQ0zG7+J5Vr+RMQDoHa2CNT6KHUnTGIXH34UDMkPzAUyapBZg==}
@@ -867,12 +863,13 @@ packages:
     resolution: {integrity: sha512-1h/Lnq9yajKY2PEbBadPXj3VxsDDu844OnaAo52UVmIzIvwwtBPIuNvkjuzBlTWpfJyUbG3ez0KSBibQkj4ojg==}
     engines: {node: '>=0.6.11 <=0.7.0 || >=0.7.3'}
 
-  undici-types@7.16.0:
-    resolution: {integrity: sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw==}
-
   undici@5.29.0:
     resolution: {integrity: sha512-raqeBD6NQK4SkWhQzeYKd1KmIG6dllBOTt55Rmkt4HtI9mwdWtJljnrXjAFUBLTSN67HWrOIZ3EPF4kjUw80Bg==}
     engines: {node: '>=14.0'}
+
+  undici@6.23.0:
+    resolution: {integrity: sha512-VfQPToRA5FZs/qJxLIinmU59u0r7LXqoJkCzinq3ckNJp3vKEh7jTWN589YQ5+aoAC/TGRLyJLCPKcLQbM8r9g==}
+    engines: {node: '>=18.17'}
 
   unique-filename@4.0.0:
     resolution: {integrity: sha512-XSnEewXmQ+veP7xX2dS5Q4yZAvO40cBN2MWkJ7D/6sW4Dg6wYBNwM1Vrnz1FhH5AdeLIlUXRI9e28z1YZi71NQ==}
@@ -923,11 +920,11 @@ packages:
 
 snapshots:
 
-  '@actions/attest@2.2.0(@octokit/core@7.0.6)':
+  '@actions/attest@2.2.1(@octokit/core@7.0.6)':
     dependencies:
-      '@actions/core': 2.0.2
+      '@actions/core': 2.0.3
       '@actions/github': 7.0.0
-      '@actions/http-client': 3.0.1
+      '@actions/http-client': 3.0.2
       '@octokit/plugin-retry': 6.1.0(@octokit/core@7.0.6)
       '@sigstore/bundle': 3.1.0
       '@sigstore/sign': 3.1.0
@@ -936,10 +933,10 @@ snapshots:
       - '@octokit/core'
       - supports-color
 
-  '@actions/core@2.0.2':
+  '@actions/core@2.0.3':
     dependencies:
       '@actions/exec': 2.0.0
-      '@actions/http-client': 3.0.1
+      '@actions/http-client': 3.0.2
 
   '@actions/exec@2.0.0':
     dependencies:
@@ -947,18 +944,18 @@ snapshots:
 
   '@actions/github@7.0.0':
     dependencies:
-      '@actions/http-client': 3.0.1
-      '@octokit/core': 5.2.2
-      '@octokit/plugin-paginate-rest': 9.2.2(@octokit/core@5.2.2)
-      '@octokit/plugin-rest-endpoint-methods': 10.4.1(@octokit/core@5.2.2)
+      '@actions/http-client': 3.0.2
+      '@octokit/core': 5.2.1
+      '@octokit/plugin-paginate-rest': 9.2.2(@octokit/core@5.2.1)
+      '@octokit/plugin-rest-endpoint-methods': 10.4.1(@octokit/core@5.2.1)
       '@octokit/request': 8.4.1
       '@octokit/request-error': 5.1.1
       undici: 5.29.0
 
-  '@actions/http-client@3.0.1':
+  '@actions/http-client@3.0.2':
     dependencies:
       tunnel: 0.0.6
-      undici: 5.29.0
+      undici: 6.23.0
 
   '@actions/io@2.0.0': {}
 
@@ -1003,7 +1000,7 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  '@changesets/cli@2.29.8(@types/node@24.10.9)':
+  '@changesets/cli@2.29.8':
     dependencies:
       '@changesets/apply-release-plan': 7.0.14
       '@changesets/assemble-release-plan': 6.0.9
@@ -1019,7 +1016,7 @@ snapshots:
       '@changesets/should-skip-package': 0.1.2
       '@changesets/types': 6.1.0
       '@changesets/write': 0.4.0
-      '@inquirer/external-editor': 1.0.3(@types/node@24.10.9)
+      '@inquirer/external-editor': 1.0.3
       '@manypkg/get-packages': 1.1.3
       ansi-colors: 4.1.3
       ci-info: 3.9.0
@@ -1127,12 +1124,10 @@ snapshots:
 
   '@fastify/busboy@2.1.1': {}
 
-  '@inquirer/external-editor@1.0.3(@types/node@24.10.9)':
+  '@inquirer/external-editor@1.0.3':
     dependencies:
       chardet: 2.1.1
       iconv-lite: 0.7.2
-    optionalDependencies:
-      '@types/node': 24.10.9
 
   '@isaacs/cliui@8.0.2':
     dependencies:
@@ -1193,7 +1188,7 @@ snapshots:
 
   '@octokit/auth-token@6.0.0': {}
 
-  '@octokit/core@5.2.2':
+  '@octokit/core@5.2.1':
     dependencies:
       '@octokit/auth-token': 4.0.0
       '@octokit/graphql': 7.1.1
@@ -1246,18 +1241,18 @@ snapshots:
       '@octokit/core': 7.0.6
       '@octokit/types': 16.0.0
 
-  '@octokit/plugin-paginate-rest@9.2.2(@octokit/core@5.2.2)':
+  '@octokit/plugin-paginate-rest@9.2.2(@octokit/core@5.2.1)':
     dependencies:
-      '@octokit/core': 5.2.2
+      '@octokit/core': 5.2.1
       '@octokit/types': 12.6.0
 
   '@octokit/plugin-request-log@6.0.0(@octokit/core@7.0.6)':
     dependencies:
       '@octokit/core': 7.0.6
 
-  '@octokit/plugin-rest-endpoint-methods@10.4.1(@octokit/core@5.2.2)':
+  '@octokit/plugin-rest-endpoint-methods@10.4.1(@octokit/core@5.2.1)':
     dependencies:
-      '@octokit/core': 5.2.2
+      '@octokit/core': 5.2.1
       '@octokit/types': 12.6.0
 
   '@octokit/plugin-rest-endpoint-methods@17.0.0(@octokit/core@7.0.6)':
@@ -1340,11 +1335,6 @@ snapshots:
 
   '@types/node@12.20.55': {}
 
-  '@types/node@24.10.9':
-    dependencies:
-      undici-types: 7.16.0
-    optional: true
-
   agent-base@7.1.3: {}
 
   ansi-colors@4.1.3: {}
@@ -1399,7 +1389,7 @@ snapshots:
       minipass-pipeline: 1.2.4
       p-map: 7.0.3
       ssri: 12.0.0
-      tar: 7.5.6
+      tar: 7.5.7
       unique-filename: 4.0.0
 
   chardet@2.1.1: {}
@@ -1837,7 +1827,7 @@ snapshots:
 
   strip-bom@3.0.0: {}
 
-  tar@7.5.6:
+  tar@7.5.7:
     dependencies:
       '@isaacs/fs-minipass': 4.0.1
       chownr: 3.0.0
@@ -1855,12 +1845,11 @@ snapshots:
 
   tunnel@0.0.6: {}
 
-  undici-types@7.16.0:
-    optional: true
-
   undici@5.29.0:
     dependencies:
       '@fastify/busboy': 2.1.1
+
+  undici@6.23.0: {}
 
   unique-filename@4.0.0:
     dependencies:
