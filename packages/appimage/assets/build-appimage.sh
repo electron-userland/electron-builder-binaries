@@ -310,7 +310,7 @@ find "$ARCH_OUTPUT_DIR" -type f -perm -111 | while read -r binary; do
             
             # Skip system libraries
             case "$libname" in
-                libc.so.*|ld-linux*.so.*|libpthread.so.*|librt.so.*|libdl.so.*)
+                libc.so.*|libm.so.*|libm-*.so|ld-linux*.so.*|libpthread.so.*|librt.so.*|libdl.so.*)
                     continue
                 ;;
             esac
