@@ -1,5 +1,11 @@
 # appimage
 
+## 1.0.3
+
+### Patch Changes
+
+- [#143](https://github.com/electron-userland/electron-builder-binaries/pull/143) [`c81095a`](https://github.com/electron-userland/electron-builder-binaries/commit/c81095a0976e0690975871dce744e0b27b74546a) Thanks [@sabonerune](https://github.com/sabonerune)! - fix(appimage): exclude libm from AppImage build process
+
 ## 1.0.2
 
 ### Patch Changes
