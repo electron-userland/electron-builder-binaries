@@ -11,16 +11,20 @@
     "ci:publish": "changeset tag"
   },
   "devDependencies": {
-    "@actions/attest": "^2.2.0",
+    "@actions/attest": "^2.2.1",
     "@changesets/changelog-github": "^0.5.2",
-    "@changesets/cli": "^2.29.8",
+    "@changesets/cli": "^2.30.0",
     "@octokit/rest": "22.0.1",
     "mime-types": "^3.0.2"
   },
   "pnpm": {
     "overrides": {
       "glob": "^10.5.0",
-      "tar": "^7.5.7"
+      "minimatch": "^9.0.9",
+      "tar": "^7.5.11",
+      "undici": "^6.24.0",
+      "picomatch": "^2.3.2",
+      "js-yaml": "^3.14.2"
     }
   },
   "packageManager": "pnpm@10.23.0+sha512.21c4e5698002ade97e4efe8b8b4a89a8de3c85a37919f957e7a0f30f38fbc5bbdd05980ffe29179b2fb6e6e691242e098d945d1601772cad0fef5fb6411e2a4b"
