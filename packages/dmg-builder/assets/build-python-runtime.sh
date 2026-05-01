@@ -9,12 +9,36 @@ fi
 ### ================================
 ### CONFIG
 ### ================================
-ROOT="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
-OUTPUT_DIR="${2:-${ROOT}/dist}"
-PYTHON_VERSION="${3:-3.11.8}"
-DMGBUILD_VERSION="${4:-1.6.6}"
-CODESIGN_IDENTITY="${5:-"-"}" # "-" = ad-hoc
-ARCH="${6:-$(uname -m)}"
+_DEFAULT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT=""
+OUTPUT_DIR=""
+PYTHON_VERSION=""
+DMGBUILD_VERSION=""
+CODESIGN_IDENTITY="-"
+ARCH=""
+
+usage() {
+    echo "Usage: $0 --root <dir> --output-dir <dir> --python-version <ver> --dmgbuild-version <ver> [--codesign-identity <id>] [--arch <arm64|x86_64>]"
+    exit 1
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --root)              ROOT="$2";              shift 2 ;;
+        --output-dir)        OUTPUT_DIR="$2";        shift 2 ;;
+        --python-version)    PYTHON_VERSION="$2";    shift 2 ;;
+        --dmgbuild-version)  DMGBUILD_VERSION="$2";  shift 2 ;;
+        --codesign-identity) CODESIGN_IDENTITY="$2"; shift 2 ;;
+        --arch)              ARCH="$2";              shift 2 ;;
+        *) echo "Unknown argument: $1"; usage ;;
+    esac
+done
+
+ROOT="${ROOT:-$_DEFAULT_ROOT}"
+OUTPUT_DIR="${OUTPUT_DIR:-${ROOT}/dist}"
+PYTHON_VERSION="${PYTHON_VERSION:-3.11.8}"
+DMGBUILD_VERSION="${DMGBUILD_VERSION:-1.6.6}"
+ARCH="${ARCH:-$(uname -m)}"
 
 if [[ "$ARCH" != "arm64" && "$ARCH" != "x86_64" ]]; then
     echo "❌ Unsupported ARCH: $ARCH"

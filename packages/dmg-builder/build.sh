@@ -38,8 +38,22 @@ SDK_PATH="$(xcrun --sdk macosx --show-sdk-path)"
 export CFLAGS="${CFLAGS:-} -isysroot ${SDK_PATH} -nostdinc -isystem ${SDK_PATH}/usr/include -mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}"
 export LDFLAGS="${LDFLAGS:-} -isysroot ${SDK_PATH} -Wl,-syslibroot,${SDK_PATH} -mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}"
 
-# Default to current architecture; can also be "x86_64 arm64"
-ARCHS=${1:-"$(uname -m)"}
+ARCHS=""
+
+usage() {
+  echo "Usage: $0 [--arch <arm64|x86_64>] [--arch <...>]"
+  echo "  --arch   Target architecture (may be repeated; defaults to current machine arch)"
+  exit 1
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --arch) ARCHS="${ARCHS:+$ARCHS }$2"; shift 2 ;;
+    *) echo "Unknown argument: $1"; usage ;;
+  esac
+done
+
+ARCHS="${ARCHS:-$(uname -m)}"
 
 for ARCH in $ARCHS; do
   echo ""
@@ -47,7 +61,12 @@ for ARCH in $ARCHS; do
   echo "🏗️  Building Python runtime for ${ARCH}"
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   bash "$ROOT/assets/build-python-runtime.sh" \
-    "$ROOT" "$OUTPUT_DIR" "$PYTHON_VERSION" "$DMGBUILD_VERSION_OR_HASH" "-" "${ARCH}"
+    --root "$ROOT" \
+    --output-dir "$OUTPUT_DIR" \
+    --python-version "$PYTHON_VERSION" \
+    --dmgbuild-version "$DMGBUILD_VERSION_OR_HASH" \
+    --codesign-identity "-" \
+    --arch "${ARCH}"
 done
 
 # ─── Post-build verification ─────────────────────────────────────────────
