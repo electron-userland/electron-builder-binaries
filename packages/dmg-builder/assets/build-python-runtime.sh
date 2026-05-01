@@ -90,8 +90,7 @@ file "$PREFIX/bin/python3"
 echo "🐍 Installing pip and dmgbuild"
 
 run_arch "$PREFIX/bin/python3" -m pip install --upgrade pip --no-warn-script-location --no-cache 
-run_arch "$PREFIX/bin/python3" -m pip install --no-warn-script-location --no-cache git+https://github.com/dmgbuild/dmgbuild.git@${DMGBUILD_VERSION}
-run_arch "$PREFIX/bin/python3" -m pip install --no-warn-script-location --no-cache git+https://github.com/dmgbuild/dmgbuild.git@${DMGBUILD_VERSION}#egg=dmgbuild[badge_icons]
+run_arch "$PREFIX/bin/python3" -m pip install --no-warn-script-location --no-cache "dmgbuild[badge_icons] @ git+https://github.com/dmgbuild/dmgbuild.git@${DMGBUILD_VERSION}"
 
 ###############################################################################
 # ADD VERSION.txt FILE with python version and versions of each major package
@@ -232,7 +231,7 @@ codesign --force  \
 
 echo "📄 Downloading component licenses..."
 mkdir -p "${DIR_TO_ARCHIVE}/LICENSES"
-curl -fsSL "https://raw.githubusercontent.com/al45tair/dmgbuild/master/LICENSE" \
+curl -fsSL "https://raw.githubusercontent.com/dmgbuild/dmgbuild/master/LICENSE" \
   -o "${DIR_TO_ARCHIVE}/LICENSES/LICENSE.dmgbuild"
 if [ ! -f "${DIR_TO_ARCHIVE}/python/LICENSE.txt" ]; then
   curl -fsSL "https://raw.githubusercontent.com/python/cpython/v${PYTHON_VERSION}/LICENSE" \

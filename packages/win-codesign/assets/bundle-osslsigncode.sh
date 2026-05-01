@@ -123,7 +123,7 @@ ARCHIVE_ARCH_SUFFIX=$(echo ${PLATFORM_ARCH:-$(uname -m)} | tr -d '/' | tr '[:upp
 ARCHIVE_NAME="win-codesign-$(uname -s | tr A-Z a-z)-$ARCHIVE_ARCH_SUFFIX.zip"
 
 echo "📄 Downloading osslsigncode LICENSE..."
-curl -fsSL "https://raw.githubusercontent.com/mtrojnar/osslsigncode/main/LICENSE.md" \
+curl -fsSL "https://raw.githubusercontent.com/mtrojnar/osslsigncode/master/LICENSE" \
   -o "$INSTALL_DIR/LICENSE"
 
 echo "📦 Creating ZIP bundle: $ARCHIVE_NAME"
