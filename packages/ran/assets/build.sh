@@ -133,6 +133,11 @@ done
 echo "📝 Creating VERSION.txt..."
 echo "$VERSION" > "$OUTPUT_DIR/VERSION.txt"
 
+# Download RAN LICENSE
+echo "📄 Downloading LICENSE..."
+curl -fsSL "https://raw.githubusercontent.com/m3ng9i/ran/${VERSION}/LICENSE" \
+  -o "$OUTPUT_DIR/LICENSE"
+
 # Create final ZIP bundle
 ARCHIVE_NAME="ran-${VERSION}-all-platforms.zip"
 

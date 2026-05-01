@@ -122,6 +122,10 @@ echo "  - Or run: LD_LIBRARY_PATH=$LIB_DIR OPENSSL_MODULES=$LIB_DIR/ossl-modules
 ARCHIVE_ARCH_SUFFIX=$(echo ${PLATFORM_ARCH:-$(uname -m)} | tr -d '/' | tr '[:upper:]' '[:lower:]')
 ARCHIVE_NAME="win-codesign-$(uname -s | tr A-Z a-z)-$ARCHIVE_ARCH_SUFFIX.zip"
 
+echo "📄 Downloading osslsigncode LICENSE..."
+curl -fsSL "https://raw.githubusercontent.com/mtrojnar/osslsigncode/main/LICENSE.md" \
+  -o "$INSTALL_DIR/LICENSE"
+
 echo "📦 Creating ZIP bundle: $ARCHIVE_NAME"
 (
   cd "$INSTALL_DIR"

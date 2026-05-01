@@ -35,6 +35,10 @@ curl -L "https://github.com/electron/rcedit/releases/download/v$RCEDIT_VERSION/r
     echo "$($RCEDIT_BUNDLE_DIR/rcedit-x64.exe "$RCEDIT_BUNDLE_DIR/rcedit-x86.exe" --get-version-string "FileVersion")"
 } > "$RCEDIT_BUNDLE_DIR/VERSION.txt"
 
+echo "📄 Downloading rcedit LICENSE..."
+curl -fsSL "https://raw.githubusercontent.com/electron/rcedit/master/LICENSE" \
+  -o "$RCEDIT_BUNDLE_DIR/LICENSE"
+
 echo "📦 Zipping rcedit bundle..."
 cd "$RCEDIT_BUNDLE_DIR"
 zip -r -9 "$RCEDIT_ZIP" .

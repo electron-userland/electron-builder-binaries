@@ -292,6 +292,18 @@ fi
 echo "$RUBY_VERSION_VERBOSE" >$INSTALL_DIR/VERSION.txt
 echo "fpm: $FPM_VERSION" >>$INSTALL_DIR/VERSION.txt
 
+echo "📄 Downloading component licenses..."
+mkdir -p "$INSTALL_DIR/LICENSES"
+curl -fsSL "https://raw.githubusercontent.com/jordansissel/fpm/master/LICENSE" \
+  -o "$INSTALL_DIR/LICENSES/LICENSE.fpm"
+if [ -f "$RUBY_PREFIX/COPYING" ]; then
+  cp "$RUBY_PREFIX/COPYING" "$INSTALL_DIR/LICENSES/LICENSE.ruby"
+else
+  curl -fsSL "https://raw.githubusercontent.com/ruby/ruby/master/COPYING" \
+    -o "$INSTALL_DIR/LICENSES/LICENSE.ruby"
+fi
+echo "  ✓ Licenses downloaded"
+
 echo "🔨 Creating portable archive..."
 cd "$INSTALL_DIR"
 

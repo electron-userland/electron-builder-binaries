@@ -230,6 +230,16 @@ codesign --force  \
 # ARCHIVE (do it now to avoid including later test and cache files)
 ###############################################################################
 
+echo "📄 Downloading component licenses..."
+mkdir -p "${DIR_TO_ARCHIVE}/LICENSES"
+curl -fsSL "https://raw.githubusercontent.com/al45tair/dmgbuild/master/LICENSE" \
+  -o "${DIR_TO_ARCHIVE}/LICENSES/LICENSE.dmgbuild"
+if [ ! -f "${DIR_TO_ARCHIVE}/python/LICENSE.txt" ]; then
+  curl -fsSL "https://raw.githubusercontent.com/python/cpython/v${PYTHON_VERSION}/LICENSE" \
+    -o "${DIR_TO_ARCHIVE}/LICENSES/LICENSE.python"
+fi
+echo "  ✓ Licenses downloaded"
+
 echo "📦 Creating archive…"
 cd "${DIR_TO_ARCHIVE}"
 
