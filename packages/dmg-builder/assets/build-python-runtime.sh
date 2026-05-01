@@ -29,7 +29,13 @@ run_arch() {
     fi
 }
 
-MACOS_DEPLOYMENT_TARGET="11.0"
+# NOTE: variable name MUST be MACOSX_DEPLOYMENT_TARGET (with the X).
+# The previous version used MACOS_DEPLOYMENT_TARGET (no X) and then
+# `export MACOSX_DEPLOYMENT_TARGET` re-exported whatever value the CI
+# runner had pre-set (e.g. 15.7 on a macos-15 runner), so the 11.0
+# value here was silently dropped. That is why published binaries
+# advertised "built for macOS 15.7".
+MACOSX_DEPLOYMENT_TARGET="11.0"
 BUILD_DIR="${ROOT}/build"
 SRC_DIR="$BUILD_DIR/src"
 TEST_DIR="$BUILD_DIR/test"
@@ -40,6 +46,7 @@ echo "🐍 dmgbuild portable bundler"
 echo "📁 Output directory: ${DIR_TO_ARCHIVE}"
 echo "🔢 Python version: ${PYTHON_VERSION}"
 echo "📦 dmgbuild version: ${DMGBUILD_VERSION}"
+echo "🍎 macOS deployment target: ${MACOSX_DEPLOYMENT_TARGET}"
 echo ""
 
 ### ================================
@@ -59,22 +66,63 @@ cd Python-${PYTHON_VERSION}
 ### ================================
 ### BUILD ENV (NO HOMEBREW)
 ### ================================
+# Pin to the Xcode SDK so headers/libs come from the SDK only and never
+# from /usr/local (Intel runners) or /opt/homebrew (Apple-silicon
+# runners). The previous version `unset SDKROOT`, which let Apple's ld(64)
+# fall back to its default search list, which on Intel macOS includes
+# /usr/local/lib — that is how Homebrew's gettext (libintl.8.dylib) got
+# linked into _locale.so, baking the path
+# /usr/local/opt/gettext/lib/libintl.8.dylib into the shipped binary.
+SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+export SDKROOT
 export MACOSX_DEPLOYMENT_TARGET
 export CC=clang
 export CXX=clang++
-export CFLAGS="-O3 -fPIC -arch ${ARCH}"
-export LDFLAGS="-arch ${ARCH}"
+export CFLAGS="-O3 -fPIC -arch ${ARCH} -isysroot ${SDKROOT} -mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}"
+export LDFLAGS="-arch ${ARCH} -isysroot ${SDKROOT} -mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}"
+# Belt-and-braces: tell ld(64) explicitly NOT to search Homebrew prefixes.
+export LIBRARY_PATH=""
+export CPATH=""
 
-unset CPATH LIBRARY_PATH PKG_CONFIG_PATH SDKROOT
+unset PKG_CONFIG_PATH
+
+# Locate Homebrew OpenSSL. --with-openssl scopes it only to the _ssl extension
+# module, so no other Homebrew library can bleed into the build.
+OPENSSL_PREFIX=""
+for candidate in \
+    "$(brew --prefix openssl@3 2>/dev/null || true)" \
+    /opt/homebrew/opt/openssl@3 \
+    /usr/local/opt/openssl@3 \
+    /opt/homebrew/opt/openssl \
+    /usr/local/opt/openssl; do
+  if [[ -n "$candidate" && -d "$candidate/include/openssl" ]]; then
+    OPENSSL_PREFIX="$candidate"
+    break
+  fi
+done
+if [[ -z "$OPENSSL_PREFIX" ]]; then
+  echo "❌ OpenSSL not found — install it with: brew install openssl@3"
+  exit 1
+fi
+echo "🔐 Using OpenSSL at: $OPENSSL_PREFIX"
 
 ### ================================
 ### CONFIGURE
 ### ================================
+# Force the autoconf cache for libintl/gettext detection to "no" so that
+# even if a stray /usr/local or /opt/homebrew gettext slipped onto the
+# search path, _locale would not link against it. macOS already has
+# everything _locale needs in libSystem; libintl is a Linux-flavour
+# extra that must NOT be picked up here.
 run_arch ./configure \
---prefix="$PREFIX" \
---enable-optimizations \
---disable-shared \
---disable-test-modules
+  --prefix="$PREFIX" \
+  --enable-optimizations \
+  --disable-shared \
+  --disable-test-modules \
+  --with-openssl="$OPENSSL_PREFIX" \
+  ac_cv_header_libintl_h=no \
+  ac_cv_lib_intl_textdomain=no \
+  ac_cv_lib_intl_libintl_setlocale=no
 
 ### ================================
 ### BUILD & INSTALL
@@ -89,9 +137,8 @@ file "$PREFIX/bin/python3"
 ### ================================
 echo "🐍 Installing pip and dmgbuild"
 
-run_arch "$PREFIX/bin/python3" -m pip install --upgrade pip --no-warn-script-location --no-cache 
-run_arch "$PREFIX/bin/python3" -m pip install --no-warn-script-location --no-cache git+https://github.com/dmgbuild/dmgbuild.git@${DMGBUILD_VERSION}
-run_arch "$PREFIX/bin/python3" -m pip install --no-warn-script-location --no-cache git+https://github.com/dmgbuild/dmgbuild.git@${DMGBUILD_VERSION}#egg=dmgbuild[badge_icons]
+run_arch "$PREFIX/bin/python3" -m pip install --upgrade pip --no-warn-script-location --no-cache
+run_arch "$PREFIX/bin/python3" -m pip install --no-warn-script-location --no-cache "dmgbuild[badge_icons] @ git+https://github.com/dmgbuild/dmgbuild.git@${DMGBUILD_VERSION}"
 
 ###############################################################################
 # ADD VERSION.txt FILE with python version and versions of each major package
@@ -100,6 +147,7 @@ echo "📝 Creating VERSION.txt…"
 {
     echo "dmgbuild version/commit hash: ${DMGBUILD_VERSION}"
     echo "Python version: ${PYTHON_VERSION}"
+    echo "macOS deployment target: ${MACOSX_DEPLOYMENT_TARGET}"
     echo -n "dmgbuild package version: "
     run_arch "$PREFIX/bin/python3" -m pip show dmgbuild | grep ^Version: | awk '{print $2}'
 } > "$DIR_TO_ARCHIVE/VERSION.txt"
@@ -183,6 +231,48 @@ find "$PREFIX/lib" -name "*.so" | while read -r so; do
     add_rpath_if_missing "$so" "@loader_path"
 done
 
+###############################################################################
+# BUNDLE OPENSSL DYLIBS — rewrite Homebrew paths to @loader_path-relative
+###############################################################################
+# _ssl.so and _hashlib.so link against Homebrew's libssl/libcrypto. Copy those
+# dylibs into lib-dynload/ alongside the .so files and rewrite every reference
+# so the bundle is self-contained and passes the Homebrew-leak guardrail.
+
+DYNLOAD_DIR="$(find "$PREFIX/lib" -maxdepth 2 -type d -name lib-dynload | head -n 1)"
+
+bundle_openssl_dylib() {
+    local src="$1"
+    local name
+    name="$(basename "$src")"
+    local dst="$DYNLOAD_DIR/$name"
+    if [[ ! -f "$dst" ]]; then
+        cp "$src" "$dst"
+        install_name_tool -id "@loader_path/$name" "$dst"
+    fi
+}
+
+# Pass 1: copy every Homebrew dylib referenced by .so files into DYNLOAD_DIR
+while IFS= read -r so; do
+    while IFS= read -r ref; do
+        if [[ "$ref" == /opt/homebrew/* || "$ref" == /usr/local/opt/* ]]; then
+            bundle_openssl_dylib "$ref"
+        fi
+    done < <(otool -L "$so" 2>/dev/null | awk 'NR>1 {print $1}')
+done < <(find "$DYNLOAD_DIR" -name "*.so")
+
+# Pass 2: rewrite Homebrew references in both .so and the newly copied .dylib files
+# (dylibs like libssl reference libcrypto via their original Homebrew path)
+while IFS= read -r bin; do
+    while IFS= read -r ref; do
+        if [[ "$ref" == /opt/homebrew/* || "$ref" == /usr/local/opt/* ]]; then
+            local_name="$(basename "$ref")"
+            # If the dependency wasn't already bundled in pass 1, copy it now
+            bundle_openssl_dylib "$ref"
+            install_name_tool -change "$ref" "@loader_path/$local_name" "$bin"
+        fi
+    done < <(otool -L "$bin" 2>/dev/null | awk 'NR>1 {print $1}')
+done < <(find "$DYNLOAD_DIR" \( -name "*.so" -o -name "*.dylib" \))
+
 # ###############################################################################
 # # ENTRYPOINT SCRIPT
 # ###############################################################################
@@ -219,12 +309,42 @@ find "$DIR_TO_ARCHIVE" -type f \
 --sign "$CODESIGN_IDENTITY" \
 {} \;
 
-codesign --force  \
+codesign --force \
 --sign "$CODESIGN_IDENTITY" \
 "$DIR_TO_ARCHIVE/python/bin/python3"
-codesign --force  \
+codesign --force \
 --sign "$CODESIGN_IDENTITY" \
 "$DIR_TO_ARCHIVE/dmgbuild"
+
+###############################################################################
+# GUARDRAILS — fail the build if Homebrew leaked or deployment target is wrong
+###############################################################################
+echo "🔎 Asserting no Homebrew leak and correct deployment target"
+
+# 1) No Mach-O in the bundle may reference /usr/local/... or /opt/homebrew/...
+LEAKS=""
+while IFS= read -r f; do
+    refs=$(otool -L "$f" 2>/dev/null \
+        | awk 'NR>1 {print $1}' \
+        | grep -E '^(/usr/local/|/opt/homebrew/)' || true)
+    if [ -n "$refs" ]; then
+        LEAKS+=$'\n'"$f:"$'\n'"$refs"
+    fi
+done < <(find "$DIR_TO_ARCHIVE" -type f \( -name "*.so" -o -name "*.dylib" -o -perm +111 \))
+
+if [ -n "$LEAKS" ]; then
+    echo "❌ Homebrew dylib reference leaked into binary:${LEAKS}"
+    exit 1
+fi
+
+# 2) python3 must advertise minos == MACOSX_DEPLOYMENT_TARGET
+VTOUT="$(vtool -show-build "$DIR_TO_ARCHIVE/python/bin/python3" 2>/dev/null || true)"
+if ! echo "$VTOUT" | grep -Eq "minos[[:space:]]+${MACOSX_DEPLOYMENT_TARGET}([. ]|$)"; then
+    echo "❌ python3 deployment target != ${MACOSX_DEPLOYMENT_TARGET}:"
+    echo "$VTOUT"
+    exit 1
+fi
+echo "✅ Guardrails passed (no Homebrew refs, minos=${MACOSX_DEPLOYMENT_TARGET})"
 
 ###############################################################################
 # ARCHIVE (do it now to avoid including later test and cache files)
