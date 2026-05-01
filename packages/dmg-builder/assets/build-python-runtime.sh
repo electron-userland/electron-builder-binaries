@@ -29,13 +29,7 @@ run_arch() {
     fi
 }
 
-# NOTE: variable name MUST be MACOSX_DEPLOYMENT_TARGET (with the X).
-# The previous version used MACOS_DEPLOYMENT_TARGET (no X) and then
-# `export MACOSX_DEPLOYMENT_TARGET` re-exported whatever value the CI
-# runner had pre-set (e.g. 15.7 on a macos-15 runner), so the 11.0
-# value here was silently dropped. That is why published binaries
-# advertised "built for macOS 15.7".
-MACOSX_DEPLOYMENT_TARGET="11.0"
+export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-11.0}"
 BUILD_DIR="${ROOT}/build"
 SRC_DIR="$BUILD_DIR/src"
 TEST_DIR="$BUILD_DIR/test"
@@ -66,16 +60,9 @@ cd Python-${PYTHON_VERSION}
 ### ================================
 ### BUILD ENV (NO HOMEBREW)
 ### ================================
-# Pin to the Xcode SDK so headers/libs come from the SDK only and never
-# from /usr/local (Intel runners) or /opt/homebrew (Apple-silicon
-# runners). The previous version `unset SDKROOT`, which let Apple's ld(64)
-# fall back to its default search list, which on Intel macOS includes
-# /usr/local/lib — that is how Homebrew's gettext (libintl.8.dylib) got
-# linked into _locale.so, baking the path
-# /usr/local/opt/gettext/lib/libintl.8.dylib into the shipped binary.
+# Pin to the Xcode SDK so headers/libs come from the SDK only and never from /usr/local (Intel runners) or /opt/homebrew (Apple-silicon runners). 
 SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
 export SDKROOT
-export MACOSX_DEPLOYMENT_TARGET
 export CC=clang
 export CXX=clang++
 export CFLAGS="-O3 -fPIC -arch ${ARCH} -isysroot ${SDKROOT} -mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}"
@@ -86,8 +73,7 @@ export CPATH=""
 
 unset PKG_CONFIG_PATH
 
-# Locate Homebrew OpenSSL. --with-openssl scopes it only to the _ssl extension
-# module, so no other Homebrew library can bleed into the build.
+# Locate Homebrew OpenSSL. --with-openssl scopes it only to the _ssl extension module, so no other Homebrew library can bleed into the build.
 OPENSSL_PREFIX=""
 for candidate in \
     "$(brew --prefix openssl@3 2>/dev/null || true)" \
@@ -109,11 +95,7 @@ echo "🔐 Using OpenSSL at: $OPENSSL_PREFIX"
 ### ================================
 ### CONFIGURE
 ### ================================
-# Force the autoconf cache for libintl/gettext detection to "no" so that
-# even if a stray /usr/local or /opt/homebrew gettext slipped onto the
-# search path, _locale would not link against it. macOS already has
-# everything _locale needs in libSystem; libintl is a Linux-flavour
-# extra that must NOT be picked up here.
+# Force the autoconf cache for libintl/gettext detection to "no" so that# even if a stray /usr/local or /opt/homebrew gettext slipped onto the search path, _locale would not link against it. macOS already has everything _locale needs in libSystem
 run_arch ./configure \
   --prefix="$PREFIX" \
   --enable-optimizations \
@@ -234,9 +216,7 @@ done
 ###############################################################################
 # BUNDLE OPENSSL DYLIBS — rewrite Homebrew paths to @loader_path-relative
 ###############################################################################
-# _ssl.so and _hashlib.so link against Homebrew's libssl/libcrypto. Copy those
-# dylibs into lib-dynload/ alongside the .so files and rewrite every reference
-# so the bundle is self-contained and passes the Homebrew-leak guardrail.
+# _ssl.so and _hashlib.so link against Homebrew's libssl/libcrypto. We copy dylibs into lib-dynload/ alongside the .so files and rewrite every reference so the bundle is self-contained and passes the Homebrew-leak guardrail.
 
 DYNLOAD_DIR="$(find "$PREFIX/lib" -maxdepth 2 -type d -name lib-dynload | head -n 1)"
 
