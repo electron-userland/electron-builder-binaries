@@ -251,10 +251,15 @@ bundle_openssl_dylib() {
     fi
 }
 
+is_homebrew_path() {
+    local p="$1"
+    [[ "$p" == /opt/homebrew/* || "$p" == /usr/local/opt/* || "$p" == /usr/local/Cellar/* || "$p" == /usr/local/lib/lib* ]]
+}
+
 # Pass 1: copy every Homebrew dylib referenced by .so files into DYNLOAD_DIR
 while IFS= read -r so; do
     while IFS= read -r ref; do
-        if [[ "$ref" == /opt/homebrew/* || "$ref" == /usr/local/opt/* ]]; then
+        if is_homebrew_path "$ref"; then
             bundle_openssl_dylib "$ref"
         fi
     done < <(otool -L "$so" 2>/dev/null | awk 'NR>1 {print $1}')
@@ -264,7 +269,7 @@ done < <(find "$DYNLOAD_DIR" -name "*.so")
 # (dylibs like libssl reference libcrypto via their original Homebrew path)
 while IFS= read -r bin; do
     while IFS= read -r ref; do
-        if [[ "$ref" == /opt/homebrew/* || "$ref" == /usr/local/opt/* ]]; then
+        if is_homebrew_path "$ref"; then
             local_name="$(basename "$ref")"
             # If the dependency wasn't already bundled in pass 1, copy it now
             bundle_openssl_dylib "$ref"
