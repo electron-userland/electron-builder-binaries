@@ -107,7 +107,7 @@ WORKDIR /out/linux
 RUN echo "Creating portable bundle with PLATFORM_ARCH=$PLATFORM_ARCH" && \
     PLATFORM_ARCH="${PLATFORM_ARCH}" \
     bash /tmp/bundle-osslsigncode.sh \
-    /usr/src/osslsigncode/build/osslsigncode \
-    /out/linux/osslsigncode
+    --src /usr/src/osslsigncode/build/osslsigncode \
+    --output-dir /out/linux/osslsigncode
 
 CMD ["/bin/bash"]
