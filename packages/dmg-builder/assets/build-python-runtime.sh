@@ -17,6 +17,26 @@ DMGBUILD_VERSION=""
 CODESIGN_IDENTITY="-"
 ARCH=""
 
+verify_sha256() {
+    local file="$1" expected="$2" actual
+    if command -v sha256sum >/dev/null 2>&1; then
+        actual=$(sha256sum "$file" | awk '{print $1}')
+    elif command -v shasum >/dev/null 2>&1; then
+        actual=$(shasum -a 256 "$file" | awk '{print $1}')
+    else
+        echo "❌ No sha256 tool found (sha256sum or shasum required)" >&2; return 1
+    fi
+    if [ "$actual" = "$expected" ]; then
+        echo "  ✓ Checksum verified"
+        return 0
+    else
+        echo "❌ Checksum mismatch for $(basename "$file")" >&2
+        echo "   expected: $expected" >&2
+        echo "   actual:   $actual" >&2
+        return 1
+    fi
+}
+
 usage() {
     echo "Usage: $0 --root <dir> --output-dir <dir> --python-version <ver> --dmgbuild-version <ver> [--codesign-identity <id>] [--arch <arm64|x86_64>]"
     exit 1
@@ -39,6 +59,11 @@ OUTPUT_DIR="${OUTPUT_DIR:-${ROOT}/dist}"
 PYTHON_VERSION="${PYTHON_VERSION:-3.11.8}"
 DMGBUILD_VERSION="${DMGBUILD_VERSION:-1.6.6}"
 ARCH="${ARCH:-$(uname -m)}"
+
+# SHA256 of https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz
+# Re-pin when bumping PYTHON_VERSION: curl -fsSL <url> | sha256sum
+# Default value is for Python 3.14.2 (the version set in build.sh)
+PYTHON_SHA256="${PYTHON_SHA256:-c609e078adab90e2c6bacb6afafacd5eaf60cd94cf670f1e159565725fcd448d}"
 
 if [[ "$ARCH" != "arm64" && "$ARCH" != "x86_64" ]]; then
     echo "❌ Unsupported ARCH: $ARCH"
@@ -77,7 +102,11 @@ mkdir -p "$SRC_DIR" "$PREFIX" "$TEST_DIR" "$DIR_TO_ARCHIVE"
 ## FETCH PYTHON
 ## ================================
 cd "$SRC_DIR"
-curl -LO https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz
+curl -fsSL --retry 3 --retry-delay 2 --max-time 600 \
+    "https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz" \
+    -o "Python-${PYTHON_VERSION}.tgz"
+echo "  🔍 Verifying Python source checksum..."
+verify_sha256 "Python-${PYTHON_VERSION}.tgz" "$PYTHON_SHA256"
 tar xf Python-${PYTHON_VERSION}.tgz
 cd Python-${PYTHON_VERSION}
 
@@ -361,11 +390,13 @@ echo "✅ Guardrails passed (no Homebrew refs, minos=${MACOSX_DEPLOYMENT_TARGET}
 
 echo "📄 Downloading component licenses..."
 mkdir -p "${DIR_TO_ARCHIVE}/LICENSES"
-curl -fsSL "https://raw.githubusercontent.com/dmgbuild/dmgbuild/master/LICENSE" \
-  -o "${DIR_TO_ARCHIVE}/LICENSES/LICENSE.dmgbuild"
+curl -fsSL --retry 3 --retry-delay 2 --max-time 60 \
+    "https://raw.githubusercontent.com/dmgbuild/dmgbuild/master/LICENSE" \
+    -o "${DIR_TO_ARCHIVE}/LICENSES/LICENSE.dmgbuild"
 if [ ! -f "${DIR_TO_ARCHIVE}/python/LICENSE.txt" ]; then
-  curl -fsSL "https://raw.githubusercontent.com/python/cpython/v${PYTHON_VERSION}/LICENSE" \
-    -o "${DIR_TO_ARCHIVE}/LICENSES/LICENSE.python"
+  curl -fsSL --retry 3 --retry-delay 2 --max-time 60 \
+      "https://raw.githubusercontent.com/python/cpython/v${PYTHON_VERSION}/LICENSE" \
+      -o "${DIR_TO_ARCHIVE}/LICENSES/LICENSE.python"
 fi
 echo "  ✓ Licenses downloaded"
 

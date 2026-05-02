@@ -184,9 +184,11 @@ echo "✅ Generic AppImage tool wrapper created"
 echo ""
 echo "📄 Downloading component licenses..."
 mkdir -p "$BUILD_DIR/LICENSES"
-curl -fsSL "https://raw.githubusercontent.com/AppImage/AppImageKit/master/LICENSE" \
+curl -fsSL --retry 3 --retry-delay 2 --max-time 60 \
+  "https://raw.githubusercontent.com/AppImage/AppImageKit/master/LICENSE" \
   -o "$BUILD_DIR/LICENSES/LICENSE.AppImageKit"
-curl -fsSL "https://raw.githubusercontent.com/AppImage/type2-runtime/main/LICENSE" \
+curl -fsSL --retry 3 --retry-delay 2 --max-time 60 \
+  "https://raw.githubusercontent.com/AppImage/type2-runtime/main/LICENSE" \
   -o "$BUILD_DIR/LICENSES/LICENSE.type2-runtime"
 echo "✅ Licenses downloaded"
 

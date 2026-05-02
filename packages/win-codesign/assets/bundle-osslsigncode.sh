@@ -2,14 +2,33 @@
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-OSSLSIGNCODE_SRC="${1:-${OSSLSIGNCODE_SRC:-}}"
-OUTPUT_DIR="${2:-$ROOT/out/osslsigncode}"
+
+usage() {
+    echo "Usage: $0 --src <path-to-osslsigncode> [--output-dir <dir>] [--platform-arch <arch>]" >&2
+    echo "  --src           Path to the compiled osslsigncode binary (required)" >&2
+    echo "  --output-dir    Directory to write the final ZIP bundle (default: \$ROOT/out/osslsigncode)" >&2
+    echo "  --platform-arch Target architecture label, e.g. amd64, arm64, i386 (default: \$(uname -m))" >&2
+    exit 2
+}
+
+OSSLSIGNCODE_SRC="${OSSLSIGNCODE_SRC:-}"
+OUTPUT_DIR="${OUTPUT_DIR:-$ROOT/out/osslsigncode}"
 PLATFORM_ARCH="${PLATFORM_ARCH:-$(uname -m)}"
 TMP_PREFIX="/tmp/osslsigncode-bundle"
 
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --src)           OSSLSIGNCODE_SRC="$2"; shift 2 ;;
+        --output-dir)    OUTPUT_DIR="$2";        shift 2 ;;
+        --platform-arch) PLATFORM_ARCH="$2";     shift 2 ;;
+        -h|--help) usage ;;
+        *) echo "Unknown argument: $1" >&2; usage ;;
+    esac
+done
+
 if [[ -z "$OSSLSIGNCODE_SRC" ]]; then
-  echo "Usage: $0 /path/to/osslsigncode [output-dir]"
-  exit 2
+    echo "Error: --src is required" >&2
+    usage
 fi
 
 if [[ ! -x "$OSSLSIGNCODE_SRC" ]]; then
@@ -46,7 +65,7 @@ chmod +x "$BIN_DIR/osslsigncode"
 if [[ "$uname_s" == "Linux" ]]; then
   echo "🐧 Linux detected"
 
-  "$ROOT/bundle-osslsigncode-libs.sh" "$BIN_DIR" "$OUTPUT_DIR"
+  "$ROOT/bundle-osslsigncode-libs.sh" --bin "$BIN_DIR" --outdir "$OUTPUT_DIR"
 fi
 
 # ================================================================
@@ -123,7 +142,8 @@ ARCHIVE_ARCH_SUFFIX=$(echo ${PLATFORM_ARCH:-$(uname -m)} | tr -d '/' | tr '[:upp
 ARCHIVE_NAME="win-codesign-$(uname -s | tr A-Z a-z)-$ARCHIVE_ARCH_SUFFIX.zip"
 
 echo "📄 Downloading osslsigncode LICENSE..."
-curl -fsSL "https://raw.githubusercontent.com/mtrojnar/osslsigncode/master/LICENSE.txt" \
+curl -fsSL --retry 3 --retry-delay 2 --max-time 60 \
+  "https://raw.githubusercontent.com/mtrojnar/osslsigncode/master/LICENSE.txt" \
   -o "$INSTALL_DIR/LICENSE"
 
 echo "📦 Creating ZIP bundle: $ARCHIVE_NAME"

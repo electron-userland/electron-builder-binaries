@@ -1,4 +1,4 @@
-# !/usr/bin/env bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 export RUBY_VERSION=3.4.3

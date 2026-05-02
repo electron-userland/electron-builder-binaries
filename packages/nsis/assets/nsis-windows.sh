@@ -99,7 +99,7 @@ download_and_verify() {
     
     echo "📥 Downloading $description..."
     
-    if ! curl -L "$url" -o "$output" --progress-bar; then
+    if ! curl -fsSL --retry 3 --retry-delay 2 --max-time 300 "$url" -o "$output"; then
         echo "❌ Failed to download $description"
         return 1
     fi
@@ -266,7 +266,7 @@ for i in "${!PLUGIN_NAMES[@]}"; do
     echo ""
     echo "  → $plugin_name"
     
-    if curl -sL "$plugin_url" -o "$plugin_zip" 2>/dev/null; then
+    if curl -fsSL --retry 3 --retry-delay 2 --max-time 120 "$plugin_url" -o "$plugin_zip" 2>/dev/null; then
         echo "    Downloaded $(du -h "$plugin_zip" | cut -f1)"
         echo "    🔍 Verifying checksum..."
         if verify_sha256 "$plugin_zip" "$plugin_sha256"; then
@@ -285,7 +285,7 @@ done
 # Download nsis7z separately (7z format)
 echo ""
 echo "  → nsis7z"
-if curl -sL "$NSIS7Z_URL" -o "$PLUGINS_DIR/nsis7z.7z" 2>/dev/null; then
+if curl -fsSL --retry 3 --retry-delay 2 --max-time 120 "$NSIS7Z_URL" -o "$PLUGINS_DIR/nsis7z.7z" 2>/dev/null; then
     echo "    Downloaded $(du -h "$PLUGINS_DIR/nsis7z.7z" | cut -f1)"
     echo "    🔍 Verifying checksum..."
     if verify_sha256 "$PLUGINS_DIR/nsis7z.7z" "$NSIS7Z_SHA256"; then

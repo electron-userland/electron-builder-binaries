@@ -394,7 +394,8 @@ echo "  ✓ VERSION.txt updated"
 
 echo ""
 echo "📄 Downloading NSIS LICENSE..."
-curl -fsSL "https://raw.githubusercontent.com/kichik/nsis/master/COPYING" \
+curl -fsSL --retry 3 --retry-delay 2 --max-time 60 \
+  "https://raw.githubusercontent.com/kichik/nsis/master/COPYING" \
   -o "$BUILD_DIR/nsis-bundle/LICENSE"
 echo "  ✓ LICENSE downloaded"
 

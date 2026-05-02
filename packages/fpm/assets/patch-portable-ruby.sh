@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 
@@ -294,12 +294,14 @@ echo "fpm: $FPM_VERSION" >>$INSTALL_DIR/VERSION.txt
 
 echo "📄 Downloading component licenses..."
 mkdir -p "$INSTALL_DIR/LICENSES"
-curl -fsSL "https://raw.githubusercontent.com/jordansissel/fpm/master/LICENSE" \
+curl -fsSL --retry 3 --retry-delay 2 --max-time 60 \
+  "https://raw.githubusercontent.com/jordansissel/fpm/master/LICENSE" \
   -o "$INSTALL_DIR/LICENSES/LICENSE.fpm"
 if [ -f "$RUBY_PREFIX/COPYING" ]; then
   cp "$RUBY_PREFIX/COPYING" "$INSTALL_DIR/LICENSES/LICENSE.ruby"
 else
-  curl -fsSL "https://raw.githubusercontent.com/ruby/ruby/master/COPYING" \
+  curl -fsSL --retry 3 --retry-delay 2 --max-time 60 \
+    "https://raw.githubusercontent.com/ruby/ruby/master/COPYING" \
     -o "$INSTALL_DIR/LICENSES/LICENSE.ruby"
 fi
 echo "  ✓ Licenses downloaded"

@@ -1,11 +1,34 @@
-#!/bin/env bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 CWD=$(cd "$(dirname "$BASH_SOURCE")/.." && pwd)
 
+verify_sha256() {
+    local file="$1" expected="$2" actual
+    if command -v sha256sum >/dev/null 2>&1; then
+        actual=$(sha256sum "$file" | awk '{print $1}')
+    elif command -v shasum >/dev/null 2>&1; then
+        actual=$(shasum -a 256 "$file" | awk '{print $1}')
+    else
+        echo "❌ No sha256 tool found (sha256sum or shasum required)" >&2; return 1
+    fi
+    if [ "$actual" = "$expected" ]; then
+        echo "  ✓ Checksum verified"
+        return 0
+    else
+        echo "❌ Checksum mismatch for $(basename "$file")" >&2
+        echo "   expected: $expected" >&2
+        echo "   actual:   $actual" >&2
+        return 1
+    fi
+}
+
 SQUASHFS_TOOLS_VERSION_TAG=${SQUASHFS_TOOLS_VERSION_TAG:-"4.6.1"}
 DESKTOP_UTILS_DEPS_VERSION_TAG=${DESKTOP_UTILS_DEPS_VERSION_TAG:-"0.28"}
 OPENJPEG_VERSION=${OPENJPEG_VERSION:-"2.5.4"}
+# SHA256 of https://github.com/uclouvain/openjpeg/archive/v${OPENJPEG_VERSION}.tar.gz
+# Re-pin when bumping OPENJPEG_VERSION: curl -fsSL <url> | sha256sum
+OPENJPEG_SHA256=${OPENJPEG_SHA256:-"a695fbe19c0165f295a8531b1e4e855cd94d0875d2f88ec4b61080677e27188a"}
 
 # Detect OS
 case "$(uname -s)" in
@@ -204,7 +227,12 @@ INSTALL_DIR="$(mktemp -d)"
 cd "$TMP_BUILD_DIR" || exit 1
 
 # Download source using curl
-curl -sSL "https://github.com/uclouvain/openjpeg/archive/v${OPENJPEG_VERSION}.tar.gz" -o "v${OPENJPEG_VERSION}.tar.gz"
+curl -fsSL --retry 3 --retry-delay 2 --max-time 300 \
+    "https://github.com/uclouvain/openjpeg/archive/v${OPENJPEG_VERSION}.tar.gz" \
+    -o "v${OPENJPEG_VERSION}.tar.gz"
+
+echo "  🔍 Verifying openjpeg checksum..."
+verify_sha256 "v${OPENJPEG_VERSION}.tar.gz" "$OPENJPEG_SHA256"
 
 # Extract
 tar xzf "v${OPENJPEG_VERSION}.tar.gz"
