@@ -76,7 +76,7 @@ jobs:
     needs: detect
     
   squirrel:
-    if: contains(needs.detect.outputs.matrix, '"squirrel"')
+    if: contains(needs.detect.outputs.matrix, '"squirrel.windows"')
     uses: ./.github/workflows/build-squirrel.yaml
     needs: detect
 

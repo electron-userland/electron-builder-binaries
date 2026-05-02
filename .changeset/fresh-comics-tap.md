@@ -1,5 +1,4 @@
 ---
-"squirrel.windows": patch
 "win-codesign": patch
 "dmg-builder": patch
 "appimage": patch
