@@ -167,11 +167,6 @@ echo "AppImage/type2-runtime release: $APPIMAGE_TYPE2_RELEASE" > "$INSTALL_DIR/V
 echo "$CHECKSUMS" >> "$INSTALL_DIR/VERSION.txt"
 echo "All files verified successfully." >&2
 
-# Download AppImage type2-runtime LICENSE
-echo "📄 Downloading LICENSE..." >&2
-curl -fsSL "https://raw.githubusercontent.com/AppImage/type2-runtime/main/LICENSE" \
-  -o "$INSTALL_DIR/LICENSE"
-
 ARCHIVE_NAME="appimage-runtime-$APPIMAGE_TYPE2_RELEASE.tar.gz"
 echo "📦 Creating tar.gz bundle: $ARCHIVE_NAME"
 (

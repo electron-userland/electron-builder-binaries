@@ -4,15 +4,18 @@ This repo provides the required toolsets that [electron-builder](http://github.c
 
 The toolset (in Releases) have their version and checksum hardcoded in electron-builder's code. This ensures that even if this repository or your network gets compromised, electron-builder tooling will not be affected.
 
-The goal of this repo is to provide a secure closed-loop tooling ecosystem that electron-builder can rely on.
+The goals of this repo are:
+- To provide a secure closed-loop tooling ecosystem that electron-builder can rely on.
+- Serve toolsets on-demand to reduce (or remove entirely) the load/overhead of a pre-configuring a dev environment.
 
 ## Licensing
 
 ### Artifacts
 
-All toolsets collected/stored/distributed from this repo retain their original licensing; their LICENSE or COPYING file(s) are downloaded and included within each toolset bundle within `artifacts` dir. The scripts and supporting files that packages these distributables are under MIT.
+All toolsets collected/stored/distributed from this repo retain their original licensing; their LICENSE or COPYING file(s) are downloaded and included within each toolset bundle within `artifacts` dir.
 
 ### Repo License
+This applies to configurations/scripts that compile and/or bundle toolsets.
 
 Copyright 2026 electron-userland
 

@@ -73,7 +73,8 @@ if (Test-Path $licenseSrc) {
     Copy-Item $licenseSrc -Destination $licenseDest -Force
     Write-Host "`n✅ LICENSE copied to vendor directory"
 } else {
-    Write-Warning "`n⚠️ LICENSE not found in cloned repo at $licenseSrc"
+    Write-Error "`n⚠️ LICENSE not found in cloned repo at $licenseSrc"
+    exit 1
 }
 
 # --- Ensure output directory exists
