@@ -18,6 +18,7 @@ RUN set -eux; \
         sed -i 's|http://archive.ubuntu.com/ubuntu|http://ports.ubuntu.com/ubuntu-ports|g' /etc/apt/sources.list; \
     elif [ "$TARGETARCH" = "386" ]; then \
         echo "🔧 Using archive.ubuntu.com for i386"; \
+        sed -i 's|deb http://archive.ubuntu.com/ubuntu|deb [arch=i386] http://archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list; \
         sed -i 's|deb http://ports.ubuntu.com/ubuntu-ports|deb [arch=i386] http://archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list; \
     else \
         echo "🔧 Using archive.ubuntu.com for x86_64"; \
