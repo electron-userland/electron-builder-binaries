@@ -19,10 +19,10 @@ ASSETS_DIR="$SCRIPT_DIR/assets"
 OUT_DIR="$SCRIPT_DIR/out"
 
 # Build configuration
-export NSIS_VERSION="3.11"
-export NSIS_BRANCH_OR_COMMIT="v311"
-export NSIS_SHA256="c7d27f780ddb6cffb4730138cd1591e841f4b7edb155856901cdf5f214394fa1"
-export STRLEN_SHA256="b1025ccf412a8662fb9a61c661370a8cfdc0da675b0c541ad0c27c2b615833ec"
+export NSIS_VERSION="3.12"
+export NSIS_BRANCH_OR_COMMIT="v312"
+export NSIS_SHA256="56581f90db321581c5381193d796fffcf2d24b2f8fed2160a6c6a3baa67f2c4f"
+export STRLEN_SHA256="44ebb4bfd5b763e295855718dbcf374fc396d03870ea038a0844abcbe1ff0c3a"
 
 # Detect current OS
 OS_TYPE=${TARGET:-$(uname -s | tr '[:upper:]' '[:lower:]')}
