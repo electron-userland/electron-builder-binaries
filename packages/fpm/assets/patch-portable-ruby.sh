@@ -16,7 +16,7 @@ mkdir -p "$OUTPUT_DIR"
 echo "🔨 Creating environment script..."
 echo "  ✏️ ruby.env -> $INSTALL_DIR/ruby.env"
 cat <<EOF >"$INSTALL_DIR/ruby.env"
-#!/bin/bash
+#!/usr/bin/env bash
 # Portable Ruby environment setup
 RUBY_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")/$RUBY_DIR_NAME" && pwd)"
 RUBY_BIN="\$RUBY_DIR/bin"
@@ -63,7 +63,8 @@ for gem in "${ENTRYPOINT_GEMS[@]}"; do
     gem_name=$(echo "$gem" | cut -d' ' -f1)
     echo "  ✏️ $gem -> $INSTALL_DIR/$gem_name"
     cat <<EOF >"$INSTALL_DIR/$gem_name"
-#!/bin/bash -e
+#!/usr/bin/env bash
+set -e
 # Portable Ruby environment setup
 source "\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)/ruby.env"
 
