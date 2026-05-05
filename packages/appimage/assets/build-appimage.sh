@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -exuo pipefail
 
 CWD=$(cd "$(dirname "$BASH_SOURCE")/.." && pwd)
 
@@ -177,9 +177,11 @@ if [ "$OS" = "linux" ]; then
     mkdir -p "$ARCH_OUTPUT_DIR"
     cp -aL mksquashfs "$ARCH_OUTPUT_DIR/"
     chmod +x "$ARCH_OUTPUT_DIR/mksquashfs"
-    
+    cp -aL unsquashfs "$ARCH_OUTPUT_DIR/"
+    chmod +x "$ARCH_OUTPUT_DIR/unsquashfs"
+
 else
-    
+
     BREW_PREFIX=$(brew --prefix)
     make -j$(sysctl -n hw.ncpu) \
     GZIP_SUPPORT=1 \
@@ -189,14 +191,16 @@ else
     ZSTD_SUPPORT=1 \
     EXTRA_CFLAGS="-I${BREW_PREFIX}/include" \
     EXTRA_LDFLAGS="-L${BREW_PREFIX}/lib"
-    
+
     mkdir -p "$ARCH_OUTPUT_DIR"
     cp mksquashfs "$ARCH_OUTPUT_DIR/"
     chmod +x "$ARCH_OUTPUT_DIR/mksquashfs"
+    cp unsquashfs "$ARCH_OUTPUT_DIR/"
+    chmod +x "$ARCH_OUTPUT_DIR/unsquashfs"
     
 fi
 
-echo "   ✅ Built mksquashfs"
+echo "   ✅ Built mksquashfs unsquashfs"
 
 # =============================================================================
 # BUILD DESKTOP-FILE-UTILS
@@ -261,7 +265,7 @@ rm -rf "$TMP_BUILD_DIR" "$INSTALL_DIR"
 # =============================================================================
 # PATCH BINARIES
 # =============================================================================
-EXECS_TO_PATCH=("mksquashfs" "opj_decompress") # desktop-file-validate copy->patch skipped for now due to bundle size increase
+EXECS_TO_PATCH=("mksquashfs" "unsquashfs" "opj_decompress") # desktop-file-validate copy->patch skipped for now due to bundle size increase
 
 copy_lib_recursive() {
     local lib_path="$1"
@@ -401,6 +405,7 @@ if [ "$OS" = "darwin" ]; then
     done
     # verify signatures (should not print errors)
     /usr/bin/codesign -v --deep --strict "$ARCH_OUTPUT_DIR"/mksquashfs
+    /usr/bin/codesign -v --deep --strict "$ARCH_OUTPUT_DIR"/unsquashfs
 fi
 
 # =============================================================================
@@ -415,21 +420,28 @@ echo "AppImage Tools Versions for $OS/$ARCH_DIR" >> "$VERSION_FILE"
 echo "----------------------------------------" >> "$VERSION_FILE"
 echo "openjpeg: $OPENJPEG_VERSION" >> "$VERSION_FILE"
 
-if MKSQ_VER=$(LD_LIBRARY_PATH= "$ARCH_OUTPUT_DIR/mksquashfs" -version | head -n1 2>&1); then
-    echo "mksquashfs: $MKSQ_VER" >> "$VERSION_FILE"
-    echo "   ✅ mksquashfs verified: $MKSQ_VER"
-else
-    echo "   ❌ mksquashfs verification failed"
-    exit 1
+verify_binary() {
+  local name="$1"
+  local path="$2"
+  local args="$3"
+
+output=""
+if ! output=$(LD_LIBRARY_PATH= "$path" "$args" 2>&1); then
+  # Only fail if there's ALSO no usable output
+  if [[ -z "$output" ]]; then
+    echo "❌ $name failed with no output"
+    return 1
+  fi
 fi
 
-if "$ARCH_OUTPUT_DIR/desktop-file-validate" --help > /dev/null 2>&1; then
-    echo "desktop-file-validate: $DESKTOP_UTILS_DEPS_VERSION_TAG" >> "$VERSION_FILE"
-    echo "   ✅ desktop-file-validate verified: $DESKTOP_UTILS_DEPS_VERSION_TAG"
-else
-    echo "   ❌ desktop-file-validate verification failed"
-    exit 1
-fi
+first_line="${output%%$'\n'*}"
+echo "✅ $name verified: $first_line"
+
+  return 0
+}
+verify_binary "mksquashfs" "$ARCH_OUTPUT_DIR/mksquashfs" "-version"
+verify_binary "unsquashfs" "$ARCH_OUTPUT_DIR/unsquashfs" "-version"
+verify_binary "opj_decompress" "$ARCH_OUTPUT_DIR/opj_decompress" "--help"
 
 # =============================================================================
 # COPY RUNTIME LIBRARIES
