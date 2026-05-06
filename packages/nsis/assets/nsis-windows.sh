@@ -225,7 +225,7 @@ PLUGIN_NAMES=(
 )
 
 PLUGIN_URLS=(
-    "https://github.com/DigitalMediaServer/NSIS-INetC-plugin/releases/download/v1.0.5.6/INetC.zip"
+    "https://github.com/DigitalMediaServer/NSIS-INetC-plugin/releases/download/v1.0.5.7/INetC.zip"
     "https://github.com/lordmulder/stdutils/releases/download/1.14/StdUtils.2018-10-27.zip"
     "https://nsis.sourceforge.io/mediawiki/images/4/4c/SpiderBanner_plugin.zip"
     "https://nsis.sourceforge.io/mediawiki/images/1/18/NsProcess.zip"
@@ -238,7 +238,7 @@ PLUGIN_URLS=(
 
 # SHA256 checksums for plugins
 PLUGIN_SHA256=(
-    "eece0270f6a37e51ddc63d18d5cf63f49d767ce1925f381dc810fac6faaddefa"  # INetC
+    "b01077e56ebb19c005b45d40f837958ca6a92f51a5a937dc1bb497c7c7f2aa93"  # INetC
     "3ffe893dc7477fdb1cac551a86ae017509e1f2d0ebdc7185fd0fbaf20870688c"  # StdUtils
     "45c79a024e5122834a3473a87649757bc11958a11602a3ce2d9f7ce006f0e2b7"  # SpiderBanner
     "fc19fc66a5219a233570fafd5daeb0c9b85387b379f6df5ac8898159a57c5944"  # NsProcess
