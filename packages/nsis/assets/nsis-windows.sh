@@ -15,10 +15,10 @@ OUT_DIR="$BASE_DIR/out/nsis"
 TEMP_DIR="$OUT_DIR/temp"
 
 # Version configuration
-NSIS_VERSION=${NSIS_VERSION:-3.11}
-NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v311}
-NSIS_SHA256=${NSIS_SHA256:-c7d27f780ddb6cffb4730138cd1591e841f4b7edb155856901cdf5f214394fa1}
-STRLEN_SHA256=${STRLEN_SHA256:-b1025ccf412a8662fb9a61c661370a8cfdc0da675b0c541ad0c27c2b615833ec}
+NSIS_VERSION=${NSIS_VERSION:-3.12}
+NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v312}
+NSIS_SHA256=${NSIS_SHA256:-56581f90db321581c5381193d796fffcf2d24b2f8fed2160a6c6a3baa67f2c4f}
+STRLEN_SHA256=${STRLEN_SHA256:-44ebb4bfd5b763e295855718dbcf374fc396d03870ea038a0844abcbe1ff0c3a}
 
 BUNDLE_DIR="$OUT_DIR/nsis-bundle"
 OUTPUT_ARCHIVE="$OUT_DIR/nsis-bundle-base-$NSIS_BRANCH.tar.gz"
@@ -225,7 +225,7 @@ PLUGIN_NAMES=(
 )
 
 PLUGIN_URLS=(
-    "https://github.com/DigitalMediaServer/NSIS-INetC-plugin/releases/download/v1.0.5.6/INetC.zip"
+    "https://github.com/DigitalMediaServer/NSIS-INetC-plugin/releases/download/v1.0.5.7/INetC.zip"
     "https://github.com/lordmulder/stdutils/releases/download/1.14/StdUtils.2018-10-27.zip"
     "https://nsis.sourceforge.io/mediawiki/images/4/4c/SpiderBanner_plugin.zip"
     "https://nsis.sourceforge.io/mediawiki/images/1/18/NsProcess.zip"
@@ -238,7 +238,7 @@ PLUGIN_URLS=(
 
 # SHA256 checksums for plugins
 PLUGIN_SHA256=(
-    "eece0270f6a37e51ddc63d18d5cf63f49d767ce1925f381dc810fac6faaddefa"  # INetC
+    "b01077e56ebb19c005b45d40f837958ca6a92f51a5a937dc1bb497c7c7f2aa93"  # INetC
     "3ffe893dc7477fdb1cac551a86ae017509e1f2d0ebdc7185fd0fbaf20870688c"  # StdUtils
     "45c79a024e5122834a3473a87649757bc11958a11602a3ce2d9f7ce006f0e2b7"  # SpiderBanner
     "fc19fc66a5219a233570fafd5daeb0c9b85387b379f6df5ac8898159a57c5944"  # NsProcess

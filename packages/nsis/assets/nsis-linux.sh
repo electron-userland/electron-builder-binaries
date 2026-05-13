@@ -66,7 +66,11 @@ DOCKERFILE="$OUT_DIR/Dockerfile.linux"
 cat > "$DOCKERFILE" <<'DOCKERFILE_END'
 FROM ubuntu:22.04
 
+<<<<<<< nsis-gh-url
 ARG NSIS_BRANCH
+=======
+ARG NSIS_BRANCH=v312
+>>>>>>> master
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Install build dependencies
