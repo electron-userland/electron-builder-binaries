@@ -80,7 +80,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /build
 
 # Clone NSIS source
-RUN git clone --branch ${NSIS_BRANCH} --depth=1 git@github.com:NSIS-Dev/nsis.git nsis
+RUN git clone --branch ${NSIS_BRANCH} --depth=1 https://github.com/NSIS-Dev/nsis.git nsis
 
 WORKDIR /build/nsis
 
