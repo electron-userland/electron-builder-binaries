@@ -353,7 +353,7 @@ find "$ARCH_OUTPUT_DIR" -type f -perm -111 | while read -r binary; do
         
         # Make the binary hermetic
         patchelf --remove-rpath "$binary" 2>/dev/null || true
-        patchelf --force-rpath --set-rpath '$ORIGIN/../lib' "$binary"        
+        patchelf --force-rpath --set-rpath '$ORIGIN/lib' "$binary"
     fi
 done
 
@@ -371,7 +371,7 @@ else
     STRIP_CMD='strip --strip-unneeded'
 fi
 # Strip and log
-find "$ARCH_OUTPUT_DIR" \( -name '*.dylib' -o -name '*.so' -o -name '*.so.*' -o -name '*.bundle' -o -type f -perm -111 \) | while read -r bin; do
+while read -r bin; do
     if [[ ! -f "$bin" || -L "$bin" ]]; then
         # echo "  ⏭️  Skipping (symlink or invalid): $bin"
         continue
@@ -390,7 +390,7 @@ find "$ARCH_OUTPUT_DIR" \( -name '*.dylib' -o -name '*.so' -o -name '*.so.*' -o 
     else
         echo "  ⚠️ Could not strip: $bin"
     fi
-done
+done < <(find "$ARCH_OUTPUT_DIR" \( -name '*.dylib' -o -name '*.so' -o -name '*.so.*' -o -name '*.bundle' -o -type f -perm -111 \))
 echo "💾 Total space saved: $total_saved bytes (~$((total_saved / 1024)) KB)"
 
 if [ "$OS" = "darwin" ]; then
