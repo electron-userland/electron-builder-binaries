@@ -83,7 +83,7 @@ rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 
 if ! git clone --branch "$NSIS_BRANCH" --depth=1 \
-    https://github.com/kichik/nsis.git "$BUILD_DIR/nsis"; then
+    https://github.com/NSIS-Dev/nsis.git "$BUILD_DIR/nsis"; then
     echo "❌ Failed to clone NSIS repository"
     exit 1
 fi

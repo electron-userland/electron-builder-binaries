@@ -11,7 +11,7 @@ set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 BASE_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 OUT_DIR="${OUT_DIR:-$BASE_DIR/out/nsis}"
-BUILD_DIR="/tmp/nsis-bundle-combine"
+BUILD_DIR="$(mktemp -d)"
 
 # Version info
 NSIS_VERSION=${NSIS_VERSION:-3.12}
@@ -38,8 +38,11 @@ echo "📂 Locating bundle files..."
 BASE_BUNDLE=$(find "$OUT_DIR" -name "nsis-bundle-base-*.tar.gz" -type f | head -1)
 LINUX_BUNDLE=$(find "$OUT_DIR" -name "nsis-bundle-linux-*.tar.gz" -type f | head -1)
 
-# Find Mac bundles - may have different architectures
-MAC_BUNDLES=$(find "$OUT_DIR" -name "nsis-bundle-mac-*.tar.gz" -type f)
+# Find Mac bundles - may have different architectures (bash 3.2-compatible, no mapfile)
+MAC_BUNDLES=()
+while IFS= read -r _line; do
+    [[ -n "$_line" ]] && MAC_BUNDLES+=("$_line")
+done < <(find "$OUT_DIR" -name "nsis-bundle-mac-*.tar.gz" -type f)
 # Debug output
 echo "Searching in: $OUT_DIR"
 echo "Files found:"
@@ -61,8 +64,8 @@ else
     LINUX_BUNDLE=""
 fi
 
-if [ -n "$MAC_BUNDLES" ]; then
-    for mac_bundle in $MAC_BUNDLES; do
+if [ "${#MAC_BUNDLES[@]}" -gt 0 ]; then
+    for mac_bundle in "${MAC_BUNDLES[@]}"; do
         echo "  ✓ macOS:        $(basename "$mac_bundle")"
     done
 else
@@ -114,11 +117,11 @@ fi
 # Inject macOS Binaries
 # =============================================================================
 
-if [ -n "$MAC_BUNDLES" ]; then
+if [ "${#MAC_BUNDLES[@]}" -gt 0 ]; then
     echo ""
     echo "🍎 Injecting macOS binaries..."
-    
-    for mac_bundle in $MAC_BUNDLES; do
+
+    for mac_bundle in "${MAC_BUNDLES[@]}"; do
         TEMP_MAC="$BUILD_DIR/temp-mac-$$"
         mkdir -p "$TEMP_MAC"
         
@@ -395,7 +398,7 @@ echo "  ✓ VERSION.txt updated"
 echo ""
 echo "📄 Downloading NSIS LICENSE..."
 curl -fsSL --retry 3 --retry-delay 2 --max-time 60 \
-  "https://raw.githubusercontent.com/kichik/nsis/master/COPYING" \
+  "https://raw.githubusercontent.com/NSIS-Dev/nsis/${NSIS_BRANCH}/COPYING" \
   -o "$BUILD_DIR/nsis-bundle/LICENSE"
 echo "  ✓ LICENSE downloaded"
 
