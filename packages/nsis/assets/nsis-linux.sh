@@ -14,8 +14,8 @@ BASE_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 OUT_DIR="$BASE_DIR/out/nsis"
 
 # Version configuration
-NSIS_VERSION=${NSIS_VERSION:-3.11}
-NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v311}
+NSIS_VERSION=${NSIS_VERSION:-3.12}
+NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v312}
 
 # Docker configuration
 IMAGE_NAME="nsis-linux-builder:${NSIS_BRANCH}"
@@ -66,7 +66,7 @@ DOCKERFILE="$OUT_DIR/Dockerfile.linux"
 cat > "$DOCKERFILE" <<'DOCKERFILE_END'
 FROM ubuntu:22.04
 
-ARG NSIS_BRANCH=v310
+ARG NSIS_BRANCH=v312
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Install build dependencies
