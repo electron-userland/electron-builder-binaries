@@ -38,8 +38,11 @@ echo "📂 Locating bundle files..."
 BASE_BUNDLE=$(find "$OUT_DIR" -name "nsis-bundle-base-*.tar.gz" -type f | head -1)
 LINUX_BUNDLE=$(find "$OUT_DIR" -name "nsis-bundle-linux-*.tar.gz" -type f | head -1)
 
-# Find Mac bundles - may have different architectures
-mapfile -t MAC_BUNDLES < <(find "$OUT_DIR" -name "nsis-bundle-mac-*.tar.gz" -type f)
+# Find Mac bundles - may have different architectures (bash 3.2-compatible, no mapfile)
+MAC_BUNDLES=()
+while IFS= read -r _line; do
+    [[ -n "$_line" ]] && MAC_BUNDLES+=("$_line")
+done < <(find "$OUT_DIR" -name "nsis-bundle-mac-*.tar.gz" -type f)
 # Debug output
 echo "Searching in: $OUT_DIR"
 echo "Files found:"
