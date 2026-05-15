@@ -1,5 +1,15 @@
 # dmg-builder
 
+## 1.2.1
+
+### Patch Changes
+
+- [#156](https://github.com/electron-userland/electron-builder-binaries/pull/156) [`4f378ce`](https://github.com/electron-userland/electron-builder-binaries/commit/4f378cecc124b3c0424007da9b62aaf52854a8d2) Thanks [@mmaietta](https://github.com/mmaietta)! - chore: updating scripts w/ positional args, checksum matches, and general hardening
+
+- [#152](https://github.com/electron-userland/electron-builder-binaries/pull/152) [`d1f6262`](https://github.com/electron-userland/electron-builder-binaries/commit/d1f6262334fc1aba5a1b59a36fecd9d174ea28e4) Thanks [@mmaietta](https://github.com/mmaietta)! - chore: embedding LICENSE/COPYING files within each toolset bundle
+
+- [#154](https://github.com/electron-userland/electron-builder-binaries/pull/154) [`86a52e2`](https://github.com/electron-userland/electron-builder-binaries/commit/86a52e2fb50bafc1fc3b1679f5b60fe56e8877b5) Thanks [@mmaietta](https://github.com/mmaietta)! - fix(dmg-builder): fix deployment target to properly read/apply to build pipeline
+
 ## 1.2.0
 
 ### Minor Changes
