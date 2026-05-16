@@ -215,7 +215,7 @@ done
 
 for ext in _asyncio _bz2 _codecs_{cn,hk,iso2022,jp,kr,tw} _crypt \
     _curses{,_panel} _{dbm,gdbm} _lzma _multiprocessing _posixshmem \
-    _queue _sqlite3 _tkinter _uuid audioop nis ossaudiodev readline \
+    _queue _sqlite3 _tkinter audioop nis ossaudiodev readline \
     spwd syslog termios xxlimited; do
     echo "Removing extension module: $ext"
     find "$PYTHON_LIB_DIR/lib-dynload" -name "${ext}*.so" -delete 2>/dev/null || true
@@ -447,6 +447,8 @@ run_arch "$DIR_TO_ARCHIVE/python/bin/python3" -c "
 import dmgbuild
 import ds_store
 import mac_alias
+import uuid
+uuid.uuid4()  # exercises _uuid at runtime
 print('✓ dmgbuild dependencies work')
 "
 
