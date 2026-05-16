@@ -1,5 +1,11 @@
 # dmg-builder
 
+## 1.2.2
+
+### Patch Changes
+
+- [#165](https://github.com/electron-userland/electron-builder-binaries/pull/165) [`05ef739`](https://github.com/electron-userland/electron-builder-binaries/commit/05ef7396d189c6026a7de6c0718b2f94586acf35) Thanks [@mmaietta](https://github.com/mmaietta)! - fix: do not delete uuid since it is lazily loaded in python 3.14.2 + mac_alias
+
 ## 1.2.1
 
 ### Patch Changes
