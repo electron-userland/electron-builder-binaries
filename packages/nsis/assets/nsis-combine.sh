@@ -43,12 +43,6 @@ MAC_BUNDLES=()
 while IFS= read -r _line; do
     [[ -n "$_line" ]] && MAC_BUNDLES+=("$_line")
 done < <(find "$OUT_DIR" -name "nsis-bundle-mac-*.tar.gz" -type f)
-# Debug output
-echo "Searching in: $OUT_DIR"
-echo "Files found:"
-find "$OUT_DIR" -name "*.tar.gz" -type f 2>/dev/null || echo "  (none)"
-echo ""
-
 # Validate base bundle
 if [ -z "$BASE_BUNDLE" ] || [ ! -f "$BASE_BUNDLE" ]; then
     echo "❌ Base bundle not found in $OUT_DIR"
@@ -140,6 +134,18 @@ if [ "${#MAC_BUNDLES[@]}" -gt 0 ]; then
         
         rm -rf "$TEMP_MAC" "$mac_bundle"
     done
+
+    # Create legacy-compat flat mac/makensis — copies the first available arch binary.
+    # Consumers using the old path (mac/makensis) continue to work alongside the
+    # arch-specific paths (mac/x64/makensis, mac/arm64/makensis).
+    FIRST_MAC_BIN=$(find "$BUILD_DIR/nsis-bundle/mac" -name "makensis" \
+        ! -path "$BUILD_DIR/nsis-bundle/mac/makensis" -type f | head -1)
+    if [ -n "$FIRST_MAC_BIN" ]; then
+        cp "$FIRST_MAC_BIN" "$BUILD_DIR/nsis-bundle/mac/makensis"
+        chmod +x "$BUILD_DIR/nsis-bundle/mac/makensis"
+        FLAT_ARCH=$(basename "$(dirname "$FIRST_MAC_BIN")")
+        echo "  ✓ Legacy mac/makensis created (→ $FLAT_ARCH)"
+    fi
 fi
 
 # =============================================================================
@@ -169,21 +175,37 @@ case "$UNAME_M" in
 esac
 
 # ----------------------------------------
-# macOS / Linux
+# Platform dispatch
 # ----------------------------------------
+NSISDIR_WIN=""
+
 case "$UNAME_S" in
   Darwin)
-    PLATFORM_DIR="mac"
     case "$ARCH" in
       x86_64) ARCH_DIR="x64" ;;
       arm64)  ARCH_DIR="arm64" ;;
       *)      ARCH_DIR="$ARCH" ;;
     esac
-    BINARY="$SCRIPT_DIR/$PLATFORM_DIR/$ARCH_DIR/makensis"
+    BINARY="$SCRIPT_DIR/mac/$ARCH_DIR/makensis"
     ;;
   Linux)
-    PLATFORM_DIR="linux"
-    BINARY="$SCRIPT_DIR/$PLATFORM_DIR/makensis"
+    BINARY="$SCRIPT_DIR/linux/makensis"
+    ;;
+  MINGW*|MSYS*|CYGWIN*)
+    # makensisw.exe is GUI-subsystem. -VERSION triggers a MessageBox (hangs in
+    # headless CI). Read the version from the bundle's VERSION.txt instead.
+    # All other invocations (compilation) delegate to makensis.cmd via cmd.exe
+    # to avoid MSYS2 path-translation mangling of .nsi file arguments.
+    case "${1:-}" in
+      -VERSION|-version|/VERSION|/version)
+        ver=$(grep -oE "[0-9]+\.[0-9]+" "$SCRIPT_DIR/VERSION.txt" 2>/dev/null | head -1)
+        echo "v${ver:-unknown}"
+        exit 0
+        ;;
+    esac
+    CMD_WIN=$(cygpath -w "$SCRIPT_DIR/makensis.cmd" 2>/dev/null || echo "$SCRIPT_DIR\\makensis.cmd")
+    cmd.exe //c "$CMD_WIN" "$@"
+    exit $?
     ;;
   *)
     echo "❌ Unsupported platform: $UNAME_S" >&2
@@ -200,10 +222,14 @@ if [ ! -f "$BINARY" ]; then
 fi
 
 if [ ! -x "$BINARY" ]; then
-  chmod +x "$BINARY"
+  chmod +x "$BINARY" 2>/dev/null || true
 fi
 
-export NSISDIR="$SCRIPT_DIR/windows"
+if [ -n "$NSISDIR_WIN" ]; then
+  export NSISDIR="$NSISDIR_WIN"
+else
+  export NSISDIR="$SCRIPT_DIR/windows"
+fi
 
 exec "$BINARY" "$@"
 
@@ -227,24 +253,15 @@ setlocal ENABLEEXTENSIONS
 REM =============================================================
 REM NSIS Windows CMD Entrypoint
 REM =============================================================
-REM Sets NSISDIR and forwards all arguments to makensis.exe
+REM Delegates to makensis.ps1 via pwsh so that makensisw.exe
+REM (GUI subsystem) can be run hidden and auto-closed after compile.
 REM =============================================================
 
-REM Determine directory of this script
 set SCRIPT_DIR=%~dp0
-REM Remove trailing backslash
 set SCRIPT_DIR=%SCRIPT_DIR:~0,-1%
 
-REM Set NSISDIR if not already defined
-if not defined NSISDIR (
-  set NSISDIR=%SCRIPT_DIR%\windows
-)
-
-REM Execute makensis.exe with all passed arguments
-"%NSISDIR%\makensis.exe" %*
-set EXITCODE=%ERRORLEVEL%
-
-endlocal & exit /b %EXITCODE%
+pwsh -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%\makensis.ps1" %*
+exit /b %ERRORLEVEL%
 EOF
 
 # Force CRLF line endings for CMD (always)
@@ -261,28 +278,22 @@ echo ""
 echo "🪟 Creating Windows PowerShell entrypoint..."
 
 cat > "$BUILD_DIR/nsis-bundle/makensis.ps1" <<'EOF'
-# =============================================================
-# NSIS Windows PowerShell Entrypoint (CI-safe)
-# =============================================================
-
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-# Ensure Windows-style paths
+# Normalise MSYS2/Git Bash /c/... style paths to Windows C:\... style
 if ($ScriptDir -notmatch '^[a-zA-Z]:[\\/]' -and $ScriptDir -match '^/([a-zA-Z])/(.*)') {
     $ScriptDir = "$($matches[1]):\$($matches[2] -replace '/', '\')"
 }
 
 $env:NSISDIR = Join-Path $ScriptDir "windows"
-$Makensis   = Join-Path $env:NSISDIR "makensis.exe"
+
+$Makensis = Join-Path $env:NSISDIR "makensis.exe"
 if (-not (Test-Path $Makensis)) {
     Write-Error "makensis.exe not found at: $Makensis"
     exit 1
 }
 
-Unblock-File $Makensis
-& "$Makensis" @args
-
-# Exit with same code
+& $Makensis @args
 exit $LASTEXITCODE
 EOF
 
@@ -350,16 +361,18 @@ export NSISDIR="\$(pwd)/windows"
 
 ## Included Plugins
 
-This bundle includes 8 additional community plugins:
+This bundle includes 10 additional community plugins:
 
-1. NsProcess - Process management
-2. UAC - User Account Control
-3. WinShell - Shell integration
-4. NsJSON - JSON parsing
-5. NsArray - Array support
-6. INetC - HTTP client
-7. NsisMultiUser - Multi-user installs
-8. StdUtils - Standard utilities
+1. INetC - HTTP/HTTPS download plugin
+2. StdUtils - Standard utilities (strings, math, system)
+3. SpiderBanner - Animated splash/banner
+4. NsProcess - Process management (list, kill)
+5. UAC - User Account Control elevation
+6. WinShell - Shell integration (file associations, shortcuts)
+7. EmbedHTML - Embed HTML pages in installer
+8. Nsisunz - ZIP extraction (ANSI)
+9. NSISunzU - ZIP extraction (Unicode)
+10. nsis7z - 7-Zip extraction
 
 ## Environment Variables
 

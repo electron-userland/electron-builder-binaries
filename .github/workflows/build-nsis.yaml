@@ -20,7 +20,7 @@ jobs:
         shell: bash
 
       - name: Build base bundle
-        run: bash ./build.sh windows
+        run: bash ./build.sh --target windows
         shell: bash
         working-directory: ./packages/nsis
 
@@ -54,7 +54,7 @@ jobs:
         shell: bash
 
       - name: Build macOS binary
-        run: bash ./build.sh mac
+        run: bash ./build.sh --target mac
         shell: bash
         working-directory: ./packages/nsis
 
@@ -78,7 +78,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Build Linux binary
-        run: bash ./build.sh linux
+        run: bash ./build.sh --target linux
         shell: bash
         working-directory: ./packages/nsis
 
@@ -138,6 +138,7 @@ jobs:
     name: Test NSIS Bundle (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
     needs: combine-artifacts
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -145,18 +146,28 @@ jobs:
           - platform: Windows (powershell)
             runner: windows-latest
             binary: makensis.ps1
+            platform_slug: windows
+            upload_installer: true
           - platform: Windows (cmd)
             runner: windows-latest
             binary: makensis.cmd
+            platform_slug: ""
+            upload_installer: false
           - platform: Linux
             runner: ubuntu-latest
             binary: makensis
+            platform_slug: linux
+            upload_installer: true
           - platform: macOS (x64)
             runner: macos-15-intel
             binary: makensis
+            platform_slug: macos-x64
+            upload_installer: true
           - platform: macOS (arm64)
             runner: macos-15
             binary: makensis
+            platform_slug: macos-arm64
+            upload_installer: true
     steps:
       - name: Checkout repo
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -167,124 +178,88 @@ jobs:
           name: nsis-bundle
           path: packages/nsis/out
 
-      - name: Find NSIS bundle
+      - name: Extract NSIS bundle
         shell: bash
         run: |
           BUNDLE_PATH="./packages/nsis/out/nsis"
-          echo "Listing bundle folder:"
-          ls -lhR "$BUNDLE_PATH"
-
-          # Determine extraction target
-          NSIS_BUNDLE="$BUNDLE_PATH/nsis-bundle"
-          mkdir -p "$NSIS_BUNDLE"
-
-          # Convert path for Windows runners
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            # Use cygpath for reliable path conversion
-            WIN_NSIS_BUNDLE=$(cygpath -w "$NSIS_BUNDLE")
-            echo "NSIS_BUNDLE=$WIN_NSIS_BUNDLE" >> $GITHUB_ENV
-          else
-            echo "NSIS_BUNDLE=$NSIS_BUNDLE" >> $GITHUB_ENV
-          fi
-
-          # Enable nullglob for pattern matching
           shopt -s nullglob || true
-
-          # Find the archive
           archives=( "$BUNDLE_PATH"/*.tar.gz )
           if (( ${#archives[@]} == 0 )); then
               echo "ERROR: no *.tar.gz files found in $BUNDLE_PATH"
               exit 1
           fi
-
           echo "Using archive: ${archives[0]}"
-
-          # Extract into NSIS_BUNDLE folder explicitly
           tar -xzf "${archives[0]}" -C "$BUNDLE_PATH"
+          echo "✅ Extracted to $BUNDLE_PATH/nsis-bundle"
 
-          # Verify contents
-          echo "Listing extracted files:"
-          ls -lh "$NSIS_BUNDLE"
-          ls -lh "$NSIS_BUNDLE"/windows
-
-          # Final sanity check
-          if [ ! -d "$NSIS_BUNDLE" ]; then
-            echo "❌ NSIS bundle directory not found after extraction!"
-            exit 1
-          fi
-
-          echo "✅ NSIS bundle ready at $NSIS_BUNDLE"
-
-      - name: Create test NSIS script
+      - name: Run NSIS test suite
+        timeout-minutes: 10
         shell: bash
         run: |
-          cat > test.nsi << 'EOF'
-          !include "MUI2.nsh"
+          bash packages/nsis/assets/nsis-test.sh --bundle-dir packages/nsis/out/nsis/nsis-bundle
 
-          Name "Test Installer"
-          OutFile "test-installer.exe"
-          InstallDir "$PROGRAMFILES\TestApp"
+      - name: Compile E2E installer
+        if: matrix.upload_installer == true
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          WRAPPER="$(pwd)/packages/nsis/out/nsis/nsis-bundle/makensis"
+          chmod +x "$WRAPPER" 2>/dev/null || true
+          # Use RUNNER_TEMP so upload-artifact (Node.js) resolves the path on all platforms
+          E2E_DIR="$RUNNER_TEMP/nsis-e2e"
+          mkdir -p "$E2E_DIR"
 
-          !insertmacro MUI_PAGE_WELCOME
-          !insertmacro MUI_PAGE_DIRECTORY
-          !insertmacro MUI_PAGE_INSTFILES
-          !insertmacro MUI_PAGE_FINISH
+          cat > "$E2E_DIR/e2e.nsi" << 'NSI'
+          Name "NSIS E2E Test"
+          OutFile "e2e-installer.exe"
+          InstallDir "$TEMP\NsisE2ETest"
+          SilentInstall silent
 
-          !insertmacro MUI_LANGUAGE "English"
-
-          Section "Main"
+          Section "Install"
             SetOutPath "$INSTDIR"
+            FileOpen $0 "$INSTDIR\INSTALLED.txt" w
+            FileWrite $0 "nsis-e2e-installed"
+            FileClose $0
             WriteUninstaller "$INSTDIR\Uninstall.exe"
           SectionEnd
 
           Section "Uninstall"
+            Delete "$INSTDIR\INSTALLED.txt"
             Delete "$INSTDIR\Uninstall.exe"
             RMDir "$INSTDIR"
           SectionEnd
-          EOF
+          NSI
 
-      # Step: Test makensis binary (PowerShell on Windows)
-      - name: Test makensis (PowerShell)
-        if: runner.os == 'Windows' && endsWith(matrix.binary, '.ps1')
-        shell: pwsh
-        run: |
-          $BINARY_PATH = Join-Path (Join-Path $env:GITHUB_WORKSPACE "${{ env.NSIS_BUNDLE }}") "${{ matrix.binary }}"
-          if (-not (Test-Path $BINARY_PATH)) {
-              Write-Host "❌ makensis.exe not found!"
-              exit 1
-          }
-          Unblock-File "$BINARY_PATH"
-          & "$BINARY_PATH" -VERSION
-          & "$BINARY_PATH" "test.nsi"
+          cd "$E2E_DIR"
+          bash "$WRAPPER" e2e.nsi
+          echo "✅ E2E installer compiled (${{ matrix.platform_slug }})"
 
-      # Step: Test makensis binary (CMD on Windows)
-      - name: Test makensis (CMD)
-        if: runner.os == 'Windows' && endsWith(matrix.binary, '.cmd')
-        shell: cmd
-        run: |
-          set "BINARY_PATH=%GITHUB_WORKSPACE%\${{ env.NSIS_BUNDLE }}\${{ matrix.binary }}"
-          if not exist "%BINARY_PATH%" (
-              echo ERROR: Binary not found: %BINARY_PATH%
-              exit /b 1
-          )
-          "%BINARY_PATH%" test.nsi
+      - name: Upload E2E installer
+        if: matrix.upload_installer == true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: nsis-e2e-installer-${{ matrix.platform_slug }}
+          path: ${{ runner.temp }}/nsis-e2e/e2e-installer.exe
+          if-no-files-found: error
+          retention-days: 1
 
-      # Step: Test makensis binary (Linux/macOS)
-      - name: Test makensis (Unix)
-        if: runner.os != 'Windows'
+  test-e2e-install:
+    name: E2E Install + Uninstall (Windows)
+    runs-on: windows-latest
+    needs: test-nsis
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Download all E2E installers
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: nsis-e2e-installer-*
+          path: installers
+          merge-multiple: false
+
+      - name: Run install + uninstall for each compiled installer
+        timeout-minutes: 10
         shell: bash
-        run: |
-          BINARY_PATH="${{ env.NSIS_BUNDLE }}/${{ matrix.binary }}"
-          "$BINARY_PATH" -VERSION
-          "$BINARY_PATH" test.nsi
-
-      - name: Verify output installer
-        shell: bash
-        run: |
-          ls -l
-          if [[ -f test-installer.exe ]]; then
-              echo "Found installer"
-          else
-              echo "❌ Test compilation failed – no output file"
-              exit 1
-          fi
+        run: bash packages/nsis/assets/nsis-e2e-install.sh --installers-dir installers
