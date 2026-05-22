@@ -32,7 +32,7 @@ case "$OS_TYPE" in
     *) CURRENT_OS="all" ;;
 esac
 
-BUILD_TARGET="${1:-}"
+BUILD_TARGET=""
 
 # =============================================================================
 # Functions
@@ -85,22 +85,27 @@ combine() {
 
 show_usage() {
     cat << EOF
-Usage: $0 [TARGET]
+Usage: $0 --target TARGET
+
+Options:
+  --target, -t TARGET   Build target (default: all)
+  --help, -h            Show this help
 
 Targets:
-  base      Build base bundle (Windows + plugins + data files)
-  linux     Build Linux native binary (requires Docker)
-  mac       Build macOS native binary (requires macOS)
-  all       Build base + current platform binary
-  
-  If no target specified, builds 'all'
+  base              Build base bundle (Windows + plugins + data files)
+  windows, win      Alias for base
+  linux             Build Linux native binary (requires Docker)
+  mac, macos        Build macOS native binary (requires macOS)
+  combine           Combine previously built platform bundles into final archive
+  all               Build all platforms (base + mac + linux + combine)
 
 Examples:
-  ./build.sh              # Build base + current platform
-  ./build.sh base         # Build only the base bundle
-  ./build.sh linux        # Build Linux binary (requires Docker, builds base if needed)
-  ./build.sh mac          # Build macOS binary (requires macOS, builds base if needed)
-  
+  ./build.sh --target all     # Build all platforms and combine
+  ./build.sh --target base    # Build only the base bundle
+  ./build.sh --target linux   # Build Linux binary (requires Docker)
+  ./build.sh --target mac     # Build macOS binary (requires macOS)
+  ./build.sh --target combine # Combine existing platform bundles
+
 Platform Requirements:
   Base:   Any OS with bash, curl, unzip
   Linux:  Docker (can run on any OS)
@@ -113,11 +118,20 @@ EOF
 # Main
 # =============================================================================
 
-# Handle help
-if [ "$BUILD_TARGET" = "-h" ] || [ "$BUILD_TARGET" = "--help" ]; then
-    show_usage
-    exit 0
-fi
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --target|-t)
+            if [[ $# -lt 2 || -z "${2:-}" ]]; then
+                echo "❌ --target requires a value"
+                echo ""
+                show_usage
+                exit 1
+            fi
+            BUILD_TARGET="$2"; shift 2 ;;
+        --help|-h)   show_usage; exit 0 ;;
+        *) echo "❌ Unknown option: $1"; echo ""; show_usage; exit 1 ;;
+    esac
+done
 
 # Print banner
 print_banner

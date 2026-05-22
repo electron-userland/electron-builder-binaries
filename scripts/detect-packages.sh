@@ -2,7 +2,11 @@ set -exu
 
 # Output changesets release candidates to a temporary file
 TMP_JSON=changeset-status.json
-pnpm changeset status --output "$TMP_JSON"
+SINCE_ARGS=""
+if [ -n "${GITHUB_BASE_REF:-}" ]; then
+    SINCE_ARGS="--since=origin/${GITHUB_BASE_REF}"
+fi
+pnpm changeset status --output "$TMP_JSON" $SINCE_ARGS
 
 # Ensure the file exists and is valid JSON
 if [ ! -s "$TMP_JSON" ]; then
