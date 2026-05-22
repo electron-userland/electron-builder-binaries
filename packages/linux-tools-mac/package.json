@@ -1,5 +1,5 @@
 {
     "name": "linux-tools-mac",
     "version": "0.0.0",
-    "description": "Portable macOS bundle of GNU/Linux-compatible tools (gtar, lzip, glib, gettext, libgsf, libtool, pcre, makedepend) used by electron-builder when packaging Linux targets on macOS."
+    "description": "Portable macOS bundle of GNU/Linux-compatible tools (gtar, lzip, glib, gettext, libgsf, libtool, pcre, makedepend, binutils) used by electron-builder when packaging Linux targets on macOS."
 }

@@ -48,6 +48,9 @@ BUNDLE_DIR="${TMP_DIR}/linux-tools-mac"
 BIN_DIR="${BUNDLE_DIR}/bin"
 LIB_DIR="${BUNDLE_DIR}/lib"
 
+cleanup() { rm -rf "$TMP_DIR"; }
+trap cleanup EXIT INT TERM
+
 # Binaries to collect per formula — "formula:bin1 bin2 bin3" entries
 FORMULA_BINS=(
     "gnu-tar:gtar"
