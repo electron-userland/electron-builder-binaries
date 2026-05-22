@@ -7,9 +7,9 @@ set -euo pipefail
 # Orchestrates building NSIS bundles for all platforms
 #
 # Build order:
-#   1. Base (Windows) - Downloads official NSIS with all data files
-#   2. Linux         - Compiles native Linux binary, injects into base
-#   3. macOS         - Compiles native macOS binary, injects into base
+#   1. Base (Windows) - Compiles makensis.exe + stubs from source via Docker + MinGW
+#   2. Linux         - Compiles native Linux binary via Docker (x64 + arm64)
+#   3. macOS         - Compiles native macOS binary (x64 + arm64)
 #
 # Each platform can be built independently, but they all require the base.
 # =============================================================================
@@ -20,8 +20,7 @@ OUT_DIR="$SCRIPT_DIR/out"
 
 # Build configuration
 export NSIS_VERSION="3.12"
-export NSIS_BRANCH_OR_COMMIT="v312"
-export STRLEN_SHA256="44ebb4bfd5b763e295855718dbcf374fc396d03870ea038a0844abcbe1ff0c3a"
+export NSIS_BRANCH_OR_COMMIT="e3f60402bcdf7be822d159b531c6e38ddf32de12"
 
 # Detect current OS
 OS_TYPE=${TARGET:-$(uname -s | tr '[:upper:]' '[:lower:]')}
@@ -114,9 +113,9 @@ Examples:
   ./build.sh --target combine # Combine existing platform bundles
 
 Platform Requirements:
-  Base:   Windows with MSYS2 (MINGW64) + git, scons, curl, unzip, rsync
-  Linux:  Docker (can run on any OS)
-  macOS:  Must run on macOS with Xcode Command Line Tools
+  Base:   Docker (can run on any OS with Docker)
+  Linux:  Docker (can run on any OS with Docker)
+  macOS:  Must run on macOS with Xcode Command Line Tools + scons
 
 EOF
 }

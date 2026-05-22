@@ -154,7 +154,10 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /build
 
-RUN git clone --branch ${NSIS_BRANCH} --depth=1 https://github.com/NSIS-Dev/nsis.git nsis
+RUN git init nsis && \
+    git -C nsis remote add origin https://github.com/NSIS-Dev/nsis.git && \
+    git -C nsis fetch --depth=1 --single-branch origin ${NSIS_BRANCH} && \
+    git -C nsis checkout FETCH_HEAD
 
 WORKDIR /build/nsis
 
