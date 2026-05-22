@@ -137,8 +137,8 @@ FROM ubuntu:22.04
 ARG NSIS_BRANCH
 ARG DEBIAN_FRONTEND=noninteractive
 
-# MinGW-w64 cross-compilers for x86_64 (makensis.exe + x64 stubs)
-# and i686 (x86 stubs). NASM for stub assembly. zlib for both targets.
+# MinGW-w64 cross-compilers. i686 builds a 32-bit makensis.exe that uses x86 stubs
+# (matching the original SourceForge distribution). x86_64 kept for amd64 stub detection.
 RUN apt-get update && apt-get install -y \
     build-essential \
     scons \
@@ -172,46 +172,45 @@ RUN gcc -o /usr/local/bin/halibut-nsis Docs/src/bin/halibut/*.c
 # MinGW cross-linker auto-appends .exe to PE output. NSIS SConstruct (on Linux) names
 # the scons target without extension, so the install step fails with "file not found".
 # Wrap g++ so it creates a no-extension copy alongside the .exe for SCons to find.
-RUN echo '#!/bin/bash' > /usr/local/bin/x86_64-w64-mingw32-g++ && \
-    echo '/usr/bin/x86_64-w64-mingw32-g++ "$@" || exit $?' >> /usr/local/bin/x86_64-w64-mingw32-g++ && \
-    echo 'out=""; prev=""' >> /usr/local/bin/x86_64-w64-mingw32-g++ && \
-    echo 'for a in "$@"; do [ "$prev" = "-o" ] && out="$a"; prev="$a"; done' >> /usr/local/bin/x86_64-w64-mingw32-g++ && \
-    echo '[ -n "$out" ] && [ -f "${out}.exe" ] && [ ! -f "$out" ] && cp "${out}.exe" "$out"' >> /usr/local/bin/x86_64-w64-mingw32-g++ && \
-    echo 'exit 0' >> /usr/local/bin/x86_64-w64-mingw32-g++ && \
-    chmod +x /usr/local/bin/x86_64-w64-mingw32-g++
+RUN echo '#!/bin/bash' > /usr/local/bin/i686-w64-mingw32-g++ && \
+    echo '/usr/bin/i686-w64-mingw32-g++ "$@" || exit $?' >> /usr/local/bin/i686-w64-mingw32-g++ && \
+    echo 'out=""; prev=""' >> /usr/local/bin/i686-w64-mingw32-g++ && \
+    echo 'for a in "$@"; do [ "$prev" = "-o" ] && out="$a"; prev="$a"; done' >> /usr/local/bin/i686-w64-mingw32-g++ && \
+    echo '[ -n "$out" ] && [ -f "${out}.exe" ] && [ ! -f "$out" ] && cp "${out}.exe" "$out"' >> /usr/local/bin/i686-w64-mingw32-g++ && \
+    echo 'exit 0' >> /usr/local/bin/i686-w64-mingw32-g++ && \
+    chmod +x /usr/local/bin/i686-w64-mingw32-g++
 
 # gcc wrapper: halibut (the HTML doc generator) is compiled with the cross-compiler,
 # producing a Windows PE that cannot run on Linux. Intercept the halibut link step
 # and replace the output with a shell-script wrapper to the system halibut binary.
 # All other gcc calls (compilation of .o files, other link steps) pass through unchanged.
-RUN echo '#!/bin/bash' > /usr/local/bin/x86_64-w64-mingw32-gcc && \
-    echo 'out=""; prev=""; has_c=0' >> /usr/local/bin/x86_64-w64-mingw32-gcc && \
-    echo 'for a in "$@"; do [ "$prev" = "-o" ] && out="$a"; [ "$a" = "-c" ] && has_c=1; prev="$a"; done' >> /usr/local/bin/x86_64-w64-mingw32-gcc && \
-    echo 'if [ "$has_c" = "0" ] && echo "$out" | grep -q "halibut/halibut$"; then' >> /usr/local/bin/x86_64-w64-mingw32-gcc && \
-    echo '  mkdir -p "$(dirname "$out")"' >> /usr/local/bin/x86_64-w64-mingw32-gcc && \
-    echo '  echo '"'"'#!/bin/sh'"'"' > "$out"' >> /usr/local/bin/x86_64-w64-mingw32-gcc && \
-    echo '  echo '"'"'exec /usr/local/bin/halibut-nsis "$@"'"'"' >> "$out"' >> /usr/local/bin/x86_64-w64-mingw32-gcc && \
-    echo '  chmod +x "$out"' >> /usr/local/bin/x86_64-w64-mingw32-gcc && \
-    echo '  exit 0' >> /usr/local/bin/x86_64-w64-mingw32-gcc && \
-    echo 'fi' >> /usr/local/bin/x86_64-w64-mingw32-gcc && \
-    echo 'exec /usr/bin/x86_64-w64-mingw32-gcc "$@"' >> /usr/local/bin/x86_64-w64-mingw32-gcc && \
-    chmod +x /usr/local/bin/x86_64-w64-mingw32-gcc
+RUN echo '#!/bin/bash' > /usr/local/bin/i686-w64-mingw32-gcc && \
+    echo 'out=""; prev=""; has_c=0' >> /usr/local/bin/i686-w64-mingw32-gcc && \
+    echo 'for a in "$@"; do [ "$prev" = "-o" ] && out="$a"; [ "$a" = "-c" ] && has_c=1; prev="$a"; done' >> /usr/local/bin/i686-w64-mingw32-gcc && \
+    echo 'if [ "$has_c" = "0" ] && echo "$out" | grep -q "halibut/halibut$"; then' >> /usr/local/bin/i686-w64-mingw32-gcc && \
+    echo '  mkdir -p "$(dirname "$out")"' >> /usr/local/bin/i686-w64-mingw32-gcc && \
+    echo '  echo '"'"'#!/bin/sh'"'"' > "$out"' >> /usr/local/bin/i686-w64-mingw32-gcc && \
+    echo '  echo '"'"'exec /usr/local/bin/halibut-nsis "$@"'"'"' >> "$out"' >> /usr/local/bin/i686-w64-mingw32-gcc && \
+    echo '  chmod +x "$out"' >> /usr/local/bin/i686-w64-mingw32-gcc && \
+    echo '  exit 0' >> /usr/local/bin/i686-w64-mingw32-gcc && \
+    echo 'fi' >> /usr/local/bin/i686-w64-mingw32-gcc && \
+    echo 'exec /usr/bin/i686-w64-mingw32-gcc "$@"' >> /usr/local/bin/i686-w64-mingw32-gcc && \
+    chmod +x /usr/local/bin/i686-w64-mingw32-gcc
 
-# Build makensis.exe + stubs (x86 + x64) + data files from source.
-# NSIS SConstruct on Linux auto-detects i686-w64-mingw32-gcc from PATH for x86 stubs.
+# Build 32-bit makensis.exe + x86 stubs + data files from source.
+# 32-bit makensis.exe (i686) defaults to x86 stubs, matching the original SourceForge bundle.
 # SKIPUTILS/SKIPMISC: skip makensisw.exe, zip2exe, and other unused utilities.
-# Data files, stubs, and plugins all compiled from source with NSIS_CONFIG_LOG=yes + NSIS_MAX_STRLEN=8192.
 RUN scons \
-    CC=x86_64-w64-mingw32-gcc \
-    CXX=x86_64-w64-mingw32-g++ \
-    RANLIB=x86_64-w64-mingw32-ranlib \
-    AR=x86_64-w64-mingw32-ar \
+    CC=i686-w64-mingw32-gcc \
+    CXX=i686-w64-mingw32-g++ \
+    RANLIB=i686-w64-mingw32-ranlib \
+    AR=i686-w64-mingw32-ar \
     SKIPUTILS=all \
     SKIPMISC=all \
     NSIS_CONFIG_CONST_DATA_PATH=no \
     NSIS_CONFIG_LOG=yes \
     NSIS_MAX_STRLEN=8192 \
-    ZLIB_W32=/usr/x86_64-w64-mingw32 \
+    ZLIB_W32=/usr/i686-w64-mingw32 \
     PREFIX=/build/install \
     install
 
@@ -219,11 +218,14 @@ RUN scons \
 # Rename to makensis.exe for Windows compatibility.
 RUN mv /build/install/makensis /build/install/makensis.exe
 
-# scons install does not copy Contrib/Language files (MUI2 language headers).
-# Use a space-free intermediate name: docker cp on macOS strips directories whose names
-# contain spaces, so "Language files" must transit as "LangFiles" and be renamed after cp.
-RUN mkdir -p /build/install/ContribLangFiles && \
-    cp "Contrib/Language files/"* /build/install/ContribLangFiles/
+# scons install does not copy Contrib/Language files or other Contrib script dirs.
+# Use space-free intermediate names: docker cp on macOS strips dirs with spaces.
+RUN mkdir -p /build/install/ContribLangFiles /build/install/Contrib && \
+    cp "Contrib/Language files/"* /build/install/ContribLangFiles/ && \
+    cp -r "/build/nsis/Contrib/Modern UI 2" /build/install/Contrib/ContribModernUI2 && \
+    cp -r "/build/nsis/Contrib/Modern UI" /build/install/Contrib/ContribModernUI && \
+    cp -r /build/nsis/Contrib/Graphics /build/install/Contrib/Graphics && \
+    cp -r /build/nsis/Contrib/UIs /build/install/Contrib/UIs
 
 RUN mkdir -p /output && cp -r /build/install/. /output/
 DOCKERFILE_END
@@ -259,6 +261,12 @@ if [ -d "$BUNDLE_DIR/windows/ContribLangFiles" ]; then
     mkdir -p "$BUNDLE_DIR/windows/Contrib/Language files"
     mv "$BUNDLE_DIR/windows/ContribLangFiles/"* "$BUNDLE_DIR/windows/Contrib/Language files/" 2>/dev/null || true
     rmdir "$BUNDLE_DIR/windows/ContribLangFiles" 2>/dev/null || true
+fi
+if [ -d "$BUNDLE_DIR/windows/Contrib/ContribModernUI2" ]; then
+    mv "$BUNDLE_DIR/windows/Contrib/ContribModernUI2" "$BUNDLE_DIR/windows/Contrib/Modern UI 2"
+fi
+if [ -d "$BUNDLE_DIR/windows/Contrib/ContribModernUI" ]; then
+    mv "$BUNDLE_DIR/windows/Contrib/ContribModernUI" "$BUNDLE_DIR/windows/Contrib/Modern UI"
 fi
 
 if [ ! -f "$BUNDLE_DIR/windows/makensis.exe" ]; then
