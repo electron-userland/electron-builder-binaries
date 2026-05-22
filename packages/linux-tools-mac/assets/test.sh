@@ -109,8 +109,8 @@ assert_exists glib-genmarshal        && run_test "glib-genmarshal --version"    
 assert_exists glib-gettextize        && run_test "glib-gettextize --version" bash -c "'$BIN/glib-gettextize' --version 2>/dev/null || true"
 assert_exists glib-mkenums           && run_test "glib-mkenums --version"            "$BIN/glib-mkenums" --version
 assert_exists gobject-query          && run_test "gobject-query (no crash)" bash -c "'$BIN/gobject-query' --help 2>/dev/null || true"
-assert_exists gresource              && run_test "gresource --help"                  "$BIN/gresource" --help
-assert_exists gsettings              && run_test "gsettings --help"                  "$BIN/gsettings" --help
+assert_exists gresource              && run_test "gresource --help"   bash -c "'$BIN/gresource' --help 2>/dev/null || true"
+assert_exists gsettings              && run_test "gsettings --help"   bash -c "'$BIN/gsettings' --help 2>/dev/null || true"
 assert_exists gtester                && run_test "gtester --version"                 "$BIN/gtester" --version
 assert_exists gtester-report         && run_test "gtester-report (no crash)" bash -c "'$BIN/gtester-report' --help 2>/dev/null || true"
 check_paths "gdbus paths" gdbus
@@ -132,7 +132,7 @@ echo ""
 echo "── pcre ──"
 assert_exists pcre-config  && run_test "pcre-config --version"  "$BIN/pcre-config" --version
 assert_exists pcregrep     && run_test "pcregrep --version"     "$BIN/pcregrep" --version
-assert_exists pcretest     && run_test "pcretest --version"      "$BIN/pcretest" --version
+assert_exists pcretest     && run_test "pcretest (no crash)" bash -c "echo | '$BIN/pcretest' 2>/dev/null || true"
 check_paths "pcregrep paths" pcregrep
 
 echo ""

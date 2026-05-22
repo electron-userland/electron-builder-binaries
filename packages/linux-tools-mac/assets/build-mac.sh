@@ -88,7 +88,7 @@ for entry in "${FORMULA_BINS[@]}"; do
         if [[ -f "$src" || -L "$src" ]]; then
             echo "  ➕ $formula/$bin"
             cp -L "$src" "$BIN_DIR/$bin"
-            chmod +x "$BIN_DIR/$bin"
+            chmod u+w,a+x "$BIN_DIR/$bin"
         else
             echo "  ⏭️  $formula/$bin not found, skipping"
         fi
@@ -159,6 +159,7 @@ collect_deps() {
         if [[ ! -f "$dest" ]]; then
             echo "    📥 $dep_name"
             cp -L "$dep" "$dest"
+            chmod u+w "$dest"
             # Recurse into this library's own deps
             collect_deps "$dest"
         fi
