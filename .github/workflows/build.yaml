@@ -75,9 +75,9 @@ jobs:
     uses: ./.github/workflows/build-dmg-builder.yaml
     needs: detect
 
-  linux-tools:
-    if: contains(needs.detect.outputs.matrix, '"linux-tools"')
-    uses: ./.github/workflows/build-linux-tools.yaml
+  linux-tools-mac:
+    if: contains(needs.detect.outputs.matrix, '"linux-tools-mac"')
+    uses: ./.github/workflows/build-linux-tools-mac.yaml
     needs: detect
 
   squirrel:
@@ -94,7 +94,7 @@ jobs:
         ran,
         nsis,
         dmg-builder,
-        linux-tools,
+        linux-tools-mac,
         squirrel
       ]
     if: |

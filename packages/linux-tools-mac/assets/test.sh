@@ -80,7 +80,7 @@ check_paths() {
 ### ================================
 ### BINARY TESTS
 ### ================================
-echo "🧪 Testing linux-tools bundle at: $BUNDLE_DIR"
+echo "🧪 Testing linux-tools-mac bundle at: $BUNDLE_DIR"
 echo ""
 
 echo "── gnu-tar ──"

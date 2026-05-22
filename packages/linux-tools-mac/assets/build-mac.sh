@@ -23,7 +23,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 ROOT="${ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-OUTPUT_DIR="${OUTPUT_DIR:-${ROOT}/out/linux-tools}"
+OUTPUT_DIR="${OUTPUT_DIR:-${ROOT}/out/linux-tools-mac}"
 ARCH="${ARCH:-$(uname -m)}"
 
 if [[ "$ARCH" != "arm64" && "$ARCH" != "x86_64" ]]; then
@@ -34,8 +34,8 @@ fi
 ### ================================
 ### CONFIG
 ### ================================
-TMP_DIR="/tmp/linux-tools-build-${ARCH}"
-BUNDLE_DIR="${TMP_DIR}/linux-tools"
+TMP_DIR="/tmp/linux-tools-mac-build-${ARCH}"
+BUNDLE_DIR="${TMP_DIR}/linux-tools-mac"
 BIN_DIR="${BUNDLE_DIR}/bin"
 LIB_DIR="${BUNDLE_DIR}/lib"
 
@@ -52,7 +52,7 @@ FORMULA_BINS=(
     "binutils:gar ar"
 )
 
-echo "🛠️  linux-tools macOS bundle"
+echo "🛠️  linux-tools-mac macOS bundle"
 echo "   Arch:   $ARCH"
 echo "   Output: $OUTPUT_DIR"
 
@@ -279,10 +279,10 @@ echo "📦 Creating archive..."
 mkdir -p "$OUTPUT_DIR"
 
 ARCHIVE_ARCH="$ARCH"
-ARCHIVE_NAME="linux-tools-darwin-${ARCHIVE_ARCH}.tar.gz"
+ARCHIVE_NAME="linux-tools-mac-darwin-${ARCHIVE_ARCH}.tar.gz"
 ARCHIVE_PATH="$OUTPUT_DIR/$ARCHIVE_NAME"
 
-tar -czf "$ARCHIVE_PATH" -C "$TMP_DIR" linux-tools
+tar -czf "$ARCHIVE_PATH" -C "$TMP_DIR" linux-tools-mac
 shasum -a 256 "$ARCHIVE_PATH" > "${ARCHIVE_PATH}.sha256"
 
 rm -rf "$TMP_DIR"
@@ -293,11 +293,11 @@ rm -rf "$TMP_DIR"
 echo ""
 echo "🧪 Running tests..."
 
-VERIFY_DIR="/tmp/linux-tools-verify-$$"
+VERIFY_DIR="/tmp/linux-tools-mac-verify-$$"
 mkdir -p "$VERIFY_DIR"
 tar -xzf "$ARCHIVE_PATH" -C "$VERIFY_DIR"
 
-bash "$ROOT/assets/test.sh" --bundle-dir "$VERIFY_DIR/linux-tools"
+bash "$ROOT/assets/test.sh" --bundle-dir "$VERIFY_DIR/linux-tools-mac"
 
 rm -rf "$VERIFY_DIR"
 

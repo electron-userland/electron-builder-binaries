@@ -1,4 +1,4 @@
-name: Build macOS linux-tools bundle
+name: Build macOS linux-tools-mac bundle
 
 on:
   workflow_dispatch:
@@ -18,12 +18,12 @@ jobs:
 
       - name: Build
         run: |
-          bash ./packages/linux-tools/build.sh
+          bash ./packages/linux-tools-mac/build.sh
 
-      - name: Upload linux-tools artifact
+      - name: Upload linux-tools-mac artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
         with:
-          name: linux-tools-${{ matrix.runner }}
-          path: ./packages/linux-tools/out/**/*.tar.gz
+          name: linux-tools-mac-${{ matrix.runner }}
+          path: ./packages/linux-tools-mac/out/**/*.tar.gz
           if-no-files-found: error
           retention-days: 1
