@@ -194,7 +194,7 @@ case "$UNAME_S" in
     case "$ARCH" in
       x86_64) ARCH_DIR="x64" ;;
       arm64)  ARCH_DIR="arm64" ;;
-      *)      ARCH_DIR="$ARCH" ;;
+      *) echo "❌ Unsupported architecture: $UNAME_M" >&2; exit 1 ;;
     esac
     BINARY="$SCRIPT_DIR/mac/$ARCH_DIR/makensis"
     ;;
@@ -202,7 +202,7 @@ case "$UNAME_S" in
     case "$ARCH" in
       x86_64) ARCH_DIR="x64" ;;
       arm64)  ARCH_DIR="arm64" ;;
-      *)      ARCH_DIR="$ARCH" ;;
+      *) echo "❌ Unsupported architecture: $UNAME_M" >&2; exit 1 ;;
     esac
     BINARY="$SCRIPT_DIR/linux/$ARCH_DIR/makensis"
     ;;
