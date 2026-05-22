@@ -47,7 +47,7 @@ fi
 
 if ! command -v scons &> /dev/null; then
     echo "❌ scons is required but not installed"
-    echo "   Install via MSYS2: pacman -S mingw-w64-x86_64-python-scons"
+    echo "   Install via MSYS2: pacman -S mingw-w64-x86_64-scons"
     exit 1
 fi
 
@@ -154,6 +154,7 @@ BUILD_INSTALL="$TEMP_DIR/nsis-install"
         NSIS_CONFIG_CONST_DATA_PATH=no \
         NSIS_CONFIG_LOG=yes \
         NSIS_MAX_STRLEN=8192 \
+        ZLIB_W32=/mingw64 \
         PREFIX="$BUILD_INSTALL" \
         install-compiler
 )
