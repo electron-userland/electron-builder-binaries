@@ -176,9 +176,38 @@ if ! unzip -q "$STRLEN_ZIP" -d "$STRLEN_EXTRACTED"; then
     exit 1
 fi
 
-# Patch over the base NSIS files using rsync
-echo "  → Patching NSIS files"
-rsync -a "$STRLEN_EXTRACTED/" "$NSIS_EXTRACTED/"
+# Apply strlen_8192 patch — copy only patched binaries, leave data files from
+# the official release untouched. The SourceForge zip may extract with a
+# top-level subdirectory; use find so the structure doesn't matter.
+echo "  → Patching binary files..."
+
+STRLEN_MAKENSIS=$(find "$STRLEN_EXTRACTED" -path "*/Bin/makensis.exe" | head -1)
+STRLEN_ZLIB=$(find "$STRLEN_EXTRACTED" -name "zlib1.dll" | head -1)
+STRLEN_STUBS_DIR=$(find "$STRLEN_EXTRACTED" -type d -name "Stubs" | head -1)
+
+if [ -z "$STRLEN_MAKENSIS" ]; then
+    echo "❌ makensis.exe not found in strlen_8192 patch (unexpected zip structure)"
+    exit 1
+fi
+
+cp "$STRLEN_MAKENSIS" "$NSIS_EXTRACTED/Bin/makensis.exe"
+echo "    ✓ Bin/makensis.exe patched"
+
+if [ -n "$STRLEN_ZLIB" ]; then
+    cp "$STRLEN_ZLIB" "$NSIS_EXTRACTED/Bin/zlib1.dll"
+    echo "    ✓ Bin/zlib1.dll patched"
+fi
+
+if [ -n "$STRLEN_STUBS_DIR" ]; then
+    rsync -a "$STRLEN_STUBS_DIR/" "$NSIS_EXTRACTED/Stubs/"
+    echo "    ✓ Stubs/ patched"
+fi
+
+STRLEN_MAKENSISW=$(find "$STRLEN_EXTRACTED" -name "makensisw.exe" | head -1)
+if [ -n "$STRLEN_MAKENSISW" ]; then
+    cp "$STRLEN_MAKENSISW" "$NSIS_EXTRACTED/makensisw.exe"
+    echo "    ✓ makensisw.exe patched (strlen_8192)"
+fi
 
 echo "  ✓ Applied strlen_8192 patch"
 
@@ -189,7 +218,7 @@ echo "  ✓ Applied strlen_8192 patch"
 echo ""
 echo "📚 Copying NSIS data files..."
 
-for item in Bin Contrib Include Plugins Stubs; do
+for item in Bin Contrib Include Menu Plugins Stubs; do
     if [ -d "$NSIS_EXTRACTED/$item" ]; then
         echo "  → $item/"
         rsync -a "$NSIS_EXTRACTED/$item/" "$BUNDLE_DIR/windows/$item/"
@@ -438,7 +467,7 @@ if test -f "$PLUGINS_DIR/nsis7z.7z"; then
         $EXTRACT_CMD $EXTRACT_ARGS "$PLUGINS_DIR/nsis7z.7z" -o"$nsis7z_dir" >/dev/null 2>&1 || true
         
         # Install nsis7z DLLs using rsync
-        for arch in x64-unicode x86-ansi x86-unicode; do
+        for arch in x64-ansi x64-unicode x86-ansi x86-unicode; do
             if [ -d "$nsis7z_dir/Plugins/$arch" ]; then
                 rsync -a --include='nsis7z.dll' --exclude='*' \
                     "$nsis7z_dir/Plugins/$arch/" "$BUNDLE_DIR/windows/Plugins/$arch/"
