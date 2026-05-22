@@ -186,6 +186,57 @@ find "$BUNDLE_DIR" -type f | while read -r f; do
 done
 
 ### ================================
+### FIX LINKEDIT VMSIZE
+### Homebrew bottles built with Xcode 16+ ld_prime have __LINKEDIT.vmsize
+### larger than filesize. codesign --remove-signature does not shrink vmsize,
+### leaving a gap that Xcode 16.4 install_name_tool rejects outright.
+### Directly patch vmsize = page_aligned(filesize) before running install_name_tool.
+### ================================
+echo ""
+echo "🔧 Fixing __LINKEDIT vmsize..."
+FIX_LINKEDIT_PY='
+import sys, struct
+
+def fix(path):
+    try:
+        data = open(path, "rb").read()
+        if len(data) < 32:
+            return
+        magic = struct.unpack_from("<I", data, 0)[0]
+        if magic == 0xFEEDFACF:
+            e = "<"
+        elif magic == 0xCFFAEDFE:
+            e = ">"
+        else:
+            return
+        ncmds, = struct.unpack_from(e + "I", data, 16)
+        ba, off, changed = bytearray(data), 32, False
+        for _ in range(ncmds):
+            if off + 8 > len(ba):
+                break
+            cmd, sz = struct.unpack_from(e + "II", ba, off)
+            if sz == 0:
+                break
+            if cmd == 0x19 and off + 56 <= len(ba):
+                segname = ba[off + 8:off + 24].rstrip(b"\x00")
+                if segname == b"__LINKEDIT":
+                    vmsize,  = struct.unpack_from(e + "Q", ba, off + 32)
+                    filesize, = struct.unpack_from(e + "Q", ba, off + 48)
+                    if vmsize > filesize:
+                        struct.pack_into(e + "Q", ba, off + 32, (filesize + 4095) & ~4095)
+                        changed = True
+            off += sz
+        if changed:
+            open(path, "wb").write(ba)
+    except Exception:
+        pass
+
+for p in sys.argv[1:]:
+    fix(p)
+'
+find "$BUNDLE_DIR" -type f -print0 | xargs -0 python3 -c "$FIX_LINKEDIT_PY"
+
+### ================================
 ### PATCH DYLIB REFERENCES
 ### ================================
 echo ""
@@ -196,13 +247,6 @@ patch_binary() {
     local is_lib="${2:-false}"
 
     is_macho "$binary" || return 0
-
-    # Normalize LINKEDIT before patching.
-    # Xcode 16+ ARM64 bottles have gaps in __LINKEDIT that install_name_tool
-    # rejects. Ad-hoc signing compacts/reorganizes LINKEDIT as a side effect;
-    # removing the signature afterward leaves a clean, patchable binary.
-    codesign --force --sign - "$binary" 2>/dev/null || true
-    codesign --remove-signature "$binary" 2>/dev/null || true
 
     # Set install name for dylibs
     if [[ "$is_lib" == "true" ]]; then
