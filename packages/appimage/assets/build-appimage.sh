@@ -1,11 +1,34 @@
-#!/bin/env bash
-set -euo pipefail
+#!/usr/bin/env bash
+set -exuo pipefail
 
 CWD=$(cd "$(dirname "$BASH_SOURCE")/.." && pwd)
+
+verify_sha256() {
+    local file="$1" expected="$2" actual
+    if command -v sha256sum >/dev/null 2>&1; then
+        actual=$(sha256sum "$file" | awk '{print $1}')
+    elif command -v shasum >/dev/null 2>&1; then
+        actual=$(shasum -a 256 "$file" | awk '{print $1}')
+    else
+        echo "❌ No sha256 tool found (sha256sum or shasum required)" >&2; return 1
+    fi
+    if [ "$actual" = "$expected" ]; then
+        echo "  ✓ Checksum verified"
+        return 0
+    else
+        echo "❌ Checksum mismatch for $(basename "$file")" >&2
+        echo "   expected: $expected" >&2
+        echo "   actual:   $actual" >&2
+        return 1
+    fi
+}
 
 SQUASHFS_TOOLS_VERSION_TAG=${SQUASHFS_TOOLS_VERSION_TAG:-"4.6.1"}
 DESKTOP_UTILS_DEPS_VERSION_TAG=${DESKTOP_UTILS_DEPS_VERSION_TAG:-"0.28"}
 OPENJPEG_VERSION=${OPENJPEG_VERSION:-"2.5.4"}
+# SHA256 of https://github.com/uclouvain/openjpeg/archive/v${OPENJPEG_VERSION}.tar.gz
+# Re-pin when bumping OPENJPEG_VERSION: curl -fsSL <url> | sha256sum
+OPENJPEG_SHA256=${OPENJPEG_SHA256:-"a695fbe19c0165f295a8531b1e4e855cd94d0875d2f88ec4b61080677e27188a"}
 
 # Detect OS
 case "$(uname -s)" in
@@ -154,9 +177,11 @@ if [ "$OS" = "linux" ]; then
     mkdir -p "$ARCH_OUTPUT_DIR"
     cp -aL mksquashfs "$ARCH_OUTPUT_DIR/"
     chmod +x "$ARCH_OUTPUT_DIR/mksquashfs"
-    
+    cp -aL unsquashfs "$ARCH_OUTPUT_DIR/"
+    chmod +x "$ARCH_OUTPUT_DIR/unsquashfs"
+
 else
-    
+
     BREW_PREFIX=$(brew --prefix)
     make -j$(sysctl -n hw.ncpu) \
     GZIP_SUPPORT=1 \
@@ -166,14 +191,16 @@ else
     ZSTD_SUPPORT=1 \
     EXTRA_CFLAGS="-I${BREW_PREFIX}/include" \
     EXTRA_LDFLAGS="-L${BREW_PREFIX}/lib"
-    
+
     mkdir -p "$ARCH_OUTPUT_DIR"
     cp mksquashfs "$ARCH_OUTPUT_DIR/"
     chmod +x "$ARCH_OUTPUT_DIR/mksquashfs"
+    cp unsquashfs "$ARCH_OUTPUT_DIR/"
+    chmod +x "$ARCH_OUTPUT_DIR/unsquashfs"
     
 fi
 
-echo "   ✅ Built mksquashfs"
+echo "   ✅ Built mksquashfs unsquashfs"
 
 # =============================================================================
 # BUILD DESKTOP-FILE-UTILS
@@ -204,7 +231,12 @@ INSTALL_DIR="$(mktemp -d)"
 cd "$TMP_BUILD_DIR" || exit 1
 
 # Download source using curl
-curl -sSL "https://github.com/uclouvain/openjpeg/archive/v${OPENJPEG_VERSION}.tar.gz" -o "v${OPENJPEG_VERSION}.tar.gz"
+curl -fsSL --retry 3 --retry-delay 2 --max-time 300 \
+    "https://github.com/uclouvain/openjpeg/archive/v${OPENJPEG_VERSION}.tar.gz" \
+    -o "v${OPENJPEG_VERSION}.tar.gz"
+
+echo "  🔍 Verifying openjpeg checksum..."
+verify_sha256 "v${OPENJPEG_VERSION}.tar.gz" "$OPENJPEG_SHA256"
 
 # Extract
 tar xzf "v${OPENJPEG_VERSION}.tar.gz"
@@ -233,7 +265,7 @@ rm -rf "$TMP_BUILD_DIR" "$INSTALL_DIR"
 # =============================================================================
 # PATCH BINARIES
 # =============================================================================
-EXECS_TO_PATCH=("mksquashfs" "opj_decompress") # desktop-file-validate copy->patch skipped for now due to bundle size increase
+EXECS_TO_PATCH=("mksquashfs" "unsquashfs" "opj_decompress") # desktop-file-validate copy->patch skipped for now due to bundle size increase
 
 copy_lib_recursive() {
     local lib_path="$1"
@@ -321,7 +353,7 @@ find "$ARCH_OUTPUT_DIR" -type f -perm -111 | while read -r binary; do
         
         # Make the binary hermetic
         patchelf --remove-rpath "$binary" 2>/dev/null || true
-        patchelf --force-rpath --set-rpath '$ORIGIN/../lib' "$binary"        
+        patchelf --force-rpath --set-rpath '$ORIGIN/lib' "$binary"
     fi
 done
 
@@ -339,7 +371,7 @@ else
     STRIP_CMD='strip --strip-unneeded'
 fi
 # Strip and log
-find "$ARCH_OUTPUT_DIR" \( -name '*.dylib' -o -name '*.so' -o -name '*.so.*' -o -name '*.bundle' -o -type f -perm -111 \) | while read -r bin; do
+while read -r bin; do
     if [[ ! -f "$bin" || -L "$bin" ]]; then
         # echo "  ⏭️  Skipping (symlink or invalid): $bin"
         continue
@@ -358,7 +390,7 @@ find "$ARCH_OUTPUT_DIR" \( -name '*.dylib' -o -name '*.so' -o -name '*.so.*' -o 
     else
         echo "  ⚠️ Could not strip: $bin"
     fi
-done
+done < <(find "$ARCH_OUTPUT_DIR" \( -name '*.dylib' -o -name '*.so' -o -name '*.so.*' -o -name '*.bundle' -o -type f -perm -111 \))
 echo "💾 Total space saved: $total_saved bytes (~$((total_saved / 1024)) KB)"
 
 if [ "$OS" = "darwin" ]; then
@@ -373,6 +405,7 @@ if [ "$OS" = "darwin" ]; then
     done
     # verify signatures (should not print errors)
     /usr/bin/codesign -v --deep --strict "$ARCH_OUTPUT_DIR"/mksquashfs
+    /usr/bin/codesign -v --deep --strict "$ARCH_OUTPUT_DIR"/unsquashfs
 fi
 
 # =============================================================================
@@ -387,21 +420,28 @@ echo "AppImage Tools Versions for $OS/$ARCH_DIR" >> "$VERSION_FILE"
 echo "----------------------------------------" >> "$VERSION_FILE"
 echo "openjpeg: $OPENJPEG_VERSION" >> "$VERSION_FILE"
 
-if MKSQ_VER=$(LD_LIBRARY_PATH= "$ARCH_OUTPUT_DIR/mksquashfs" -version | head -n1 2>&1); then
-    echo "mksquashfs: $MKSQ_VER" >> "$VERSION_FILE"
-    echo "   ✅ mksquashfs verified: $MKSQ_VER"
-else
-    echo "   ❌ mksquashfs verification failed"
-    exit 1
+verify_binary() {
+  local name="$1"
+  local path="$2"
+  local args="$3"
+
+output=""
+if ! output=$(LD_LIBRARY_PATH= "$path" "$args" 2>&1); then
+  # Only fail if there's ALSO no usable output
+  if [[ -z "$output" ]]; then
+    echo "❌ $name failed with no output"
+    return 1
+  fi
 fi
 
-if "$ARCH_OUTPUT_DIR/desktop-file-validate" --help > /dev/null 2>&1; then
-    echo "desktop-file-validate: $DESKTOP_UTILS_DEPS_VERSION_TAG" >> "$VERSION_FILE"
-    echo "   ✅ desktop-file-validate verified: $DESKTOP_UTILS_DEPS_VERSION_TAG"
-else
-    echo "   ❌ desktop-file-validate verification failed"
-    exit 1
-fi
+first_line="${output%%$'\n'*}"
+echo "✅ $name verified: $first_line"
+
+  return 0
+}
+verify_binary "mksquashfs" "$ARCH_OUTPUT_DIR/mksquashfs" "-version"
+verify_binary "unsquashfs" "$ARCH_OUTPUT_DIR/unsquashfs" "-version"
+verify_binary "opj_decompress" "$ARCH_OUTPUT_DIR/opj_decompress" "--help"
 
 # =============================================================================
 # COPY RUNTIME LIBRARIES

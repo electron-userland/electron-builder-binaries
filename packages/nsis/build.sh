@@ -19,10 +19,10 @@ ASSETS_DIR="$SCRIPT_DIR/assets"
 OUT_DIR="$SCRIPT_DIR/out"
 
 # Build configuration
-export NSIS_VERSION="3.11"
-export NSIS_BRANCH_OR_COMMIT="v311"
-export NSIS_SHA256="c7d27f780ddb6cffb4730138cd1591e841f4b7edb155856901cdf5f214394fa1"
-export STRLEN_SHA256="b1025ccf412a8662fb9a61c661370a8cfdc0da675b0c541ad0c27c2b615833ec"
+export NSIS_VERSION="3.12"
+export NSIS_BRANCH_OR_COMMIT="v312"
+export NSIS_SHA256="56581f90db321581c5381193d796fffcf2d24b2f8fed2160a6c6a3baa67f2c4f"
+export STRLEN_SHA256="44ebb4bfd5b763e295855718dbcf374fc396d03870ea038a0844abcbe1ff0c3a"
 
 # Detect current OS
 OS_TYPE=${TARGET:-$(uname -s | tr '[:upper:]' '[:lower:]')}
@@ -32,7 +32,7 @@ case "$OS_TYPE" in
     *) CURRENT_OS="all" ;;
 esac
 
-BUILD_TARGET="${1:-}"
+BUILD_TARGET=""
 
 # =============================================================================
 # Functions
@@ -85,22 +85,27 @@ combine() {
 
 show_usage() {
     cat << EOF
-Usage: $0 [TARGET]
+Usage: $0 --target TARGET
+
+Options:
+  --target, -t TARGET   Build target (default: all)
+  --help, -h            Show this help
 
 Targets:
-  base      Build base bundle (Windows + plugins + data files)
-  linux     Build Linux native binary (requires Docker)
-  mac       Build macOS native binary (requires macOS)
-  all       Build base + current platform binary
-  
-  If no target specified, builds 'all'
+  base              Build base bundle (Windows + plugins + data files)
+  windows, win      Alias for base
+  linux             Build Linux native binary (requires Docker)
+  mac, macos        Build macOS native binary (requires macOS)
+  combine           Combine previously built platform bundles into final archive
+  all               Build all platforms (base + mac + linux + combine)
 
 Examples:
-  ./build.sh              # Build base + current platform
-  ./build.sh base         # Build only the base bundle
-  ./build.sh linux        # Build Linux binary (requires Docker, builds base if needed)
-  ./build.sh mac          # Build macOS binary (requires macOS, builds base if needed)
-  
+  ./build.sh --target all     # Build all platforms and combine
+  ./build.sh --target base    # Build only the base bundle
+  ./build.sh --target linux   # Build Linux binary (requires Docker)
+  ./build.sh --target mac     # Build macOS binary (requires macOS)
+  ./build.sh --target combine # Combine existing platform bundles
+
 Platform Requirements:
   Base:   Any OS with bash, curl, unzip
   Linux:  Docker (can run on any OS)
@@ -113,11 +118,20 @@ EOF
 # Main
 # =============================================================================
 
-# Handle help
-if [ "$BUILD_TARGET" = "-h" ] || [ "$BUILD_TARGET" = "--help" ]; then
-    show_usage
-    exit 0
-fi
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --target|-t)
+            if [[ $# -lt 2 || -z "${2:-}" ]]; then
+                echo "❌ --target requires a value"
+                echo ""
+                show_usage
+                exit 1
+            fi
+            BUILD_TARGET="$2"; shift 2 ;;
+        --help|-h)   show_usage; exit 0 ;;
+        *) echo "❌ Unknown option: $1"; echo ""; show_usage; exit 1 ;;
+    esac
+done
 
 # Print banner
 print_banner

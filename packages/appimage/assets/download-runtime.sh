@@ -96,7 +96,7 @@ if [ -z "${SKIP_DOWNLOAD-}" ]; then
 		dest_path="$INSTALL_DIR/$dest"
 		url="$BASE_URL/$src"
 		echo "Downloading $url -> $dest_path" >&2
-		if ! curl -fL "$url" -o "$dest_path"; then
+		if ! curl -fsSL "$url" -o "$dest_path"; then
 			echo "Failed to download $url" >&2
 			exit 2
 		fi

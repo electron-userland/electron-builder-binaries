@@ -2,13 +2,31 @@
 set -euo pipefail
 
 # Usage:
-#   ./bundle-linux-libs.sh /path/to/osslsigncode /path/to/outdir
+#   ./bundle-linux-libs.sh --bin /path/to/osslsigncode --outdir /path/to/outdir
 # Example:
-#   ./bundle-linux-libs.sh ./win-codesign-linux-amd64/osslsigncode ./win-codesign-linux-amd64
+#   ./bundle-linux-libs.sh --bin ./win-codesign-linux-amd64/osslsigncode --outdir ./win-codesign-linux-amd64
 
-BIN="$1"       # full path to the osslsigncode binary (or directory/bin)
-OUTDIR="$2"    # top-level bundle dir (contains bin/ and lib/)
-# If user passed directory, detect binary path:
+usage() {
+    echo "Usage: $0 --bin <path-to-osslsigncode> --outdir <output-dir>" >&2
+    echo "  --bin     Path to osslsigncode binary (or directory containing it)" >&2
+    echo "  --outdir  Top-level bundle dir (will contain bin/ and lib/ subdirs)" >&2
+    exit 1
+}
+
+BIN=""
+OUTDIR=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --bin)    BIN="$2";   shift 2 ;;
+        --outdir) OUTDIR="$2"; shift 2 ;;
+        -h|--help) usage ;;
+        *) echo "Unknown argument: $1" >&2; usage ;;
+    esac
+done
+
+[[ -z "$BIN" || -z "$OUTDIR" ]] && { echo "Error: --bin and --outdir are required" >&2; usage; }
+
+# If user passed a directory, detect binary path:
 if [[ -d "$BIN" ]]; then
   BIN_DIR="$BIN"
   BIN="$BIN_DIR/osslsigncode"

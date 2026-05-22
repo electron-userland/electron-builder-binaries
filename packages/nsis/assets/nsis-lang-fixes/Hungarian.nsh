@@ -47,9 +47,9 @@
 !ifdef MUI_COMPONENTSPAGE | MUI_UNCOMPONENTSPAGE
   ${LangFileString} MUI_INNERTEXT_COMPONENTS_DESCRIPTION_TITLE "Leírás"
   !ifndef NSIS_CONFIG_COMPONENTPAGE_ALTERNATIVE
-    ${LangFileString} MUI_INNERTEXT_COMPONENTS_DESCRIPTION_INFO "Vigye rá az egeret az összetevőre, hogy megtekinthesse a leírását."
+    ${LangFileString} MUI_INNERTEXT_COMPONENTS_DESCRIPTION_INFO "Vigye az egérmutatót az összetevő fölé a leírásának megtekintéséhez."
   !else
-    #FIXME:MUI_INNERTEXT_COMPONENTS_DESCRIPTION_INFO 
+    ${LangFileString} MUI_INNERTEXT_COMPONENTS_DESCRIPTION_INFO "Vigye az egérmutatót az összetevő fölé a leírásának megtekintéséhez."
   !endif
 !endif
 

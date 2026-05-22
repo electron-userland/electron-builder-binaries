@@ -70,6 +70,9 @@ cp "$OSSLSIGNCODE_BIN" "$OUT_BIN/osslsigncode"
 "$OUT_BIN/osslsigncode" --version > "$OUT_BIN/VERSION.txt"
 
 # Patch osslsigncode binary and zip
-bash "$ROOT_DIR/assets/bundle-osslsigncode.sh" "$OUT_BIN/osslsigncode" "$OUTPUT_DIR"
+bash "$ROOT_DIR/assets/bundle-osslsigncode.sh" \
+    --src "$OUT_BIN/osslsigncode" \
+    --output-dir "$OUTPUT_DIR" \
+    --platform-arch "$ARCH"
 
 rm -rf "$TMP_DIR"
