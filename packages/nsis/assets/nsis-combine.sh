@@ -194,12 +194,17 @@ case "$UNAME_S" in
     case "$ARCH" in
       x86_64) ARCH_DIR="x64" ;;
       arm64)  ARCH_DIR="arm64" ;;
-      *)      ARCH_DIR="$ARCH" ;;
+      *) echo "❌ Unsupported architecture: $UNAME_M" >&2; exit 1 ;;
     esac
     BINARY="$SCRIPT_DIR/mac/$ARCH_DIR/makensis"
     ;;
   Linux)
-    BINARY="$SCRIPT_DIR/linux/makensis"
+    case "$ARCH" in
+      x86_64) ARCH_DIR="x64" ;;
+      arm64)  ARCH_DIR="arm64" ;;
+      *) echo "❌ Unsupported architecture: $UNAME_M" >&2; exit 1 ;;
+    esac
+    BINARY="$SCRIPT_DIR/linux/$ARCH_DIR/makensis"
     ;;
   MINGW*|MSYS*|CYGWIN*)
     # makensisw.exe is GUI-subsystem. -VERSION triggers a MessageBox (hangs in
@@ -325,7 +330,7 @@ This bundle contains NSIS (Nullsoft Scriptable Install System) binaries for mult
 ## Contents
 
 - **Windows**: \`windows/makensis.exe\` (official pre-built binary)
-- **Linux**: \`linux/makensis\` (native ELF binary, compiled from source)
+- **Linux**: \`linux/x64/makensis\` and \`linux/arm64/makensis\` (native ELF binaries, compiled from source)
 - **macOS**: \`mac/makensis\` (native Mach-O binary, compiled from source)
 - **Elevate**: \`elevate.exe\` (Windows privilege elevation utility, compiled from source)
 - **NSIS Data**: \`windows/\` (Contrib, Include, Plugins, Stubs)
@@ -356,7 +361,8 @@ export NSISDIR="\$(pwd)/windows"
 
 # Run platform-specific binary
 ./windows/makensis.exe your-script.nsi  # Windows
-./linux/makensis your-script.nsi         # Linux
+./linux/x64/makensis your-script.nsi     # Linux x64
+./linux/arm64/makensis your-script.nsi   # Linux arm64
 ./mac/makensis your-script.nsi           # macOS
 \`\`\`
 
