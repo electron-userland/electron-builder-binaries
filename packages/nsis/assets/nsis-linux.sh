@@ -2,11 +2,11 @@
 set -euo pipefail
 
 # =============================================================================
-# Linux NSIS Binary Builder (Docker-based)
+# Linux NSIS Binary Builder (Docker buildx, multi-arch)
 # =============================================================================
-# Compiles ONLY the native Linux makensis binary from source using Docker
-# Does NOT download or merge with base bundle
-# Output: Single zip with just the Linux binary
+# Compiles native Linux makensis binaries for x64 and arm64 from source using
+# Docker buildx multi-platform builds. Does NOT download or merge with base bundle.
+# Output: Single tar.gz with linux/x64/makensis and linux/arm64/makensis
 # =============================================================================
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -17,13 +17,10 @@ OUT_DIR="$BASE_DIR/out/nsis"
 NSIS_VERSION=${NSIS_VERSION:-3.12}
 NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v312}
 
-# Docker configuration
-IMAGE_NAME="nsis-linux-builder:${NSIS_BRANCH}"
-CONTAINER_NAME="nsis-linux-build-$$"
-
+BUILDER_NAME="nsis-linux-builder-$$"
 OUTPUT_ARCHIVE="$OUT_DIR/nsis-bundle-linux-$NSIS_BRANCH.tar.gz"
 
-echo "🐧 Building native Linux makensis binary..."
+echo "🐧 Building native Linux makensis binaries (x64 + arm64)..."
 echo "   Version: $NSIS_VERSION"
 echo "   Branch:  $NSIS_BRANCH"
 echo ""
@@ -38,9 +35,9 @@ mkdir -p "$OUT_DIR"
 # Check Prerequisites
 # =============================================================================
 
-if ! command -v docker &> /dev/null; then
-    echo "❌ Docker is required but not installed"
-    echo "   Install Docker: https://docs.docker.com/get-docker/"
+if ! docker buildx version &> /dev/null; then
+    echo "❌ Docker buildx is required but not available"
+    echo "   Install Docker with buildx support: https://docs.docker.com/build/buildx/"
     exit 1
 fi
 
@@ -51,7 +48,7 @@ fi
 cleanup() {
     echo ""
     echo "🧹 Cleaning up Docker resources..."
-    docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
+    docker buildx rm "$BUILDER_NAME" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 
@@ -59,7 +56,7 @@ trap cleanup EXIT INT TERM
 # Create Dockerfile
 # =============================================================================
 
-echo "📝 Creating Dockerfile for Linux build..."
+echo "📝 Creating Dockerfile for Linux multi-arch build..."
 
 DOCKERFILE="$OUT_DIR/Dockerfile.linux"
 
@@ -69,7 +66,6 @@ FROM ubuntu:22.04
 ARG NSIS_BRANCH
 ARG DEBIAN_FRONTEND=noninteractive
 
-# Install build dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
     scons \
@@ -79,13 +75,10 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /build
 
-# Clone NSIS source
 RUN git clone --branch ${NSIS_BRANCH} --depth=1 https://github.com/NSIS-Dev/nsis.git nsis
 
 WORKDIR /build/nsis
 
-# Build native Linux makensis
-# Skip stubs, plugins, utils - we only need the compiler
 RUN scons \
     SKIPSTUBS=all \
     SKIPPLUGINS=all \
@@ -97,68 +90,97 @@ RUN scons \
     PREFIX=/build/install \
     install-compiler
 
-# The binary is now at /build/install/makensis
 RUN chmod +x /build/install/makensis
-
-# Create output directory
-RUN mkdir -p /output && \
-    cp /build/install/makensis /output/makensis
+RUN mkdir -p /output && cp /build/install/makensis /output/makensis
 DOCKERFILE_END
 
 # =============================================================================
-# Build Docker Image
+# Create Buildx Builder
 # =============================================================================
 
 echo ""
-echo "🔨 Building Docker image (this may take 5-10 minutes on first run)..."
+echo "🔧 Creating buildx builder (docker-container driver for multi-arch)..."
+docker buildx create --name "$BUILDER_NAME" --driver docker-container --use
 
-docker build \
+# =============================================================================
+# Build Multi-Platform Image
+# =============================================================================
+
+TEMP_DIR="$OUT_DIR/temp-linux"
+rm -rf "$TEMP_DIR"
+mkdir -p "$TEMP_DIR/docker-out" \
+         "$TEMP_DIR/nsis-bundle/linux/x64" \
+         "$TEMP_DIR/nsis-bundle/linux/arm64"
+
+echo ""
+echo "🔨 Building Docker image for linux/amd64 and linux/arm64..."
+echo "   (First run may take 10-15 minutes)"
+
+docker buildx build \
+    --platform "linux/amd64,linux/arm64" \
     --build-arg NSIS_BRANCH="$NSIS_BRANCH" \
-    -t "$IMAGE_NAME" \
+    --output "type=local,dest=$TEMP_DIR/docker-out" \
     -f "$DOCKERFILE" \
     "$OUT_DIR"
 
-if [ $? -ne 0 ]; then
-    echo "❌ Docker build failed"
-    exit 1
-fi
-
-echo "  ✓ Docker image built successfully"
+echo "  ✓ Multi-platform build complete"
 
 # =============================================================================
-# Extract Compiled Binary
+# Extract Binaries
 # =============================================================================
 
 echo ""
-echo "📦 Extracting compiled Linux binary..."
+echo "📦 Extracting binaries..."
 
-# Create container
-docker create --name "$CONTAINER_NAME" "$IMAGE_NAME" /bin/true
-
-# Create temp directory for extraction
-TEMP_DIR="$OUT_DIR/temp-linux"
-rm -rf "$TEMP_DIR"
-mkdir -p "$TEMP_DIR/nsis-bundle/linux"
-
-# Copy binary from container
-docker cp "$CONTAINER_NAME:/output/makensis" "$TEMP_DIR/nsis-bundle/linux/makensis"
-
-if [ ! -f "$TEMP_DIR/nsis-bundle/linux/makensis" ]; then
-    echo "❌ Failed to extract Linux binary"
+if [ ! -f "$TEMP_DIR/docker-out/linux_amd64/output/makensis" ]; then
+    echo "❌ x64 binary not found at expected path"
+    echo "   Expected: $TEMP_DIR/docker-out/linux_amd64/output/makensis"
+    ls -la "$TEMP_DIR/docker-out/" 2>/dev/null || true
     exit 1
 fi
 
-chmod +x "$TEMP_DIR/nsis-bundle/linux/makensis"
-echo "  ✓ Linux binary extracted"
-
-# Verify binary
-echo "  → Verifying binary..."
-if file "$TEMP_DIR/nsis-bundle/linux/makensis" | grep -q "ELF"; then
-    echo "  ✓ Valid Linux ELF binary"
-else
-    echo "  ❌ Binary verification failed: not a valid Linux ELF binary"
+if [ ! -f "$TEMP_DIR/docker-out/linux_arm64/output/makensis" ]; then
+    echo "❌ arm64 binary not found at expected path"
+    echo "   Expected: $TEMP_DIR/docker-out/linux_arm64/output/makensis"
+    ls -la "$TEMP_DIR/docker-out/" 2>/dev/null || true
     exit 1
 fi
+
+cp "$TEMP_DIR/docker-out/linux_amd64/output/makensis" "$TEMP_DIR/nsis-bundle/linux/x64/makensis"
+cp "$TEMP_DIR/docker-out/linux_arm64/output/makensis" "$TEMP_DIR/nsis-bundle/linux/arm64/makensis"
+chmod +x "$TEMP_DIR/nsis-bundle/linux/x64/makensis" "$TEMP_DIR/nsis-bundle/linux/arm64/makensis"
+rm -rf "$TEMP_DIR/docker-out"
+
+echo "  ✓ x64 binary extracted"
+echo "  ✓ arm64 binary extracted"
+
+# =============================================================================
+# Verify Binaries
+# =============================================================================
+
+echo ""
+echo "🔍 Verifying binaries..."
+
+for arch_dir in x64 arm64; do
+    bin="$TEMP_DIR/nsis-bundle/linux/$arch_dir/makensis"
+    if command -v file &> /dev/null; then
+        if file "$bin" | grep -q "ELF"; then
+            echo "  ✓ $arch_dir: valid ELF binary"
+        else
+            echo "  ❌ $arch_dir: not a valid ELF binary"
+            file "$bin"
+            exit 1
+        fi
+    else
+        ELF_MAGIC=$(od -N 4 -A n -t x1 "$bin" 2>/dev/null | tr -d ' \n')
+        if [ "$ELF_MAGIC" = "7f454c46" ]; then
+            echo "  ✓ $arch_dir: valid ELF binary (magic bytes)"
+        else
+            echo "  ❌ $arch_dir: ELF magic check failed (got: '$ELF_MAGIC')"
+            exit 1
+        fi
+    fi
+done
 
 # =============================================================================
 # Create Version Metadata
@@ -169,8 +191,8 @@ echo "📝 Creating version metadata..."
 
 cat > "$TEMP_DIR/nsis-bundle/linux/VERSION.txt" <<EOF
 Platform: Linux
+Architectures: x64, arm64
 Binary: makensis (native ELF binary)
-Architecture: x86_64
 Build Date: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 Compiled from source: NSIS $NSIS_BRANCH
 Compiler: GCC (Ubuntu 22.04)
@@ -178,13 +200,14 @@ Build system: SCons
 Docker image: ubuntu:22.04
 
 This binary is compiled from source with:
-- Static linking where possible
+- NSIS_CONFIG_LOG=yes
 - NSIS_MAX_STRLEN=8192
 - NSIS_CONFIG_CONST_DATA_PATH=no
 
 Usage:
-  export NSISDIR="\$(pwd)/share/nsis"
-  ./linux/makensis your-script.nsi
+  export NSISDIR="\$(pwd)/windows"
+  ./linux/x64/makensis your-script.nsi   # x64
+  ./linux/arm64/makensis your-script.nsi  # arm64
 EOF
 
 # =============================================================================
@@ -210,7 +233,7 @@ rm -rf "$TEMP_DIR"
 
 echo ""
 echo "================================================================"
-echo "  ✅ Linux Build Complete!"
+echo "  ✅ Linux Build Complete (x64 + arm64)!"
 echo "================================================================"
 echo "  📁 Archive: $OUTPUT_ARCHIVE"
 echo "  📊 Size:    $(du -h "$OUTPUT_ARCHIVE" | cut -f1)"

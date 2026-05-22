@@ -5,31 +5,24 @@ on:
   workflow_dispatch:
 
 jobs:
-  # Build base bundle (Windows binary compiled from source + plugins + data)
+  # Build base bundle (Windows binary cross-compiled from Linux via Docker + MinGW-w64)
   base:
     name: Build Base Bundle
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
-      - name: Set up MSYS2
-        uses: msys2/setup-msys2@e9898307ac31d1a803454791be09ab9973336e1c
-        with:
-          msystem: MINGW64
-          update: true
-          install: >-
-            git
-            mingw-w64-x86_64-scons
-            mingw-w64-x86_64-zlib
-            p7zip
-            unzip
-            rsync
-            curl
+      - name: Install dependencies
+        run: sudo apt-get install -y curl unzip p7zip-full rsync
+        shell: bash
 
       - name: Build base bundle
-        shell: msys2 {0}
         run: bash ./build.sh --target windows
+        shell: bash
         working-directory: ./packages/nsis
 
       - name: Upload base artifact
@@ -79,6 +72,9 @@ jobs:
     name: Build Linux Binary
     runs-on: ubuntu-latest
     steps:
+      - name: Set up QEMU (for arm64 cross-build)
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
 
@@ -219,11 +215,25 @@ jobs:
           tar -xzf "${archives[0]}" -C "$BUNDLE_PATH"
           echo "✅ Extracted to $BUNDLE_PATH/nsis-bundle"
 
+      - name: Set up QEMU (Linux only, for arm64 smoke test)
+        if: matrix.platform_slug == 'linux'
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392
+
       - name: Run NSIS test suite
         timeout-minutes: 10
         shell: bash
         run: |
           bash packages/nsis/assets/nsis-test.sh --bundle-dir packages/nsis/out/nsis/nsis-bundle
+
+      - name: Smoke-test arm64 binary via Docker (Linux only)
+        if: matrix.platform_slug == 'linux'
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          docker run --rm --platform linux/arm64 \
+            -v "$(pwd)/packages/nsis/out/nsis/nsis-bundle:/bundle" \
+            ubuntu:22.04 /bundle/linux/arm64/makensis -VERSION
+          echo "✅ arm64 makensis binary executes correctly"
 
       - name: Compile E2E installer
         if: matrix.upload_installer == true

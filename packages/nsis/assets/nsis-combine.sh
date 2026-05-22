@@ -199,7 +199,12 @@ case "$UNAME_S" in
     BINARY="$SCRIPT_DIR/mac/$ARCH_DIR/makensis"
     ;;
   Linux)
-    BINARY="$SCRIPT_DIR/linux/makensis"
+    case "$ARCH" in
+      x86_64|amd64) ARCH_DIR="x64" ;;
+      arm64|aarch64) ARCH_DIR="arm64" ;;
+      *) ARCH_DIR="x64" ;;
+    esac
+    BINARY="$SCRIPT_DIR/linux/$ARCH_DIR/makensis"
     ;;
   MINGW*|MSYS*|CYGWIN*)
     # makensisw.exe is GUI-subsystem. -VERSION triggers a MessageBox (hangs in

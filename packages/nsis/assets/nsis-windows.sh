@@ -2,28 +2,30 @@
 set -euo pipefail
 
 # =============================================================================
-# Windows NSIS Base Bundle Builder
+# Windows NSIS Base Bundle Builder (Docker-based, MinGW cross-compile)
 # =============================================================================
-# Builds makensis.exe from source (NSIS_CONFIG_LOG=yes + NSIS_MAX_STRLEN=8192)
-# Downloads strlen_8192 distribution for data files (Stubs, Contrib, Include, Menu)
-# Packages with additional plugins and language file patches
-# Runs on Windows via MSYS2 bash
+# Builds makensis.exe AND stubs from source using Docker + MinGW-w64.
+# Consistent flags across all components: NSIS_CONFIG_LOG=yes + NSIS_MAX_STRLEN=8192
+# Downloads third-party plugins and applies language file patches.
+# Runs on Linux or macOS (Docker required).
 # =============================================================================
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 BASE_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 OUT_DIR="$BASE_DIR/out/nsis"
-TEMP_DIR="$OUT_DIR/temp"
 
 # Version configuration
 NSIS_VERSION=${NSIS_VERSION:-3.12}
 NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v312}
-STRLEN_SHA256=${STRLEN_SHA256:-44ebb4bfd5b763e295855718dbcf374fc396d03870ea038a0844abcbe1ff0c3a}
+
+# Docker configuration
+IMAGE_NAME="nsis-windows-builder:${NSIS_BRANCH}"
+CONTAINER_NAME="nsis-windows-build-$$"
 
 BUNDLE_DIR="$OUT_DIR/nsis-bundle"
 OUTPUT_ARCHIVE="$OUT_DIR/nsis-bundle-base-$NSIS_BRANCH.tar.gz"
 
-echo "Building NSIS Base Bundle (from source, LOG + STRLEN=8192)..."
+echo "Building NSIS Base Bundle (Docker, MinGW cross-compile, LOG + STRLEN=8192)..."
 echo "   Version: $NSIS_VERSION"
 echo "   Branch:  $NSIS_BRANCH"
 echo ""
@@ -33,21 +35,20 @@ echo ""
 # =============================================================================
 
 echo "Setting up directories..."
-rm -rf "$TEMP_DIR" "$BUNDLE_DIR"
-mkdir -p "$TEMP_DIR" "$BUNDLE_DIR/windows"
+rm -rf "$BUNDLE_DIR"
+mkdir -p "$OUT_DIR" "$BUNDLE_DIR/windows"
+
+TEMP_DIR="$OUT_DIR/temp"
+rm -rf "$TEMP_DIR"
+mkdir -p "$TEMP_DIR"
 
 # =============================================================================
-# Check Dependencies
+# Check Prerequisites
 # =============================================================================
 
-if ! command -v git &> /dev/null; then
-    echo "❌ git is required but not installed"
-    exit 1
-fi
-
-if ! command -v scons &> /dev/null; then
-    echo "❌ scons is required but not installed"
-    echo "   Install via MSYS2: pacman -S mingw-w64-x86_64-scons"
+if ! command -v docker &> /dev/null; then
+    echo "❌ Docker is required but not installed"
+    echo "   Install Docker: https://docs.docker.com/get-docker/"
     exit 1
 fi
 
@@ -56,26 +57,22 @@ if ! command -v curl &> /dev/null; then
     exit 1
 fi
 
-if ! command -v tar &> /dev/null; then
-    echo "❌ tar is required but not installed"
-    exit 1
-fi
+# =============================================================================
+# Cleanup Handler
+# =============================================================================
 
-if ! command -v rsync &> /dev/null; then
-    echo "❌ rsync is required but not installed"
-    exit 1
-fi
-
-if ! command -v sha256sum &> /dev/null && ! command -v shasum &> /dev/null; then
-    echo "❌ sha256sum or shasum is required but not installed"
-    exit 1
-fi
+cleanup() {
+    echo ""
+    echo "🧹 Cleaning up Docker resources..."
+    docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
+    docker rmi -f "$IMAGE_NAME" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
 
 # =============================================================================
 # Helper Functions
 # =============================================================================
 
-# Cross-platform SHA256 verification
 verify_sha256() {
     local file="$1"
     local expected="$2"
@@ -101,7 +98,6 @@ verify_sha256() {
     fi
 }
 
-# Download with checksum verification
 download_and_verify() {
     local url="$1"
     local output="$2"
@@ -128,122 +124,160 @@ download_and_verify() {
 }
 
 # =============================================================================
-# Build makensis.exe from Source
+# Create Dockerfile
 # =============================================================================
 
-echo ""
-echo "🔨 Cloning NSIS source..."
+echo "📝 Creating Dockerfile for Windows cross-compile build..."
 
-NSIS_SRC="$TEMP_DIR/nsis-src"
-git clone --branch "$NSIS_BRANCH" --depth=1 https://github.com/NSIS-Dev/nsis.git "$NSIS_SRC"
-echo "  ✓ Cloned NSIS $NSIS_BRANCH"
+DOCKERFILE="$OUT_DIR/Dockerfile.windows"
 
-echo ""
-echo "🔨 Building makensis.exe from source..."
-echo "   NSIS_CONFIG_LOG=yes  NSIS_MAX_STRLEN=8192"
+cat > "$DOCKERFILE" <<'DOCKERFILE_END'
+FROM ubuntu:22.04
 
-BUILD_INSTALL="$TEMP_DIR/nsis-install"
+ARG NSIS_BRANCH
+ARG DEBIAN_FRONTEND=noninteractive
 
-(
-    cd "$NSIS_SRC"
+# MinGW-w64 cross-compilers for x86_64 (makensis.exe + x64 stubs)
+# and i686 (x86 stubs). NASM for stub assembly. zlib for both targets.
+RUN apt-get update && apt-get install -y \
+    build-essential \
     scons \
-        SKIPSTUBS=all \
-        SKIPPLUGINS=all \
-        SKIPUTILS=all \
-        SKIPMISC=all \
-        NSIS_CONFIG_CONST_DATA_PATH=no \
-        NSIS_CONFIG_LOG=yes \
-        NSIS_MAX_STRLEN=8192 \
-        ZLIB_W32=/mingw64 \
-        PREFIX="$BUILD_INSTALL" \
-        install-compiler
-)
+    git \
+    nasm \
+    halibut \
+    gcc-mingw-w64-x86-64 \
+    g++-mingw-w64-x86-64 \
+    gcc-mingw-w64-i686 \
+    g++-mingw-w64-i686 \
+    libz-mingw-w64-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-MAKENSIS_EXE=$(find "$BUILD_INSTALL" -name "makensis.exe" | head -1)
-if [ -z "$MAKENSIS_EXE" ]; then
-    echo "❌ makensis.exe not found after build"
-    exit 1
-fi
+WORKDIR /build
 
-# Verify Windows PE binary (non-fatal: 'file' may not be in all MSYS2 setups)
-if command -v file &> /dev/null; then
-    if file "$MAKENSIS_EXE" | grep -q "PE"; then
-        echo "  ✓ Verified Windows PE binary"
-    else
-        echo "  ⚠️  Unexpected binary type: $(file "$MAKENSIS_EXE")"
-    fi
-fi
+RUN git clone --branch ${NSIS_BRANCH} --depth=1 https://github.com/NSIS-Dev/nsis.git nsis
 
-echo "  ✓ makensis.exe built (LOG + STRLEN=8192)"
+WORKDIR /build/nsis
+
+# MinGW-w64 defines FIELD_OFFSET as __builtin_offsetof, which requires a constexpr
+# argument. NSIS uses it with a runtime wcslen() result in Source/build.cpp (~line 4190).
+# Replace with offsetof(struct, fixed_field) + runtime arithmetic, which is valid C++.
+RUN sed -i 's|FIELD_OFFSET(postbuild_cmd, cmd\[_tcsclen(cmdstr)+!0\])|offsetof(postbuild_cmd, cmd) + (_tcsclen(cmdstr) + 1) * sizeof(TCHAR)|' Source/build.cpp
+
+# Build halibut natively from NSIS source. The apt halibut is too old to parse NSIS v312's
+# .but documentation syntax. The NSIS-bundled halibut sources are the correct newer version.
+# We build a native Linux binary here; the gcc wrapper below redirects the cross-compiled
+# (Windows PE) halibut link step to this native binary instead.
+RUN gcc -o /usr/local/bin/halibut-nsis Docs/src/bin/halibut/*.c
+
+# MinGW cross-linker auto-appends .exe to PE output. NSIS SConstruct (on Linux) names
+# the scons target without extension, so the install step fails with "file not found".
+# Wrap g++ so it creates a no-extension copy alongside the .exe for SCons to find.
+RUN echo '#!/bin/bash' > /usr/local/bin/x86_64-w64-mingw32-g++ && \
+    echo '/usr/bin/x86_64-w64-mingw32-g++ "$@" || exit $?' >> /usr/local/bin/x86_64-w64-mingw32-g++ && \
+    echo 'out=""; prev=""' >> /usr/local/bin/x86_64-w64-mingw32-g++ && \
+    echo 'for a in "$@"; do [ "$prev" = "-o" ] && out="$a"; prev="$a"; done' >> /usr/local/bin/x86_64-w64-mingw32-g++ && \
+    echo '[ -n "$out" ] && [ -f "${out}.exe" ] && [ ! -f "$out" ] && cp "${out}.exe" "$out"' >> /usr/local/bin/x86_64-w64-mingw32-g++ && \
+    echo 'exit 0' >> /usr/local/bin/x86_64-w64-mingw32-g++ && \
+    chmod +x /usr/local/bin/x86_64-w64-mingw32-g++
+
+# gcc wrapper: halibut (the HTML doc generator) is compiled with the cross-compiler,
+# producing a Windows PE that cannot run on Linux. Intercept the halibut link step
+# and replace the output with a shell-script wrapper to the system halibut binary.
+# All other gcc calls (compilation of .o files, other link steps) pass through unchanged.
+RUN echo '#!/bin/bash' > /usr/local/bin/x86_64-w64-mingw32-gcc && \
+    echo 'out=""; prev=""; has_c=0' >> /usr/local/bin/x86_64-w64-mingw32-gcc && \
+    echo 'for a in "$@"; do [ "$prev" = "-o" ] && out="$a"; [ "$a" = "-c" ] && has_c=1; prev="$a"; done' >> /usr/local/bin/x86_64-w64-mingw32-gcc && \
+    echo 'if [ "$has_c" = "0" ] && echo "$out" | grep -q "halibut/halibut$"; then' >> /usr/local/bin/x86_64-w64-mingw32-gcc && \
+    echo '  mkdir -p "$(dirname "$out")"' >> /usr/local/bin/x86_64-w64-mingw32-gcc && \
+    echo '  echo '"'"'#!/bin/sh'"'"' > "$out"' >> /usr/local/bin/x86_64-w64-mingw32-gcc && \
+    echo '  echo '"'"'exec /usr/local/bin/halibut-nsis "$@"'"'"' >> "$out"' >> /usr/local/bin/x86_64-w64-mingw32-gcc && \
+    echo '  chmod +x "$out"' >> /usr/local/bin/x86_64-w64-mingw32-gcc && \
+    echo '  exit 0' >> /usr/local/bin/x86_64-w64-mingw32-gcc && \
+    echo 'fi' >> /usr/local/bin/x86_64-w64-mingw32-gcc && \
+    echo 'exec /usr/bin/x86_64-w64-mingw32-gcc "$@"' >> /usr/local/bin/x86_64-w64-mingw32-gcc && \
+    chmod +x /usr/local/bin/x86_64-w64-mingw32-gcc
+
+# Build makensis.exe + stubs (x86 + x64) + data files from source.
+# NSIS SConstruct on Linux auto-detects i686-w64-mingw32-gcc from PATH for x86 stubs.
+# SKIPUTILS/SKIPMISC: skip makensisw.exe, zip2exe, and other unused utilities.
+# Data files, stubs, and plugins all compiled from source with NSIS_CONFIG_LOG=yes + NSIS_MAX_STRLEN=8192.
+RUN scons \
+    CC=x86_64-w64-mingw32-gcc \
+    CXX=x86_64-w64-mingw32-g++ \
+    RANLIB=x86_64-w64-mingw32-ranlib \
+    AR=x86_64-w64-mingw32-ar \
+    SKIPUTILS=all \
+    SKIPMISC=all \
+    NSIS_CONFIG_CONST_DATA_PATH=no \
+    NSIS_CONFIG_LOG=yes \
+    NSIS_MAX_STRLEN=8192 \
+    ZLIB_W32=/usr/x86_64-w64-mingw32 \
+    PREFIX=/build/install \
+    install
+
+# scons installed /build/install/makensis (no ext, via the wrapper copy).
+# Rename to makensis.exe for Windows compatibility.
+RUN mv /build/install/makensis /build/install/makensis.exe
+
+# scons install does not copy Contrib/Language files (MUI2 language headers).
+# Use a space-free intermediate name: docker cp on macOS strips directories whose names
+# contain spaces, so "Language files" must transit as "LangFiles" and be renamed after cp.
+RUN mkdir -p /build/install/ContribLangFiles && \
+    cp "Contrib/Language files/"* /build/install/ContribLangFiles/
+
+RUN mkdir -p /output && cp -r /build/install/. /output/
+DOCKERFILE_END
 
 # =============================================================================
-# Download strlen_8192 Distribution (data files: Stubs, Contrib, Include, Menu)
+# Build Docker Image
 # =============================================================================
 
 echo ""
-STRLEN_ZIP_URL="https://sourceforge.net/projects/nsis/files/NSIS%203/$NSIS_VERSION/nsis-$NSIS_VERSION-strlen_8192.zip/download"
-STRLEN_ZIP="$TEMP_DIR/nsis-$NSIS_VERSION-strlen_8192.zip"
+echo "🔨 Building Docker image (this may take 10-20 minutes on first run)..."
 
-if ! download_and_verify "$STRLEN_ZIP_URL" "$STRLEN_ZIP" "$STRLEN_SHA256" "NSIS $NSIS_VERSION strlen_8192 (data files + patched stubs)"; then
-    exit 1
-fi
+docker build \
+    --build-arg NSIS_BRANCH="$NSIS_BRANCH" \
+    -t "$IMAGE_NAME" \
+    -f "$DOCKERFILE" \
+    "$OUT_DIR"
 
-# =============================================================================
-# Extract strlen_8192 Distribution
-# =============================================================================
-
-echo ""
-echo "📂 Extracting strlen_8192 distribution..."
-
-STRLEN_EXTRACTED="$TEMP_DIR/nsis-strlen_8192"
-mkdir -p "$STRLEN_EXTRACTED"
-
-if ! unzip -q "$STRLEN_ZIP" -d "$STRLEN_EXTRACTED"; then
-    echo "❌ Failed to extract strlen_8192 distribution"
-    exit 1
-fi
-
-# Locate root of the extracted tree (zip may have a top-level subdirectory)
-STRLEN_ROOT=$(find "$STRLEN_EXTRACTED" -type d -name "Contrib" | head -1 | xargs dirname 2>/dev/null || true)
-if [ -z "$STRLEN_ROOT" ]; then
-    echo "❌ Could not locate NSIS data files in strlen_8192 zip (unexpected zip structure)"
-    exit 1
-fi
-
-echo "  ✓ Extracted strlen_8192 distribution"
+echo "  ✓ Docker image built successfully"
 
 # =============================================================================
-# Copy NSIS Data Files
+# Extract NSIS Build Output
 # =============================================================================
 
 echo ""
-echo "📚 Copying NSIS data files..."
+echo "📦 Extracting NSIS build output..."
 
-for item in Bin Contrib Include Menu Plugins Stubs; do
-    if [ -d "$STRLEN_ROOT/$item" ]; then
-        echo "  → $item/"
-        rsync -a "$STRLEN_ROOT/$item/" "$BUNDLE_DIR/windows/$item/"
-    fi
-done
+docker create --name "$CONTAINER_NAME" "$IMAGE_NAME" /bin/true
+docker cp "$CONTAINER_NAME:/output/." "$BUNDLE_DIR/windows/"
 
-# Root-level supplementary files (e.g. makensisw.exe, *.nsh) — exclude makensis.exe
-# (our source-built binary is installed separately below)
-find "$STRLEN_ROOT" -maxdepth 1 -type f \( -name "*.dll" -o -name "*.nsh" -o -name "makensisw.exe" \) \
-    -exec cp {} "$BUNDLE_DIR/windows/" \; 2>/dev/null || true
+# docker cp on macOS strips directory names with spaces (macOS Docker Desktop bug).
+# Restore "Contrib/Language files/" from the space-free "ContribLangFiles/" transit directory.
+if [ -d "$BUNDLE_DIR/windows/ContribLangFiles" ]; then
+    mkdir -p "$BUNDLE_DIR/windows/Contrib/Language files"
+    mv "$BUNDLE_DIR/windows/ContribLangFiles/"* "$BUNDLE_DIR/windows/Contrib/Language files/" 2>/dev/null || true
+    rmdir "$BUNDLE_DIR/windows/ContribLangFiles" 2>/dev/null || true
+fi
 
-echo "  ✓ Copied NSIS data files"
+if [ ! -f "$BUNDLE_DIR/windows/makensis.exe" ]; then
+    echo "❌ makensis.exe not found in Docker output"
+    exit 1
+fi
 
-# =============================================================================
-# Install Source-Built makensis.exe
-# =============================================================================
+if ! command -v file &> /dev/null || file "$BUNDLE_DIR/windows/makensis.exe" | grep -q "PE"; then
+    echo "  ✓ makensis.exe extracted"
+fi
 
-echo ""
-echo "📦 Installing source-built makensis.exe..."
+if [ -d "$BUNDLE_DIR/windows/Stubs" ]; then
+    stub_count=$(find "$BUNDLE_DIR/windows/Stubs" -type f | wc -l | xargs)
+    echo "  ✓ Stubs extracted ($stub_count files — compiled with LOG + STRLEN=8192)"
+else
+    echo "  ⚠️  Stubs directory not found — cross-compilation of stubs may have failed"
+fi
 
-mkdir -p "$BUNDLE_DIR/windows/Bin"
-cp "$MAKENSIS_EXE" "$BUNDLE_DIR/windows/Bin/makensis.exe"
-
-echo "  ✓ makensis.exe installed (compiled from source, LOG + STRLEN=8192)"
+rm -f "$DOCKERFILE"
 
 # =============================================================================
 # Download Additional Plugins
@@ -280,7 +314,6 @@ PLUGIN_URLS=(
     "https://nsis.sourceforge.io/mediawiki/images/5/5a/NSISunzU.zip"
 )
 
-# SHA256 checksums for plugins
 PLUGIN_SHA256=(
     "b01077e56ebb19c005b45d40f837958ca6a92f51a5a937dc1bb497c7c7f2aa93"  # INetC
     "3ffe893dc7477fdb1cac551a86ae017509e1f2d0ebdc7185fd0fbaf20870688c"  # StdUtils
@@ -300,7 +333,6 @@ NSIS7Z_SHA256="6f2f3730049926f40442ee0c8b7d3e3dee7ace544d82467ff8059ea3f4201c58"
 DOWNLOADED_COUNT=0
 FAILED_DOWNLOADS=()
 
-# Download regular plugins
 for i in "${!PLUGIN_NAMES[@]}"; do
     plugin_name="${PLUGIN_NAMES[$i]}"
     plugin_url="${PLUGIN_URLS[$i]}"
@@ -326,7 +358,6 @@ for i in "${!PLUGIN_NAMES[@]}"; do
     fi
 done
 
-# Download nsis7z separately (7z format)
 echo ""
 echo "  → nsis7z"
 if curl -fsSL --retry 3 --retry-delay 2 --max-time 120 "$NSIS7Z_URL" -o "$PLUGINS_DIR/nsis7z.7z" 2>/dev/null; then
@@ -361,7 +392,6 @@ fi
 echo ""
 echo "🔧 Installing plugins..."
 
-# Determine extraction tool
 if command -v 7z &> /dev/null; then
     EXTRACT_CMD="7z"
     EXTRACT_ARGS="x -y"
@@ -373,11 +403,9 @@ else
     EXTRACT_ARGS="-q -o"
 fi
 
-# Create plugin directories
 mkdir -p "$BUNDLE_DIR/windows/Plugins"/{x64-ansi,x64-unicode,x86-ansi,x86-unicode}
 mkdir -p "$BUNDLE_DIR/windows/Include"
 
-# Process ZIP plugins
 for plugin_zip in "$PLUGINS_DIR"/*.zip; do
     test -f "$plugin_zip" || continue
 
@@ -386,17 +414,13 @@ for plugin_zip in "$PLUGINS_DIR"/*.zip; do
 
     mkdir -p "$extract_dir"
 
-    # Extract (suppress output)
     if test "$EXTRACT_CMD" = "unzip"; then
         $EXTRACT_CMD $EXTRACT_ARGS "$plugin_zip" -d "$extract_dir" >/dev/null 2>&1 || true
     else
         $EXTRACT_CMD $EXTRACT_ARGS "$plugin_zip" -o"$extract_dir" >/dev/null 2>&1 || true
     fi
 
-    # Install DLL files using rsync with better filtering
-    # Skip common test/example/tiny directories
     if [ -d "$extract_dir/Plugins" ]; then
-        # Standard plugin structure with Plugins/ directory
         for arch_dir in "$extract_dir/Plugins"/*; do
             [ -d "$arch_dir" ] || continue
             arch_name=$(basename "$arch_dir")
@@ -420,7 +444,6 @@ for plugin_zip in "$PLUGINS_DIR"/*.zip; do
             esac
         done
     else
-        # Find DLLs with improved heuristics - exclude test/example/tiny dirs
         find "$extract_dir" -type f -name "*.dll" \
             ! -path "*/[Tt]iny/*" \
             ! -path "*/[Ee]xample*/*" \
@@ -433,7 +456,6 @@ for plugin_zip in "$PLUGINS_DIR"/*.zip; do
             dll_path=$(dirname "$dll_file")
             dll_basename=$(basename "$dll_file")
 
-            # Determine architecture by path
             if echo "$dll_path" | grep -qiE 'x64.*(ansi|ANSI)'; then
                 cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x64-ansi/" 2>/dev/null || true
             elif echo "$dll_path" | grep -qiE 'x64.*(unicode|Unicode)'; then
@@ -443,7 +465,6 @@ for plugin_zip in "$PLUGINS_DIR"/*.zip; do
             elif echo "$dll_path" | grep -qiE 'x86.*(ansi|ANSI)|ansi|ANSI'; then
                 cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-ansi/" 2>/dev/null || true
             else
-                # Filename-based heuristics
                 if echo "$dll_basename" | grep -qE 'W\.dll$|Unicode|unicode'; then
                     cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-unicode/" 2>/dev/null || true
                 elif echo "$plugin_name" | grep -qiE 'NSISunzU'; then
@@ -455,12 +476,10 @@ for plugin_zip in "$PLUGINS_DIR"/*.zip; do
         done
     fi
 
-    # Install header files using rsync
     rsync -a --include='*.nsh' --exclude='*' \
         --exclude='[Ee]xample*/' --exclude='[Tt]est*/' --exclude='[Dd]emo*/' \
         "$extract_dir/" "$BUNDLE_DIR/windows/Include/" 2>/dev/null || true
 
-    # Install .nsi files (exclude examples/tests/demos)
     find "$extract_dir" -type f -name "*.nsi" \
         ! -ipath '*example*' \
         ! -ipath '*test*' \
@@ -471,7 +490,6 @@ for plugin_zip in "$PLUGINS_DIR"/*.zip; do
     echo "  ✓ $plugin_name"
 done
 
-# Process nsis7z (7z archive)
 if test -f "$PLUGINS_DIR/nsis7z.7z"; then
     nsis7z_dir="$PLUGINS_DIR/nsis7z"
     mkdir -p "$nsis7z_dir"
@@ -481,7 +499,6 @@ if test -f "$PLUGINS_DIR/nsis7z.7z"; then
     else
         $EXTRACT_CMD $EXTRACT_ARGS "$PLUGINS_DIR/nsis7z.7z" -o"$nsis7z_dir" >/dev/null 2>&1 || true
 
-        # Install nsis7z DLLs using rsync
         for arch in x64-ansi x64-unicode x86-ansi x86-unicode; do
             if [ -d "$nsis7z_dir/Plugins/$arch" ]; then
                 rsync -a --include='nsis7z.dll' --exclude='*' \
@@ -489,7 +506,6 @@ if test -f "$PLUGINS_DIR/nsis7z.7z"; then
             fi
         done
 
-        # Install headers using rsync
         rsync -a --include='*.nsh' --exclude='*' \
             "$nsis7z_dir/" "$BUNDLE_DIR/windows/Include/" 2>/dev/null || true
 
@@ -549,12 +565,12 @@ fi
 cat > "$BUNDLE_DIR/windows/VERSION.txt" <<EOF
 Platform: Windows
 Binary: makensis.exe (compiled from source)
-Compiler: MinGW-w64 via MSYS2
+Stubs: compiled from source (LOG + STRLEN=8192)
+Compiler: MinGW-w64 (cross-compiled on Linux)
 Build system: SCons
 Source branch: $NSIS_BRANCH
 Max String Length: 8192
 Log Feature: enabled
-Data files: NSIS $NSIS_VERSION strlen_8192 distribution (patched stubs)
 EOF
 
 # =============================================================================
@@ -579,7 +595,7 @@ rm -rf "$TEMP_DIR"
 
 echo ""
 echo "================================================================"
-echo "  ✅ Base Bundle Complete (source build, LOG + STRLEN=8192)!"
+echo "  ✅ Base Bundle Complete (Docker, MinGW cross-compile)!"
 echo "================================================================"
 echo "  📁 Archive: $OUTPUT_ARCHIVE"
 echo "  📊 Size:    $(du -h "$OUTPUT_ARCHIVE" | cut -f1)"
