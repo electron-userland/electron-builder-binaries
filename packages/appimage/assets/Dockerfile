@@ -11,13 +11,17 @@ ARG TARGETVARIANT
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Reset apt sources to update old package signatures (issues on ARM)
+# Reset apt sources to update old package signatures (ARM has different mirrors, i386 needs extra clarification)
 RUN set -eux; \
     if [ "$TARGETARCH" = "arm64" ] || [ "$TARGETARCH" = "arm" ]; then \
         echo "🔧 Using ports.ubuntu.com for ARM"; \
         sed -i 's|http://archive.ubuntu.com/ubuntu|http://ports.ubuntu.com/ubuntu-ports|g' /etc/apt/sources.list; \
+    elif [ "$TARGETARCH" = "386" ]; then \
+        echo "🔧 Using archive.ubuntu.com for i386"; \
+        sed -i 's|deb http://archive.ubuntu.com/ubuntu|deb [arch=i386] http://archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list; \
+        sed -i 's|deb http://ports.ubuntu.com/ubuntu-ports|deb [arch=i386] http://archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list; \
     else \
-        echo "🔧 Using archive.ubuntu.com for x86"; \
+        echo "🔧 Using archive.ubuntu.com for x86_64"; \
         sed -i 's|http://ports.ubuntu.com/ubuntu-ports|http://archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list; \
     fi; \
     apt-get update || true && \
@@ -59,12 +63,14 @@ RUN rm -rf /var/lib/apt/lists/* \
     && rm -rf /var/lib/apt/lists/*
 
 RUN set -eux; \
+    # Update for either of them
+    apt-get update; \
     case "$TARGETPLATFORM" in \
       "linux/386") \
         echo "📥 Downloading libappindicator1 from Ubuntu 18.04 archive (i386)..."; \
         cd /tmp; \
-        wget -q http://archive.ubuntu.com/ubuntu/pool/universe/liba/libappindicator/libappindicator1_12.10.1+18.04.20180322.1-0ubuntu1_i386.deb; \
-        wget -q http://archive.ubuntu.com/ubuntu/pool/universe/libi/libindicator/libindicator7_16.10.0+18.04.20180321.1-0ubuntu1_i386.deb; \
+        apt-get download libappindicator1:i386=12.10.1+18.04.20180322.1-0ubuntu1; \
+        apt-get download libindicator7:i386=16.10.0+18.04.20180321.1-0ubuntu1; \
         mkdir -p /tmp/appind /tmp/ind; \
         dpkg -x libappindicator1_12.10.1+18.04.20180322.1-0ubuntu1_i386.deb /tmp/appind; \
         dpkg -x libindicator7_16.10.0+18.04.20180321.1-0ubuntu1_i386.deb /tmp/ind; \
@@ -72,7 +78,6 @@ RUN set -eux; \
         ;; \
       *) \
         echo "📥 Installing libappindicator3-1 & libindicator3-7..."; \
-        apt-get update; \
         apt-get install -y --no-install-recommends \
           libappindicator3-1 \
           libindicator3-7; \

@@ -65,14 +65,18 @@ echo "✅ All builds completed and extracted"
 # Verify executables have correct permissions
 echo "🔐 Verifying executable permissions..."
 chmod +x $TEMP_DIR/linux/x64/mksquashfs \
+    $TEMP_DIR/linux/x64/unsquashfs \
     $TEMP_DIR/linux/x64/desktop-file-validate \
     $TEMP_DIR/linux/x64/opj_decompress \
     $TEMP_DIR/linux/ia32/mksquashfs \
+    $TEMP_DIR/linux/ia32/unsquashfs \
     $TEMP_DIR/linux/ia32/desktop-file-validate \
     $TEMP_DIR/linux/arm64/mksquashfs \
+    $TEMP_DIR/linux/arm64/unsquashfs \
     $TEMP_DIR/linux/arm64/desktop-file-validate \
     $TEMP_DIR/linux/arm64/opj_decompress \
     $TEMP_DIR/linux/arm32/mksquashfs \
+    $TEMP_DIR/linux/arm32/unsquashfs \
     $TEMP_DIR/linux/arm32/desktop-file-validate
 
 echo "✅ Executable permissions set"

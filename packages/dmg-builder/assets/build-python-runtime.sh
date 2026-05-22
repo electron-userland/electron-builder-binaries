@@ -9,12 +9,61 @@ fi
 ### ================================
 ### CONFIG
 ### ================================
-ROOT="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
-OUTPUT_DIR="${2:-${ROOT}/dist}"
-PYTHON_VERSION="${3:-3.11.8}"
-DMGBUILD_VERSION="${4:-1.6.6}"
-CODESIGN_IDENTITY="${5:-"-"}" # "-" = ad-hoc
-ARCH="${6:-$(uname -m)}"
+_DEFAULT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT=""
+OUTPUT_DIR=""
+PYTHON_VERSION=""
+DMGBUILD_VERSION=""
+CODESIGN_IDENTITY="-"
+ARCH=""
+
+verify_sha256() {
+    local file="$1" expected="$2" actual
+    if command -v sha256sum >/dev/null 2>&1; then
+        actual=$(sha256sum "$file" | awk '{print $1}')
+    elif command -v shasum >/dev/null 2>&1; then
+        actual=$(shasum -a 256 "$file" | awk '{print $1}')
+    else
+        echo "❌ No sha256 tool found (sha256sum or shasum required)" >&2; return 1
+    fi
+    if [ "$actual" = "$expected" ]; then
+        echo "  ✓ Checksum verified"
+        return 0
+    else
+        echo "❌ Checksum mismatch for $(basename "$file")" >&2
+        echo "   expected: $expected" >&2
+        echo "   actual:   $actual" >&2
+        return 1
+    fi
+}
+
+usage() {
+    echo "Usage: $0 --root <dir> --output-dir <dir> --python-version <ver> --dmgbuild-version <ver> [--codesign-identity <id>] [--arch <arm64|x86_64>]"
+    exit 1
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --root)              ROOT="$2";              shift 2 ;;
+        --output-dir)        OUTPUT_DIR="$2";        shift 2 ;;
+        --python-version)    PYTHON_VERSION="$2";    shift 2 ;;
+        --dmgbuild-version)  DMGBUILD_VERSION="$2";  shift 2 ;;
+        --codesign-identity) CODESIGN_IDENTITY="$2"; shift 2 ;;
+        --arch)              ARCH="$2";              shift 2 ;;
+        *) echo "Unknown argument: $1"; usage ;;
+    esac
+done
+
+ROOT="${ROOT:-$_DEFAULT_ROOT}"
+OUTPUT_DIR="${OUTPUT_DIR:-${ROOT}/dist}"
+PYTHON_VERSION="${PYTHON_VERSION:-3.11.8}"
+DMGBUILD_VERSION="${DMGBUILD_VERSION:-1.6.6}"
+ARCH="${ARCH:-$(uname -m)}"
+
+# SHA256 of https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz
+# Re-pin when bumping PYTHON_VERSION: curl -fsSL <url> | sha256sum
+# Default value is for Python 3.14.2 (the version set in build.sh)
+PYTHON_SHA256="${PYTHON_SHA256:-c609e078adab90e2c6bacb6afafacd5eaf60cd94cf670f1e159565725fcd448d}"
 
 if [[ "$ARCH" != "arm64" && "$ARCH" != "x86_64" ]]; then
     echo "❌ Unsupported ARCH: $ARCH"
@@ -29,7 +78,7 @@ run_arch() {
     fi
 }
 
-MACOS_DEPLOYMENT_TARGET="11.0"
+export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-11.0}"
 BUILD_DIR="${ROOT}/build"
 SRC_DIR="$BUILD_DIR/src"
 TEST_DIR="$BUILD_DIR/test"
@@ -40,6 +89,7 @@ echo "🐍 dmgbuild portable bundler"
 echo "📁 Output directory: ${DIR_TO_ARCHIVE}"
 echo "🔢 Python version: ${PYTHON_VERSION}"
 echo "📦 dmgbuild version: ${DMGBUILD_VERSION}"
+echo "🍎 macOS deployment target: ${MACOSX_DEPLOYMENT_TARGET}"
 echo ""
 
 ### ================================
@@ -52,29 +102,62 @@ mkdir -p "$SRC_DIR" "$PREFIX" "$TEST_DIR" "$DIR_TO_ARCHIVE"
 ## FETCH PYTHON
 ## ================================
 cd "$SRC_DIR"
-curl -LO https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz
+curl -fsSL --retry 3 --retry-delay 2 --max-time 600 \
+    "https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz" \
+    -o "Python-${PYTHON_VERSION}.tgz"
+echo "  🔍 Verifying Python source checksum..."
+verify_sha256 "Python-${PYTHON_VERSION}.tgz" "$PYTHON_SHA256"
 tar xf Python-${PYTHON_VERSION}.tgz
 cd Python-${PYTHON_VERSION}
 
 ### ================================
 ### BUILD ENV (NO HOMEBREW)
 ### ================================
-export MACOSX_DEPLOYMENT_TARGET
+# Pin to the Xcode SDK so headers/libs come from the SDK only and never from /usr/local (Intel runners) or /opt/homebrew (Apple-silicon runners). 
+SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+export SDKROOT
 export CC=clang
 export CXX=clang++
-export CFLAGS="-O3 -fPIC -arch ${ARCH}"
-export LDFLAGS="-arch ${ARCH}"
+export CFLAGS="-O3 -fPIC -arch ${ARCH} -isysroot ${SDKROOT} -mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}"
+export LDFLAGS="-arch ${ARCH} -isysroot ${SDKROOT} -mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}"
+# Belt-and-braces: tell ld(64) explicitly NOT to search Homebrew prefixes.
+export LIBRARY_PATH=""
+export CPATH=""
 
-unset CPATH LIBRARY_PATH PKG_CONFIG_PATH SDKROOT
+unset PKG_CONFIG_PATH
+
+# Locate Homebrew OpenSSL. --with-openssl scopes it only to the _ssl extension module, so no other Homebrew library can bleed into the build.
+OPENSSL_PREFIX=""
+for candidate in \
+    "$(brew --prefix openssl@3 2>/dev/null || true)" \
+    /opt/homebrew/opt/openssl@3 \
+    /usr/local/opt/openssl@3 \
+    /opt/homebrew/opt/openssl \
+    /usr/local/opt/openssl; do
+  if [[ -n "$candidate" && -d "$candidate/include/openssl" ]]; then
+    OPENSSL_PREFIX="$candidate"
+    break
+  fi
+done
+if [[ -z "$OPENSSL_PREFIX" ]]; then
+  echo "❌ OpenSSL not found — install it with: brew install openssl@3"
+  exit 1
+fi
+echo "🔐 Using OpenSSL at: $OPENSSL_PREFIX"
 
 ### ================================
 ### CONFIGURE
 ### ================================
+# Force the autoconf cache for libintl/gettext detection to "no" so that# even if a stray /usr/local or /opt/homebrew gettext slipped onto the search path, _locale would not link against it. macOS already has everything _locale needs in libSystem
 run_arch ./configure \
---prefix="$PREFIX" \
---enable-optimizations \
---disable-shared \
---disable-test-modules
+  --prefix="$PREFIX" \
+  --enable-optimizations \
+  --disable-shared \
+  --disable-test-modules \
+  --with-openssl="$OPENSSL_PREFIX" \
+  ac_cv_header_libintl_h=no \
+  ac_cv_lib_intl_textdomain=no \
+  ac_cv_lib_intl_libintl_setlocale=no
 
 ### ================================
 ### BUILD & INSTALL
@@ -89,9 +172,8 @@ file "$PREFIX/bin/python3"
 ### ================================
 echo "🐍 Installing pip and dmgbuild"
 
-run_arch "$PREFIX/bin/python3" -m pip install --upgrade pip --no-warn-script-location --no-cache 
-run_arch "$PREFIX/bin/python3" -m pip install --no-warn-script-location --no-cache git+https://github.com/dmgbuild/dmgbuild.git@${DMGBUILD_VERSION}
-run_arch "$PREFIX/bin/python3" -m pip install --no-warn-script-location --no-cache git+https://github.com/dmgbuild/dmgbuild.git@${DMGBUILD_VERSION}#egg=dmgbuild[badge_icons]
+run_arch "$PREFIX/bin/python3" -m pip install --upgrade pip --no-warn-script-location --no-cache
+run_arch "$PREFIX/bin/python3" -m pip install --no-warn-script-location --no-cache "dmgbuild[badge_icons] @ git+https://github.com/dmgbuild/dmgbuild.git@${DMGBUILD_VERSION}"
 
 ###############################################################################
 # ADD VERSION.txt FILE with python version and versions of each major package
@@ -100,6 +182,7 @@ echo "📝 Creating VERSION.txt…"
 {
     echo "dmgbuild version/commit hash: ${DMGBUILD_VERSION}"
     echo "Python version: ${PYTHON_VERSION}"
+    echo "macOS deployment target: ${MACOSX_DEPLOYMENT_TARGET}"
     echo -n "dmgbuild package version: "
     run_arch "$PREFIX/bin/python3" -m pip show dmgbuild | grep ^Version: | awk '{print $2}'
 } > "$DIR_TO_ARCHIVE/VERSION.txt"
@@ -132,7 +215,7 @@ done
 
 for ext in _asyncio _bz2 _codecs_{cn,hk,iso2022,jp,kr,tw} _crypt \
     _curses{,_panel} _{dbm,gdbm} _lzma _multiprocessing _posixshmem \
-    _queue _sqlite3 _tkinter _uuid audioop nis ossaudiodev readline \
+    _queue _sqlite3 _tkinter audioop nis ossaudiodev readline \
     spwd syslog termios xxlimited; do
     echo "Removing extension module: $ext"
     find "$PYTHON_LIB_DIR/lib-dynload" -name "${ext}*.so" -delete 2>/dev/null || true
@@ -183,6 +266,51 @@ find "$PREFIX/lib" -name "*.so" | while read -r so; do
     add_rpath_if_missing "$so" "@loader_path"
 done
 
+###############################################################################
+# BUNDLE OPENSSL DYLIBS — rewrite Homebrew paths to @loader_path-relative
+###############################################################################
+# _ssl.so and _hashlib.so link against Homebrew's libssl/libcrypto. We copy dylibs into lib-dynload/ alongside the .so files and rewrite every reference so the bundle is self-contained and passes the Homebrew-leak guardrail.
+
+DYNLOAD_DIR="$(find "$PREFIX/lib" -maxdepth 2 -type d -name lib-dynload | head -n 1)"
+
+bundle_openssl_dylib() {
+    local src="$1"
+    local name
+    name="$(basename "$src")"
+    local dst="$DYNLOAD_DIR/$name"
+    if [[ ! -f "$dst" ]]; then
+        cp "$src" "$dst"
+        install_name_tool -id "@loader_path/$name" "$dst"
+    fi
+}
+
+is_homebrew_path() {
+    local p="$1"
+    [[ "$p" == /opt/homebrew/* || "$p" == /usr/local/opt/* || "$p" == /usr/local/Cellar/* || "$p" == /usr/local/lib/lib* ]]
+}
+
+# Pass 1: copy every Homebrew dylib referenced by .so files into DYNLOAD_DIR
+while IFS= read -r so; do
+    while IFS= read -r ref; do
+        if is_homebrew_path "$ref"; then
+            bundle_openssl_dylib "$ref"
+        fi
+    done < <(otool -L "$so" 2>/dev/null | awk 'NR>1 {print $1}')
+done < <(find "$DYNLOAD_DIR" -name "*.so")
+
+# Pass 2: rewrite Homebrew references in both .so and the newly copied .dylib files
+# (dylibs like libssl reference libcrypto via their original Homebrew path)
+while IFS= read -r bin; do
+    while IFS= read -r ref; do
+        if is_homebrew_path "$ref"; then
+            local_name="$(basename "$ref")"
+            # If the dependency wasn't already bundled in pass 1, copy it now
+            bundle_openssl_dylib "$ref"
+            install_name_tool -change "$ref" "@loader_path/$local_name" "$bin"
+        fi
+    done < <(otool -L "$bin" 2>/dev/null | awk 'NR>1 {print $1}')
+done < <(find "$DYNLOAD_DIR" \( -name "*.so" -o -name "*.dylib" \))
+
 # ###############################################################################
 # # ENTRYPOINT SCRIPT
 # ###############################################################################
@@ -219,16 +347,58 @@ find "$DIR_TO_ARCHIVE" -type f \
 --sign "$CODESIGN_IDENTITY" \
 {} \;
 
-codesign --force  \
+codesign --force \
 --sign "$CODESIGN_IDENTITY" \
 "$DIR_TO_ARCHIVE/python/bin/python3"
-codesign --force  \
+codesign --force \
 --sign "$CODESIGN_IDENTITY" \
 "$DIR_TO_ARCHIVE/dmgbuild"
 
 ###############################################################################
+# GUARDRAILS — fail the build if Homebrew leaked or deployment target is wrong
+###############################################################################
+echo "🔎 Asserting no Homebrew leak and correct deployment target"
+
+# 1) No Mach-O in the bundle may reference /usr/local/... or /opt/homebrew/...
+LEAKS=""
+while IFS= read -r f; do
+    refs=$(otool -L "$f" 2>/dev/null \
+        | awk 'NR>1 {print $1}' \
+        | grep -E '^(/usr/local/|/opt/homebrew/)' || true)
+    if [ -n "$refs" ]; then
+        LEAKS+=$'\n'"$f:"$'\n'"$refs"
+    fi
+done < <(find "$DIR_TO_ARCHIVE" -type f \( -name "*.so" -o -name "*.dylib" -o -perm +111 \))
+
+if [ -n "$LEAKS" ]; then
+    echo "❌ Homebrew dylib reference leaked into binary:${LEAKS}"
+    exit 1
+fi
+
+# 2) python3 must advertise minos == MACOSX_DEPLOYMENT_TARGET
+VTOUT="$(vtool -show-build "$DIR_TO_ARCHIVE/python/bin/python3" 2>/dev/null || true)"
+if ! echo "$VTOUT" | grep -Eq "minos[[:space:]]+${MACOSX_DEPLOYMENT_TARGET}([. ]|$)"; then
+    echo "❌ python3 deployment target != ${MACOSX_DEPLOYMENT_TARGET}:"
+    echo "$VTOUT"
+    exit 1
+fi
+echo "✅ Guardrails passed (no Homebrew refs, minos=${MACOSX_DEPLOYMENT_TARGET})"
+
+###############################################################################
 # ARCHIVE (do it now to avoid including later test and cache files)
 ###############################################################################
+
+echo "📄 Downloading component licenses..."
+mkdir -p "${DIR_TO_ARCHIVE}/LICENSES"
+curl -fsSL --retry 3 --retry-delay 2 --max-time 60 \
+    "https://raw.githubusercontent.com/dmgbuild/dmgbuild/master/LICENSE" \
+    -o "${DIR_TO_ARCHIVE}/LICENSES/LICENSE.dmgbuild"
+if [ ! -f "${DIR_TO_ARCHIVE}/python/LICENSE.txt" ]; then
+  curl -fsSL --retry 3 --retry-delay 2 --max-time 60 \
+      "https://raw.githubusercontent.com/python/cpython/v${PYTHON_VERSION}/LICENSE" \
+      -o "${DIR_TO_ARCHIVE}/LICENSES/LICENSE.python"
+fi
+echo "  ✓ Licenses downloaded"
 
 echo "📦 Creating archive…"
 cd "${DIR_TO_ARCHIVE}"
@@ -277,6 +447,8 @@ run_arch "$DIR_TO_ARCHIVE/python/bin/python3" -c "
 import dmgbuild
 import ds_store
 import mac_alias
+import uuid
+uuid.uuid4()  # exercises _uuid at runtime
 print('✓ dmgbuild dependencies work')
 "
 

@@ -16,8 +16,8 @@ OUT_DIR="$BASE_DIR/out/nsis"
 BUILD_DIR="$OUT_DIR/build-mac"
 
 # Version configuration
-NSIS_VERSION=${NSIS_VERSION:-3.11}
-NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v311}
+NSIS_VERSION=${NSIS_VERSION:-3.12}
+NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v312}
 
 # Detect architecture
 ARCH=$(uname -m)
@@ -83,7 +83,7 @@ rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 
 if ! git clone --branch "$NSIS_BRANCH" --depth=1 \
-    https://github.com/kichik/nsis.git "$BUILD_DIR/nsis"; then
+    https://github.com/NSIS-Dev/nsis.git "$BUILD_DIR/nsis"; then
     echo "❌ Failed to clone NSIS repository"
     exit 1
 fi
@@ -100,7 +100,13 @@ echo "   This may take 5-10 minutes..."
 
 cd "$BUILD_DIR/nsis"
 
+# Detect Homebrew prefix for header/library paths (arm64: /opt/homebrew, x64: /usr/local)
+BREW_PREFIX=$(brew --prefix 2>/dev/null || echo "")
+SCONS_BREW_FLAGS=""
+[ -n "$BREW_PREFIX" ] && SCONS_BREW_FLAGS="APPEND_CPPPATH=$BREW_PREFIX/include APPEND_LIBPATH=$BREW_PREFIX/lib"
+
 # Build with SCons
+# shellcheck disable=SC2086
 if ! scons \
     SKIPSTUBS=all \
     SKIPPLUGINS=all \
@@ -109,6 +115,7 @@ if ! scons \
     NSIS_CONFIG_CONST_DATA_PATH=no \
     NSIS_CONFIG_LOG=yes \
     NSIS_MAX_STRLEN=8192 \
+    $SCONS_BREW_FLAGS \
     PREFIX="$BUILD_DIR/install" \
     install-compiler; then
     echo "❌ Compilation failed"

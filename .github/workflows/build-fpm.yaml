@@ -34,7 +34,7 @@ jobs:
         run: |
           pnpm i --frozen-lockfile
           export ARCH=${{ matrix.arch }}
-          bash build-linux.sh
+          bash packages/fpm/build.sh
           echo "ARCH_KEY=$(echo $ARCH | tr '/' '-')" >> $GITHUB_ENV
       - name: Upload FPM Linux artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
