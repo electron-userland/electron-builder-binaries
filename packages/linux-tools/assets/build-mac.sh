@@ -49,6 +49,7 @@ FORMULA_BINS=(
     "libtool:glibtool glibtoolize"
     "pcre:pcre-config pcregrep pcretest"
     "gettext:autopoint envsubst gettext gettext.sh gettextize msgattrib msgcat msgcmp msgcomm msgconv msgen msgexec msgfilter msgfmt msggrep msginit msgmerge msgunfmt msguniq ngettext recode-sr-latin xgettext"
+    "binutils:gar ar"
 )
 
 echo "🛠️  linux-tools macOS bundle"
@@ -66,7 +67,7 @@ mkdir -p "$BIN_DIR" "$LIB_DIR"
 ### ================================
 echo ""
 echo "📦 Installing brew formulas..."
-brew install gnu-tar lzip makedepend glib libgsf libtool pcre gettext
+brew install gnu-tar lzip makedepend glib libgsf libtool pcre gettext binutils
 
 ### ================================
 ### COPY BINARIES
@@ -99,22 +100,22 @@ done
 ### ================================
 echo ""
 echo "📄 Copying license files..."
-mkdir -p "$BUNDLE_DIR/licenses"
+mkdir -p "$BUNDLE_DIR/LICENSES"
 
 for entry in "${FORMULA_BINS[@]}"; do
     formula="${entry%%:*}"
-    cellar_prefix="$(brew --cellar "$formula" 2>/dev/null || true)"
-    if [[ -z "$cellar_prefix" ]]; then
-        echo "  ⚠️  Could not find cellar for $formula, skipping licenses"
+    license_prefix="$(brew --prefix "$formula" 2>/dev/null || true)"
+    if [[ -z "$license_prefix" ]]; then
+        echo "  ⚠️  Could not find prefix for $formula, skipping licenses"
         continue
     fi
 
-    license_dir="$BUNDLE_DIR/licenses/$formula"
+    license_dir="$BUNDLE_DIR/LICENSES/$formula"
     mkdir -p "$license_dir"
 
     found=0
     for name in COPYING LICENSE LICENCE COPYING.LIB AUTHORS; do
-        src="$cellar_prefix/$name"
+        src="$license_prefix/$name"
         if [[ -f "$src" ]]; then
             cp "$src" "$license_dir/$name"
             echo "  📄 $formula/$name"
@@ -122,7 +123,7 @@ for entry in "${FORMULA_BINS[@]}"; do
         fi
     done
     if [[ "$found" -eq 0 ]]; then
-        echo "  ⚠️  No license file found for $formula in $cellar_prefix"
+        echo "  ⚠️  No license file found for $formula in $license_prefix"
     fi
 done
 
@@ -140,8 +141,13 @@ should_skip_lib() {
     return 1
 }
 
+is_macho() {
+    file -b "$1" 2>/dev/null | grep -q '^Mach-O'
+}
+
 collect_deps() {
     local binary="$1"
+    is_macho "$binary" || return 0
     otool -L "$binary" 2>/dev/null | awk 'NR>1 {print $1}' | while read -r dep; do
         should_skip_lib "$dep" && continue
         [[ ! -f "$dep" ]] && continue
@@ -187,6 +193,8 @@ echo "🔧 Patching dylib references..."
 patch_binary() {
     local binary="$1"
     local is_lib="${2:-false}"
+
+    is_macho "$binary" || return 0
 
     # Set install name for dylibs
     if [[ "$is_lib" == "true" ]]; then
@@ -257,7 +265,7 @@ echo "📝 Writing VERSION.txt..."
     echo "arch: $ARCH"
     echo "created_at: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
     echo ""
-    for formula in gnu-tar lzip makedepend glib libgsf libtool pcre gettext; do
+    for formula in gnu-tar lzip makedepend glib libgsf libtool pcre gettext binutils; do
         ver="$(brew info --json "$formula" 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d[0]['versions']['stable'])" 2>/dev/null || echo "unknown")"
         echo "$formula: $ver"
     done
@@ -280,36 +288,16 @@ shasum -a 256 "$ARCHIVE_PATH" > "${ARCHIVE_PATH}.sha256"
 rm -rf "$TMP_DIR"
 
 ### ================================
-### VERIFY
+### TEST
 ### ================================
 echo ""
-echo "🔍 Verifying..."
+echo "🧪 Running tests..."
 
 VERIFY_DIR="/tmp/linux-tools-verify-$$"
 mkdir -p "$VERIFY_DIR"
 tar -xzf "$ARCHIVE_PATH" -C "$VERIFY_DIR"
 
-# Check for leftover absolute Homebrew paths
-HOMEBREW_PATHS=$(find "$VERIFY_DIR" -type f \( -name "*.dylib" -o -perm +111 \) | while read -r f; do
-    otool -L "$f" 2>/dev/null | awk 'NR>1 {print $1}' | grep -E '^/(opt/homebrew|usr/local)' || true
-done)
-
-if [[ -n "$HOMEBREW_PATHS" ]]; then
-    echo "❌ Found absolute Homebrew paths in bundle:"
-    echo "$HOMEBREW_PATHS"
-    rm -rf "$VERIFY_DIR"
-    exit 1
-fi
-echo "  ✅ No absolute Homebrew paths"
-
-# Verify gtar works
-GTAR="$VERIFY_DIR/linux-tools/bin/gtar"
-if [[ -x "$GTAR" ]]; then
-    "$GTAR" --version | head -n1
-    echo "  ✅ gtar works"
-else
-    echo "  ⚠️  gtar not found in bundle"
-fi
+bash "$ROOT/assets/test.sh" --bundle-dir "$VERIFY_DIR/linux-tools"
 
 rm -rf "$VERIFY_DIR"
 
