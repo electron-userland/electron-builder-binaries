@@ -38,7 +38,7 @@ importers:
 
   packages/fpm: {}
 
-  packages/linux-tools: {}
+  packages/linux-tools-mac: {}
 
   packages/nsis: {}
 
