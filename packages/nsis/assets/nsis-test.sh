@@ -53,9 +53,9 @@ esac
 
 ARCH=$(uname -m 2>/dev/null || echo "unknown")
 case "$ARCH" in
-    x86_64|amd64)  MAC_ARCH_DIR="x64" ;;
-    arm64|aarch64) MAC_ARCH_DIR="arm64" ;;
-    *)             MAC_ARCH_DIR="$ARCH" ;;
+    x86_64|amd64)  ARCH_DIR="x64" ;;
+    arm64|aarch64) ARCH_DIR="arm64" ;;
+    *)             ARCH_DIR="$ARCH" ;;
 esac
 
 # =============================================================================
@@ -115,7 +115,8 @@ assert_file "$BUNDLE_DIR/makensis.ps1" "makensis.ps1 present"
 
 # =============================================================================
 # TEST 2 — Binary presence
-# Platform-specific arch binaries are required when running on that platform.
+# All Linux binaries (x64 + arm64) are always required in the bundle regardless
+# of host platform. macOS: native arch is required; opposite arch is opportunistic.
 # =============================================================================
 
 echo ""
@@ -124,7 +125,8 @@ echo "── Test 2: Binary presence ──────────────�
 assert_file "$BUNDLE_DIR/windows/makensisw.exe"         "windows/makensisw.exe present"
 assert_file "$BUNDLE_DIR/windows/makensis.exe"          "windows/makensis.exe (console stub) present"
 assert_file "$BUNDLE_DIR/windows/Bin/makensis.exe"      "windows/Bin/makensis.exe (strlen-patched) present"
-assert_file "$BUNDLE_DIR/linux/makensis"                "linux/makensis present"
+assert_file "$BUNDLE_DIR/linux/x64/makensis"            "linux/x64/makensis present"
+assert_file "$BUNDLE_DIR/linux/arm64/makensis"          "linux/arm64/makensis present"
 assert_file "$BUNDLE_DIR/elevate.exe"              "elevate.exe present at bundle root"
 
 if [ -f "$BUNDLE_DIR/elevate.exe" ]; then
@@ -138,8 +140,8 @@ fi
 
 if $IS_MAC; then
     # Current arch is required; opposite arch is opportunistic
-    assert_file "$BUNDLE_DIR/mac/$MAC_ARCH_DIR/makensis" "mac/$MAC_ARCH_DIR/makensis present"
-    OTHER_ARCH="arm64"; [ "$MAC_ARCH_DIR" = "arm64" ] && OTHER_ARCH="x64"
+    assert_file "$BUNDLE_DIR/mac/$ARCH_DIR/makensis" "mac/$ARCH_DIR/makensis present"
+    OTHER_ARCH="arm64"; [ "$ARCH_DIR" = "arm64" ] && OTHER_ARCH="x64"
     if [ -f "$BUNDLE_DIR/mac/$OTHER_ARCH/makensis" ]; then
         pass "mac/$OTHER_ARCH/makensis present (multi-arch build)"
     else
@@ -156,41 +158,48 @@ echo ""
 echo "── Test 3: Binary format ───────────────────────────────────────"
 
 if $IS_LINUX; then
-    if command -v file &>/dev/null; then
-        FILE_OUT=$(file "$BUNDLE_DIR/linux/makensis")
-        if echo "$FILE_OUT" | grep -q "ELF"; then
-            pass "linux/makensis: valid ELF binary"
+    for linux_arch in x64 arm64; do
+        linux_bin="$BUNDLE_DIR/linux/$linux_arch/makensis"
+        if [ -f "$linux_bin" ]; then
+            if command -v file &>/dev/null; then
+                FILE_OUT=$(file "$linux_bin")
+                if echo "$FILE_OUT" | grep -q "ELF"; then
+                    pass "linux/$linux_arch/makensis: valid ELF binary"
+                else
+                    fail "linux/$linux_arch/makensis: not ELF (got: $FILE_OUT)"
+                fi
+            else
+                # od fallback: ELF magic = 7f 45 4c 46
+                ELF_MAGIC=$(od -N 4 -A n -t x1 "$linux_bin" 2>/dev/null | tr -d ' \n')
+                if [ "$ELF_MAGIC" = "7f454c46" ]; then
+                    pass "linux/$linux_arch/makensis: valid ELF binary (magic bytes)"
+                else
+                    fail "linux/$linux_arch/makensis: ELF magic check failed (got: '$ELF_MAGIC')"
+                fi
+            fi
         else
-            fail "linux/makensis: not ELF (got: $FILE_OUT)"
+            fail "linux/$linux_arch/makensis: file not found"
         fi
-    else
-        # od fallback: ELF magic = 7f 45 4c 46
-        ELF_MAGIC=$(od -N 4 -A n -t x1 "$BUNDLE_DIR/linux/makensis" 2>/dev/null | tr -d ' \n')
-        if [ "$ELF_MAGIC" = "7f454c46" ]; then
-            pass "linux/makensis: valid ELF binary (magic bytes)"
-        else
-            fail "linux/makensis: ELF magic check failed (got: '$ELF_MAGIC')"
-        fi
-    fi
+    done
 fi
 
 if $IS_MAC; then
-    MAC_BIN="$BUNDLE_DIR/mac/$MAC_ARCH_DIR/makensis"
+    MAC_BIN="$BUNDLE_DIR/mac/$ARCH_DIR/makensis"
     [ -f "$MAC_BIN" ] || MAC_BIN="$BUNDLE_DIR/mac/makensis"
     if command -v file &>/dev/null; then
         FILE_OUT=$(file "$MAC_BIN")
         if echo "$FILE_OUT" | grep -q "Mach-O"; then
-            pass "mac/$MAC_ARCH_DIR/makensis: valid Mach-O binary"
+            pass "mac/$ARCH_DIR/makensis: valid Mach-O binary"
         else
-            fail "mac/$MAC_ARCH_DIR/makensis: not Mach-O (got: $FILE_OUT)"
+            fail "mac/$ARCH_DIR/makensis: not Mach-O (got: $FILE_OUT)"
         fi
     else
         # od fallback: Mach-O magics (little-endian 32/64bit or fat binary)
         MAC_MAGIC=$(od -N 4 -A n -t x1 "$MAC_BIN" 2>/dev/null | tr -d ' \n')
         if echo "$MAC_MAGIC" | grep -qE "^(cefaedfe|cffaedfe|cafebabe)"; then
-            pass "mac/$MAC_ARCH_DIR/makensis: valid Mach-O binary (magic bytes)"
+            pass "mac/$ARCH_DIR/makensis: valid Mach-O binary (magic bytes)"
         else
-            fail "mac/$MAC_ARCH_DIR/makensis: Mach-O magic check failed (got: '$MAC_MAGIC')"
+            fail "mac/$ARCH_DIR/makensis: Mach-O magic check failed (got: '$MAC_MAGIC')"
         fi
     fi
 fi
@@ -502,17 +511,35 @@ fi
 echo ""
 echo "── Test 12: Direct binary + explicit NSISDIR ───────────────────"
 
-DIRECT_BIN=""
-if $IS_LINUX && [ -f "$BUNDLE_DIR/linux/makensis" ]; then
-    DIRECT_BIN="$BUNDLE_DIR/linux/makensis"
-    chmod +x "$DIRECT_BIN" 2>/dev/null || true
+if $IS_LINUX; then
+    for linux_arch in x64 arm64; do
+        linux_direct="$BUNDLE_DIR/linux/$linux_arch/makensis"
+        if [ ! -f "$linux_direct" ]; then
+            fail "Direct binary linux/$linux_arch + NSISDIR: binary not found"
+            continue
+        fi
+        chmod +x "$linux_direct" 2>/dev/null || true
+        cat > "$TMPDIR_TEST/direct-${linux_arch}.nsi" <<NSI
+Name "Direct"
+OutFile "direct-${linux_arch}-test.exe"
+InstallDir "\$TEMP\DirectTest"
+Section
+SectionEnd
+NSI
+        cd "$TMPDIR_TEST"
+        _direct_out=$(NSISDIR="$BUNDLE_DIR/windows" "$linux_direct" "direct-${linux_arch}.nsi" 2>&1 || true)
+        if [ -f "direct-${linux_arch}-test.exe" ]; then
+            pass "Direct binary linux/$linux_arch + NSISDIR: compiled successfully"
+        elif echo "$_direct_out" | grep -qi "exec format\|cannot execute"; then
+            skip "Direct binary linux/$linux_arch + NSISDIR: cross-arch (QEMU not available)"
+        else
+            fail "Direct binary linux/$linux_arch + NSISDIR: $_direct_out"
+        fi
+    done
 elif $IS_MAC; then
-    DIRECT_BIN="$BUNDLE_DIR/mac/$MAC_ARCH_DIR/makensis"
+    DIRECT_BIN="$BUNDLE_DIR/mac/$ARCH_DIR/makensis"
     [ -f "$DIRECT_BIN" ] || DIRECT_BIN="$BUNDLE_DIR/mac/makensis"
     chmod +x "$DIRECT_BIN" 2>/dev/null || true
-fi
-
-if [ -n "$DIRECT_BIN" ] && [ -f "$DIRECT_BIN" ]; then
     cat > "$TMPDIR_TEST/direct.nsi" <<'NSI'
 Name "Direct"
 OutFile "direct-test.exe"
@@ -523,9 +550,9 @@ NSI
     cd "$TMPDIR_TEST"
     if NSISDIR="$BUNDLE_DIR/windows" "$DIRECT_BIN" "direct.nsi" >/dev/null 2>&1 \
        && [ -f "direct-test.exe" ]; then
-        pass "Direct binary + NSISDIR: compiled successfully"
+        pass "Direct binary mac/$ARCH_DIR + NSISDIR: compiled successfully"
     else
-        fail "Direct binary + NSISDIR: binary returned non-zero or no output"
+        fail "Direct binary mac/$ARCH_DIR + NSISDIR: binary returned non-zero or no output"
     fi
 else
     skip "Direct binary + NSISDIR: no native binary for this platform (Windows)"
