@@ -5,23 +5,31 @@ on:
   workflow_dispatch:
 
 jobs:
-  # Build base bundle (Windows binary + plugins + data)
+  # Build base bundle (Windows binary compiled from source + plugins + data)
   base:
     name: Build Base Bundle
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y curl unzip p7zip-full
-        shell: bash
+      - name: Set up MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            mingw-w64-x86_64-python-scons
+            mingw-w64-x86_64-zlib
+            p7zip
+            unzip
+            rsync
+            curl
 
       - name: Build base bundle
+        shell: msys2 {0}
         run: bash ./build.sh --target windows
-        shell: bash
         working-directory: ./packages/nsis
 
       - name: Upload base artifact

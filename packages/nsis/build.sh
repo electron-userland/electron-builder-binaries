@@ -21,7 +21,6 @@ OUT_DIR="$SCRIPT_DIR/out"
 # Build configuration
 export NSIS_VERSION="3.12"
 export NSIS_BRANCH_OR_COMMIT="v312"
-export NSIS_SHA256="56581f90db321581c5381193d796fffcf2d24b2f8fed2160a6c6a3baa67f2c4f"
 export STRLEN_SHA256="44ebb4bfd5b763e295855718dbcf374fc396d03870ea038a0844abcbe1ff0c3a"
 
 # Detect current OS
@@ -51,7 +50,7 @@ print_banner() {
 }
 
 build_base() {
-    echo "📦 Building base bundle (Windows + plugins)..."
+    echo "📦 Building base bundle (Windows makensis from source + plugins)..."
     echo ""
     bash "$ASSETS_DIR/nsis-windows.sh"
 }
@@ -115,7 +114,7 @@ Examples:
   ./build.sh --target combine # Combine existing platform bundles
 
 Platform Requirements:
-  Base:   Any OS with bash, curl, unzip
+  Base:   Windows with MSYS2 (MINGW64) + git, scons, curl, unzip, rsync
   Linux:  Docker (can run on any OS)
   macOS:  Must run on macOS with Xcode Command Line Tools
 

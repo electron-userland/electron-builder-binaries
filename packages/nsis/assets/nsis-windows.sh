@@ -2,11 +2,12 @@
 set -euo pipefail
 
 # =============================================================================
-# Windows NSIS Base Bundle Builder (Cross-Platform)
+# Windows NSIS Base Bundle Builder
 # =============================================================================
-# Downloads official pre-built NSIS for Windows and packages with plugins
-# This creates the BASE bundle with Windows binary and all shared data
-# Runs on Linux/Mac/Windows via bash
+# Builds makensis.exe from source (NSIS_CONFIG_LOG=yes + NSIS_MAX_STRLEN=8192)
+# Downloads strlen_8192 distribution for data files (Stubs, Contrib, Include, Menu)
+# Packages with additional plugins and language file patches
+# Runs on Windows via MSYS2 bash
 # =============================================================================
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -17,13 +18,12 @@ TEMP_DIR="$OUT_DIR/temp"
 # Version configuration
 NSIS_VERSION=${NSIS_VERSION:-3.12}
 NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v312}
-NSIS_SHA256=${NSIS_SHA256:-56581f90db321581c5381193d796fffcf2d24b2f8fed2160a6c6a3baa67f2c4f}
 STRLEN_SHA256=${STRLEN_SHA256:-44ebb4bfd5b763e295855718dbcf374fc396d03870ea038a0844abcbe1ff0c3a}
 
 BUNDLE_DIR="$OUT_DIR/nsis-bundle"
 OUTPUT_ARCHIVE="$OUT_DIR/nsis-bundle-base-$NSIS_BRANCH.tar.gz"
 
-echo "📦 Building NSIS Base Bundle (strlen_8192)..."
+echo "Building NSIS Base Bundle (from source, LOG + STRLEN=8192)..."
 echo "   Version: $NSIS_VERSION"
 echo "   Branch:  $NSIS_BRANCH"
 echo ""
@@ -32,13 +32,24 @@ echo ""
 # Setup Directories
 # =============================================================================
 
-echo "🧹 Setting up directories..."
+echo "Setting up directories..."
 rm -rf "$TEMP_DIR" "$BUNDLE_DIR"
 mkdir -p "$TEMP_DIR" "$BUNDLE_DIR/windows"
 
 # =============================================================================
 # Check Dependencies
 # =============================================================================
+
+if ! command -v git &> /dev/null; then
+    echo "❌ git is required but not installed"
+    exit 1
+fi
+
+if ! command -v scons &> /dev/null; then
+    echo "❌ scons is required but not installed"
+    echo "   Install via MSYS2: pacman -S mingw-w64-x86_64-python-scons"
+    exit 1
+fi
 
 if ! command -v curl &> /dev/null; then
     echo "❌ curl is required but not installed"
@@ -69,7 +80,7 @@ verify_sha256() {
     local file="$1"
     local expected="$2"
     local actual=""
-    
+
     if command -v sha256sum &> /dev/null; then
         actual=$(sha256sum "$file" | awk '{print $1}')
     elif command -v shasum &> /dev/null; then
@@ -78,7 +89,7 @@ verify_sha256() {
         echo "❌ No SHA256 tool available"
         return 1
     fi
-    
+
     if [ "$actual" = "$expected" ]; then
         echo "  ✓ Checksum verified"
         return 0
@@ -96,120 +107,109 @@ download_and_verify() {
     local output="$2"
     local expected_sha256="$3"
     local description="$4"
-    
+
     echo "📥 Downloading $description..."
-    
+
     if ! curl -fsSL --retry 3 --retry-delay 2 --max-time 300 "$url" -o "$output"; then
         echo "❌ Failed to download $description"
         return 1
     fi
-    
+
     echo "  ✓ Downloaded $(du -h "$output" | cut -f1)"
     echo "  🔍 Verifying checksum..."
-    
+
     if ! verify_sha256 "$output" "$expected_sha256"; then
         echo "❌ Checksum verification failed for $description"
         rm -f "$output"
         return 1
     fi
-    
+
     return 0
 }
 
 # =============================================================================
-# Download Official NSIS
+# Build makensis.exe from Source
 # =============================================================================
 
 echo ""
-NSIS_ZIP_URL="https://sourceforge.net/projects/nsis/files/NSIS%203/$NSIS_VERSION/nsis-$NSIS_VERSION.zip/download"
-NSIS_ZIP="$TEMP_DIR/nsis-$NSIS_VERSION.zip"
+echo "🔨 Cloning NSIS source..."
 
-if ! download_and_verify "$NSIS_ZIP_URL" "$NSIS_ZIP" "$NSIS_SHA256" "official NSIS $NSIS_VERSION"; then
+NSIS_SRC="$TEMP_DIR/nsis-src"
+git clone --branch "$NSIS_BRANCH" --depth=1 https://github.com/NSIS-Dev/nsis.git "$NSIS_SRC"
+echo "  ✓ Cloned NSIS $NSIS_BRANCH"
+
+echo ""
+echo "🔨 Building makensis.exe from source..."
+echo "   NSIS_CONFIG_LOG=yes  NSIS_MAX_STRLEN=8192"
+
+BUILD_INSTALL="$TEMP_DIR/nsis-install"
+
+(
+    cd "$NSIS_SRC"
+    scons \
+        SKIPSTUBS=all \
+        SKIPPLUGINS=all \
+        SKIPUTILS=all \
+        SKIPMISC=all \
+        NSIS_CONFIG_CONST_DATA_PATH=no \
+        NSIS_CONFIG_LOG=yes \
+        NSIS_MAX_STRLEN=8192 \
+        PREFIX="$BUILD_INSTALL" \
+        install-compiler
+)
+
+MAKENSIS_EXE=$(find "$BUILD_INSTALL" -name "makensis.exe" | head -1)
+if [ -z "$MAKENSIS_EXE" ]; then
+    echo "❌ makensis.exe not found after build"
     exit 1
 fi
 
+# Verify Windows PE binary (non-fatal: 'file' may not be in all MSYS2 setups)
+if command -v file &> /dev/null; then
+    if file "$MAKENSIS_EXE" | grep -q "PE"; then
+        echo "  ✓ Verified Windows PE binary"
+    else
+        echo "  ⚠️  Unexpected binary type: $(file "$MAKENSIS_EXE")"
+    fi
+fi
+
+echo "  ✓ makensis.exe built (LOG + STRLEN=8192)"
+
 # =============================================================================
-# Download NSIS strlen_8192 Patch
+# Download strlen_8192 Distribution (data files: Stubs, Contrib, Include, Menu)
 # =============================================================================
 
 echo ""
 STRLEN_ZIP_URL="https://sourceforge.net/projects/nsis/files/NSIS%203/$NSIS_VERSION/nsis-$NSIS_VERSION-strlen_8192.zip/download"
 STRLEN_ZIP="$TEMP_DIR/nsis-$NSIS_VERSION-strlen_8192.zip"
 
-if ! download_and_verify "$STRLEN_ZIP_URL" "$STRLEN_ZIP" "$STRLEN_SHA256" "NSIS $NSIS_VERSION strlen_8192 patch"; then
+if ! download_and_verify "$STRLEN_ZIP_URL" "$STRLEN_ZIP" "$STRLEN_SHA256" "NSIS $NSIS_VERSION strlen_8192 (data files + patched stubs)"; then
     exit 1
 fi
 
 # =============================================================================
-# Extract NSIS
+# Extract strlen_8192 Distribution
 # =============================================================================
 
 echo ""
-echo "📂 Extracting NSIS..."
+echo "📂 Extracting strlen_8192 distribution..."
 
-if ! unzip -q "$NSIS_ZIP" -d "$TEMP_DIR"; then
-    echo "❌ Failed to extract NSIS"
-    exit 1
-fi
-
-NSIS_EXTRACTED="$TEMP_DIR/nsis-$NSIS_VERSION"
-
-if [ ! -d "$NSIS_EXTRACTED" ]; then
-    echo "❌ NSIS directory not found after extraction"
-    exit 1
-fi
-
-echo "  ✓ Extracted base NSIS"
-
-# =============================================================================
-# Extract and Apply strlen_8192 Patch
-# =============================================================================
-
-echo ""
-echo "🔧 Extracting and applying strlen_8192 patch..."
-
-STRLEN_EXTRACTED="$TEMP_DIR/nsis-$NSIS_VERSION-strlen_8192"
+STRLEN_EXTRACTED="$TEMP_DIR/nsis-strlen_8192"
 mkdir -p "$STRLEN_EXTRACTED"
 
 if ! unzip -q "$STRLEN_ZIP" -d "$STRLEN_EXTRACTED"; then
-    echo "❌ Failed to extract strlen_8192 patch"
+    echo "❌ Failed to extract strlen_8192 distribution"
     exit 1
 fi
 
-# Apply strlen_8192 patch — copy only patched binaries, leave data files from
-# the official release untouched. The SourceForge zip may extract with a
-# top-level subdirectory; use find so the structure doesn't matter.
-echo "  → Patching binary files..."
-
-STRLEN_MAKENSIS=$(find "$STRLEN_EXTRACTED" -path "*/Bin/makensis.exe" | head -1)
-STRLEN_ZLIB=$(find "$STRLEN_EXTRACTED" -name "zlib1.dll" | head -1)
-STRLEN_STUBS_DIR=$(find "$STRLEN_EXTRACTED" -type d -name "Stubs" | head -1)
-
-if [ -z "$STRLEN_MAKENSIS" ]; then
-    echo "❌ makensis.exe not found in strlen_8192 patch (unexpected zip structure)"
+# Locate root of the extracted tree (zip may have a top-level subdirectory)
+STRLEN_ROOT=$(find "$STRLEN_EXTRACTED" -type d -name "Contrib" | head -1 | xargs dirname 2>/dev/null || true)
+if [ -z "$STRLEN_ROOT" ]; then
+    echo "❌ Could not locate NSIS data files in strlen_8192 zip (unexpected zip structure)"
     exit 1
 fi
 
-cp "$STRLEN_MAKENSIS" "$NSIS_EXTRACTED/Bin/makensis.exe"
-echo "    ✓ Bin/makensis.exe patched"
-
-if [ -n "$STRLEN_ZLIB" ]; then
-    cp "$STRLEN_ZLIB" "$NSIS_EXTRACTED/Bin/zlib1.dll"
-    echo "    ✓ Bin/zlib1.dll patched"
-fi
-
-if [ -n "$STRLEN_STUBS_DIR" ]; then
-    rsync -a "$STRLEN_STUBS_DIR/" "$NSIS_EXTRACTED/Stubs/"
-    echo "    ✓ Stubs/ patched"
-fi
-
-STRLEN_MAKENSISW=$(find "$STRLEN_EXTRACTED" -name "makensisw.exe" | head -1)
-if [ -n "$STRLEN_MAKENSISW" ]; then
-    cp "$STRLEN_MAKENSISW" "$NSIS_EXTRACTED/makensisw.exe"
-    echo "    ✓ makensisw.exe patched (strlen_8192)"
-fi
-
-echo "  ✓ Applied strlen_8192 patch"
+echo "  ✓ Extracted strlen_8192 distribution"
 
 # =============================================================================
 # Copy NSIS Data Files
@@ -219,16 +219,30 @@ echo ""
 echo "📚 Copying NSIS data files..."
 
 for item in Bin Contrib Include Menu Plugins Stubs; do
-    if [ -d "$NSIS_EXTRACTED/$item" ]; then
+    if [ -d "$STRLEN_ROOT/$item" ]; then
         echo "  → $item/"
-        rsync -a "$NSIS_EXTRACTED/$item/" "$BUNDLE_DIR/windows/$item/"
+        rsync -a "$STRLEN_ROOT/$item/" "$BUNDLE_DIR/windows/$item/"
     fi
 done
 
-echo "  → Installing root-level files"
-rsync -a "$NSIS_EXTRACTED/"*.{exe,dll,nsh} "$BUNDLE_DIR/windows/" 2>/dev/null || true
+# Root-level supplementary files (e.g. makensisw.exe, *.nsh) — exclude makensis.exe
+# (our source-built binary is installed separately below)
+find "$STRLEN_ROOT" -maxdepth 1 -type f \( -name "*.dll" -o -name "*.nsh" -o -name "makensisw.exe" \) \
+    -exec cp {} "$BUNDLE_DIR/windows/" \; 2>/dev/null || true
 
 echo "  ✓ Copied NSIS data files"
+
+# =============================================================================
+# Install Source-Built makensis.exe
+# =============================================================================
+
+echo ""
+echo "📦 Installing source-built makensis.exe..."
+
+mkdir -p "$BUNDLE_DIR/windows/Bin"
+cp "$MAKENSIS_EXE" "$BUNDLE_DIR/windows/Bin/makensis.exe"
+
+echo "  ✓ makensis.exe installed (compiled from source, LOG + STRLEN=8192)"
 
 # =============================================================================
 # Download Additional Plugins
@@ -291,10 +305,10 @@ for i in "${!PLUGIN_NAMES[@]}"; do
     plugin_url="${PLUGIN_URLS[$i]}"
     plugin_sha256="${PLUGIN_SHA256[$i]}"
     plugin_zip="$PLUGINS_DIR/${plugin_name}.zip"
-    
+
     echo ""
     echo "  → $plugin_name"
-    
+
     if curl -fsSL --retry 3 --retry-delay 2 --max-time 120 "$plugin_url" -o "$plugin_zip" 2>/dev/null; then
         echo "    Downloaded $(du -h "$plugin_zip" | cut -f1)"
         echo "    🔍 Verifying checksum..."
@@ -365,19 +379,19 @@ mkdir -p "$BUNDLE_DIR/windows/Include"
 # Process ZIP plugins
 for plugin_zip in "$PLUGINS_DIR"/*.zip; do
     test -f "$plugin_zip" || continue
-    
+
     plugin_name=$(basename "$plugin_zip" .zip)
     extract_dir="$PLUGINS_DIR/$plugin_name"
-    
+
     mkdir -p "$extract_dir"
-    
+
     # Extract (suppress output)
     if test "$EXTRACT_CMD" = "unzip"; then
         $EXTRACT_CMD $EXTRACT_ARGS "$plugin_zip" -d "$extract_dir" >/dev/null 2>&1 || true
     else
         $EXTRACT_CMD $EXTRACT_ARGS "$plugin_zip" -o"$extract_dir" >/dev/null 2>&1 || true
     fi
-    
+
     # Install DLL files using rsync with better filtering
     # Skip common test/example/tiny directories
     if [ -d "$extract_dir/Plugins" ]; then
@@ -385,7 +399,7 @@ for plugin_zip in "$PLUGINS_DIR"/*.zip; do
         for arch_dir in "$extract_dir/Plugins"/*; do
             [ -d "$arch_dir" ] || continue
             arch_name=$(basename "$arch_dir")
-            
+
             case "$arch_name" in
                 x64-ansi|x64-unicode|x86-ansi|x86-unicode)
                     rsync -a --include='*.dll' --exclude='*' "$arch_dir/" "$BUNDLE_DIR/windows/Plugins/$arch_name/"
@@ -414,10 +428,10 @@ for plugin_zip in "$PLUGINS_DIR"/*.zip; do
             ! -path "*/[Dd]oc*/*" \
             ! -path "*/.git/*" \
             2>/dev/null | while read -r dll_file; do
-            
+
             dll_path=$(dirname "$dll_file")
             dll_basename=$(basename "$dll_file")
-            
+
             # Determine architecture by path
             if echo "$dll_path" | grep -qiE 'x64.*(ansi|ANSI)'; then
                 cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x64-ansi/" 2>/dev/null || true
@@ -439,12 +453,12 @@ for plugin_zip in "$PLUGINS_DIR"/*.zip; do
             fi
         done
     fi
-    
+
     # Install header files using rsync
     rsync -a --include='*.nsh' --exclude='*' \
         --exclude='[Ee]xample*/' --exclude='[Tt]est*/' --exclude='[Dd]emo*/' \
         "$extract_dir/" "$BUNDLE_DIR/windows/Include/" 2>/dev/null || true
-    
+
     # Install .nsi files (exclude examples/tests/demos)
     find "$extract_dir" -type f -name "*.nsi" \
         ! -ipath '*example*' \
@@ -452,7 +466,7 @@ for plugin_zip in "$PLUGINS_DIR"/*.zip; do
         ! -ipath '*demo*' \
         ! -ipath '*doc*' \
         -exec cp {} "$BUNDLE_DIR/windows/Include/" \; 2>/dev/null || true
-    
+
     echo "  ✓ $plugin_name"
 done
 
@@ -460,12 +474,12 @@ done
 if test -f "$PLUGINS_DIR/nsis7z.7z"; then
     nsis7z_dir="$PLUGINS_DIR/nsis7z"
     mkdir -p "$nsis7z_dir"
-    
+
     if test "$EXTRACT_CMD" = "unzip"; then
         echo "  ⚠️  Cannot extract .7z files without 7z/7za - skipping nsis7z"
     else
         $EXTRACT_CMD $EXTRACT_ARGS "$PLUGINS_DIR/nsis7z.7z" -o"$nsis7z_dir" >/dev/null 2>&1 || true
-        
+
         # Install nsis7z DLLs using rsync
         for arch in x64-ansi x64-unicode x86-ansi x86-unicode; do
             if [ -d "$nsis7z_dir/Plugins/$arch" ]; then
@@ -473,11 +487,11 @@ if test -f "$PLUGINS_DIR/nsis7z.7z"; then
                     "$nsis7z_dir/Plugins/$arch/" "$BUNDLE_DIR/windows/Plugins/$arch/"
             fi
         done
-        
+
         # Install headers using rsync
         rsync -a --include='*.nsh' --exclude='*' \
             "$nsis7z_dir/" "$BUNDLE_DIR/windows/Include/" 2>/dev/null || true
-        
+
         echo "  ✓ nsis7z"
     fi
 fi
@@ -500,10 +514,10 @@ ls -1 "$LANG_FILES_DIR"/*.n* >/dev/null 2>&1 || {
 
 for fixfile in "$FIXES_DIR"/*; do
     [ -f "$fixfile" ] || continue
-    
+
     fname=$(basename "$fixfile")
     target="$LANG_FILES_DIR/$fname"
-    
+
     if [ -f "$target" ]; then
         echo "  → Patching $fname"
         {
@@ -533,9 +547,13 @@ fi
 
 cat > "$BUNDLE_DIR/windows/VERSION.txt" <<EOF
 Platform: Windows
-Binary: makensis.exe (official pre-built with strlen_8192 patch)
-Architecture: x86 (runs on all Windows via WoW64)
+Binary: makensis.exe (compiled from source)
+Compiler: MinGW-w64 via MSYS2
+Build system: SCons
+Source branch: $NSIS_BRANCH
 Max String Length: 8192
+Log Feature: enabled
+Data files: NSIS $NSIS_VERSION strlen_8192 distribution (patched stubs)
 EOF
 
 # =============================================================================
@@ -560,7 +578,7 @@ rm -rf "$TEMP_DIR"
 
 echo ""
 echo "================================================================"
-echo "  ✅ Base Bundle Complete (strlen_8192)!"
+echo "  ✅ Base Bundle Complete (source build, LOG + STRLEN=8192)!"
 echo "================================================================"
 echo "  📁 Archive: $OUTPUT_ARCHIVE"
 echo "  📊 Size:    $(du -h "$OUTPUT_ARCHIVE" | cut -f1)"
