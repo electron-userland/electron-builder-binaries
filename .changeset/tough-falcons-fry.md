@@ -2,4 +2,4 @@
 "nsis": minor
 ---
 
-feat: compiling windows `makensis` from source
+feat(nsis): compiling windows `makensis` from source
