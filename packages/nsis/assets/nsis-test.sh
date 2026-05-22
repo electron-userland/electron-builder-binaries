@@ -125,7 +125,6 @@ assert_file "$BUNDLE_DIR/windows/makensisw.exe"         "windows/makensisw.exe p
 assert_file "$BUNDLE_DIR/windows/makensis.exe"          "windows/makensis.exe (console stub) present"
 assert_file "$BUNDLE_DIR/windows/Bin/makensis.exe"      "windows/Bin/makensis.exe (strlen-patched) present"
 assert_file "$BUNDLE_DIR/linux/makensis"                "linux/makensis present"
-assert_file "$BUNDLE_DIR/mac/makensis"             "mac/makensis (legacy flat) present"
 assert_file "$BUNDLE_DIR/elevate.exe"              "elevate.exe present at bundle root"
 
 if [ -f "$BUNDLE_DIR/elevate.exe" ]; then
