@@ -437,6 +437,9 @@ rm -f "$OUT_DIR/$ARCHIVE_NAME"
     tar -czf "$OUT_DIR/$ARCHIVE_NAME" nsis-bundle
 )
 
+rm -rf "$OUT_DIR/nsis-bundle"
+mv "$BUILD_DIR/nsis-bundle" "$OUT_DIR/nsis-bundle"
+
 # =============================================================================
 # Summary
 # =============================================================================
@@ -445,8 +448,9 @@ echo ""
 echo "================================================================"
 echo "  ✅ Bundle Combination Complete!"
 echo "================================================================"
-echo "  📁 Archive: $OUT_DIR/$ARCHIVE_NAME"
-echo "  📊 Size:    $(du -h "$OUT_DIR/$ARCHIVE_NAME" | cut -f1)"
+echo "  📁 Directory: $OUT_DIR/nsis-bundle"
+echo "  📁 Archive:   $OUT_DIR/$ARCHIVE_NAME"
+echo "  📊 Size:      $(du -h "$OUT_DIR/$ARCHIVE_NAME" | cut -f1)"
 echo "================================================================"
 echo ""
 
