@@ -1,5 +1,21 @@
 # nsis
 
+## 1.2.0
+
+### Minor Changes
+
+- [#170](https://github.com/electron-userland/electron-builder-binaries/pull/170) [`b6fae60`](https://github.com/electron-userland/electron-builder-binaries/commit/b6fae60266ac44d141c31af84426b25931dffaea) Thanks [@mmaietta](https://github.com/mmaietta)! - feat(nsis): compile elevate.exe from source
+
+- [#175](https://github.com/electron-userland/electron-builder-binaries/pull/175) [`cbfac2b`](https://github.com/electron-userland/electron-builder-binaries/commit/cbfac2b6fa296c24af5cf1d8dc4ac1f398144e74) Thanks [@mmaietta](https://github.com/mmaietta)! - feat(nsis): adding compilation of linux arm64 `makensis` binary
+
+### Patch Changes
+
+- [#167](https://github.com/electron-userland/electron-builder-binaries/pull/167) [`6b8195a`](https://github.com/electron-userland/electron-builder-binaries/commit/6b8195a4a1c1e468d2952566ee04f7a00d57b94d) Thanks [@mmaietta](https://github.com/mmaietta)! - fix(nsis): validate plugin DLL PE headers and add compile smoke test for all 16 built-in plugins
+
+- [#174](https://github.com/electron-userland/electron-builder-binaries/pull/174) [`45a1dcb`](https://github.com/electron-userland/electron-builder-binaries/commit/45a1dcb9c7059fa86350e64c1165246e289dd0ed) Thanks [@mmaietta](https://github.com/mmaietta)! - fix(nsis): clean up nsis-lang-fixes to only the strings that need to be injected (not full file replace)
+
+- [#174](https://github.com/electron-userland/electron-builder-binaries/pull/174) [`45a1dcb`](https://github.com/electron-userland/electron-builder-binaries/commit/45a1dcb9c7059fa86350e64c1165246e289dd0ed) Thanks [@mmaietta](https://github.com/mmaietta)! - chore(nsis): cleaning up legacy entrypoint that requires manual NSISDIR configuration
+
 ## 1.1.0
 
 ### Minor Changes
