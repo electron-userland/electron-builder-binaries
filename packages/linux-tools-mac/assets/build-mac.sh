@@ -181,7 +181,7 @@ done
 ### ================================
 echo ""
 echo "🔓 Removing existing code signatures..."
-find "$BUNDLE_DIR" -type f \( -name "*.dylib" -o -perm +111 \) | while read -r f; do
+find "$BUNDLE_DIR" -type f \( -name "*.dylib" -o -perm /111 \) | while read -r f; do
     codesign --remove-signature "$f" 2>/dev/null || true
 done
 
@@ -197,12 +197,12 @@ patch_binary() {
 
     is_macho "$binary" || return 0
 
-    # Remove signature and normalize LINKEDIT before patching.
-    # Xcode 16+ ARM64 binaries have gaps in the __LINKEDIT segment that
-    # install_name_tool can't handle; strip -x rewrites LINKEDIT contiguously,
-    # and the signature must be removed first so strip/install_name_tool can write.
+    # Normalize LINKEDIT before patching.
+    # Xcode 16+ ARM64 bottles have gaps in __LINKEDIT that install_name_tool
+    # rejects. Ad-hoc signing compacts/reorganizes LINKEDIT as a side effect;
+    # removing the signature afterward leaves a clean, patchable binary.
+    codesign --force --sign - "$binary" 2>/dev/null || true
     codesign --remove-signature "$binary" 2>/dev/null || true
-    strip -x "$binary" 2>/dev/null || true
 
     # Set install name for dylibs
     if [[ "$is_lib" == "true" ]]; then
@@ -248,7 +248,7 @@ done
 ### ================================
 echo ""
 echo "✂️  Stripping symbols..."
-find "$BUNDLE_DIR" -type f \( -name "*.dylib" -o -perm +111 \) | while read -r f; do
+find "$BUNDLE_DIR" -type f \( -name "*.dylib" -o -perm /111 \) | while read -r f; do
     strip -x "$f" 2>/dev/null || true
 done
 
