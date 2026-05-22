@@ -103,20 +103,27 @@ RUN i686-w64-mingw32-windres \
     --include-dir src -D NDEBUG -D _M_IX86 \
     src/elevate.rc -o src/elevate-res.o
 
+# _pei386_runtime_relocator is referenced by the linker's pseudo-reloc stub but lives in
+# the CRT startup objects excluded by -nostdlib. Provide a no-op: it is never called
+# because -Wl,-e,_elevate bypasses CRT startup entirely.
+RUN printf 'void __cdecl _pei386_runtime_relocator(void) {}\n' \
+    | i686-w64-mingw32-gcc -x c -c -o src/pei386_stub.o -
+
 # Compile 32-bit stripped console binary.
-# -nostartfiles + -Wl,-e,_elevate mirrors MSVC's /entry:elevate.
+# -nostdlib + -Wl,-e,_elevate mirrors MSVC's /entry:elevate.
 # Safe because the source calls ExitProcess() at every exit path.
 RUN mkdir -p /output && \
     i686-w64-mingw32-gcc \
         -DUNICODE -D_UNICODE -D_WIN32_WINNT=0x0600 \
         '-D__forceinline=__attribute__((always_inline))' \
         -O2 -s \
-        -nostartfiles -Wl,-e,_elevate \
+        -nostdlib -Wl,-e,_elevate \
         -I src \
         -o /output/elevate.exe \
-        src/elevate_patched.c src/elevate-res.o \
+        src/elevate_patched.c src/elevate-res.o src/pei386_stub.o \
+        -lmingwex -lmsvcrt \
         -lkernel32 -lshell32 \
-        -static-libgcc
+        -lgcc
 DOCKERFILE_END
 
 # =============================================================================
