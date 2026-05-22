@@ -158,18 +158,6 @@ if [ "${#MAC_BUNDLES[@]}" -gt 0 ]; then
         
         rm -rf "$TEMP_MAC" "$mac_bundle"
     done
-
-    # Create legacy-compat flat mac/makensis — copies the first available arch binary.
-    # Consumers using the old path (mac/makensis) continue to work alongside the
-    # arch-specific paths (mac/x64/makensis, mac/arm64/makensis).
-    FIRST_MAC_BIN=$(find "$BUILD_DIR/nsis-bundle/mac" -name "makensis" \
-        ! -path "$BUILD_DIR/nsis-bundle/mac/makensis" -type f | head -1)
-    if [ -n "$FIRST_MAC_BIN" ]; then
-        cp "$FIRST_MAC_BIN" "$BUILD_DIR/nsis-bundle/mac/makensis"
-        chmod +x "$BUILD_DIR/nsis-bundle/mac/makensis"
-        FLAT_ARCH=$(basename "$(dirname "$FIRST_MAC_BIN")")
-        echo "  ✓ Legacy mac/makensis created (→ $FLAT_ARCH)"
-    fi
 fi
 
 # =============================================================================
@@ -449,6 +437,9 @@ rm -f "$OUT_DIR/$ARCHIVE_NAME"
     tar -czf "$OUT_DIR/$ARCHIVE_NAME" nsis-bundle
 )
 
+rm -rf "$OUT_DIR/nsis-bundle"
+mv "$BUILD_DIR/nsis-bundle" "$OUT_DIR/nsis-bundle"
+
 # =============================================================================
 # Summary
 # =============================================================================
@@ -457,16 +448,11 @@ echo ""
 echo "================================================================"
 echo "  ✅ Bundle Combination Complete!"
 echo "================================================================"
-echo "  📁 Archive: $OUT_DIR/$ARCHIVE_NAME"
-echo "  📊 Size:    $(du -h "$OUT_DIR/$ARCHIVE_NAME" | cut -f1)"
+echo "  📁 Directory: $OUT_DIR/nsis-bundle"
+echo "  📁 Archive:   $OUT_DIR/$ARCHIVE_NAME"
+echo "  📊 Size:      $(du -h "$OUT_DIR/$ARCHIVE_NAME" | cut -f1)"
 echo "================================================================"
 echo ""
-
-# =============================================================================
-# Cleanup
-# =============================================================================
-
-rm -rf "$BUILD_DIR"
 
 echo "✅ Done!"
 echo ""
