@@ -68,12 +68,19 @@ build_mac() {
     bash "$ASSETS_DIR/nsis-mac.sh"
 }
 
+build_elevate() {
+    echo "⬆️  Building elevate.exe (Docker)..."
+    echo ""
+    bash "$ASSETS_DIR/nsis-elevate.sh"
+}
+
 build_all() {
     echo "🌍 Building all available platforms..."
     echo ""
     build_base
     build_mac
     build_linux
+    build_elevate
     combine
 }
 
@@ -96,8 +103,9 @@ Targets:
   windows, win      Alias for base
   linux             Build Linux native binary (requires Docker)
   mac, macos        Build macOS native binary (requires macOS)
+  elevate           Build elevate.exe from source (requires Docker)
   combine           Combine previously built platform bundles into final archive
-  all               Build all platforms (base + mac + linux + combine)
+  all               Build all platforms (base + mac + linux + elevate + combine)
 
 Examples:
   ./build.sh --target all     # Build all platforms and combine
@@ -149,6 +157,9 @@ case "$BUILD_TARGET" in
         ;;
     mac|macos|darwin)
         build_mac
+        ;;
+    elevate)
+        build_elevate
         ;;
     combine)
         combine

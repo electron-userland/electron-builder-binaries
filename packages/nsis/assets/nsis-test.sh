@@ -126,6 +126,16 @@ assert_file "$BUNDLE_DIR/windows/makensis.exe"          "windows/makensis.exe (c
 assert_file "$BUNDLE_DIR/windows/Bin/makensis.exe"      "windows/Bin/makensis.exe (strlen-patched) present"
 assert_file "$BUNDLE_DIR/linux/makensis"                "linux/makensis present"
 assert_file "$BUNDLE_DIR/mac/makensis"             "mac/makensis (legacy flat) present"
+assert_file "$BUNDLE_DIR/elevate.exe"              "elevate.exe present at bundle root"
+
+if [ -f "$BUNDLE_DIR/elevate.exe" ]; then
+    MZ_ELV=$(od -N 2 -A n -t x1 "$BUNDLE_DIR/elevate.exe" 2>/dev/null | tr -d ' \n')
+    if [ "$MZ_ELV" = "4d5a" ]; then
+        pass "elevate.exe: valid PE binary (MZ header)"
+    else
+        fail "elevate.exe: invalid MZ header (got: $MZ_ELV)"
+    fi
+fi
 
 if $IS_MAC; then
     # Current arch is required; opposite arch is opportunistic

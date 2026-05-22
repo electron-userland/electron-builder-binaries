@@ -43,6 +43,7 @@ MAC_BUNDLES=()
 while IFS= read -r _line; do
     [[ -n "$_line" ]] && MAC_BUNDLES+=("$_line")
 done < <(find "$OUT_DIR" -name "nsis-bundle-mac-*.tar.gz" -type f)
+ELEVATE_BUNDLE=$(find "$OUT_DIR" -name "nsis-bundle-elevate-*.tar.gz" -type f | head -1)
 # Validate base bundle
 if [ -z "$BASE_BUNDLE" ] || [ ! -f "$BASE_BUNDLE" ]; then
     echo "❌ Base bundle not found in $OUT_DIR"
@@ -66,6 +67,12 @@ else
     echo "  ⚠️  macOS:        not found (skipping)"
 fi
 
+if [ -z "$ELEVATE_BUNDLE" ] || [ ! -f "$ELEVATE_BUNDLE" ]; then
+    echo "❌ Elevate bundle not found in $OUT_DIR"
+    exit 1
+fi
+echo "  ✓ Elevate:      $(basename "$ELEVATE_BUNDLE")"
+
 # =============================================================================
 # Extract Base Bundle
 # =============================================================================
@@ -82,6 +89,19 @@ if [ ! -d "$BUILD_DIR/nsis-bundle" ]; then
 fi
 
 echo "  ✓ Base bundle extracted"
+
+# =============================================================================
+# Inject elevate.exe
+# =============================================================================
+
+echo ""
+echo "⬆️  Injecting elevate.exe..."
+TEMP_ELEVATE="$BUILD_DIR/temp-elevate"
+mkdir -p "$TEMP_ELEVATE"
+tar -xzf "$ELEVATE_BUNDLE" -C "$TEMP_ELEVATE"
+cp "$TEMP_ELEVATE/nsis-bundle/elevate.exe" "$BUILD_DIR/nsis-bundle/elevate.exe"
+rm -rf "$TEMP_ELEVATE" "$ELEVATE_BUNDLE"
+echo "  ✓ elevate.exe injected"
 
 # =============================================================================
 # Inject Linux Binary
