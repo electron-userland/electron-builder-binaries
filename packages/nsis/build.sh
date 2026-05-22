@@ -88,20 +88,23 @@ show_usage() {
 Usage: $0 --target TARGET
 
 Options:
-  --target, -t TARGET   Build target (required)
+  --target, -t TARGET   Build target (default: all)
   --help, -h            Show this help
 
 Targets:
-  base      Build base bundle (Windows + plugins + data files)
-  linux     Build Linux native binary (requires Docker)
-  mac       Build macOS native binary (requires macOS)
-  all       Build base + current platform binary
+  base              Build base bundle (Windows + plugins + data files)
+  windows, win      Alias for base
+  linux             Build Linux native binary (requires Docker)
+  mac, macos        Build macOS native binary (requires macOS)
+  combine           Combine previously built platform bundles into final archive
+  all               Build all platforms (base + mac + linux + combine)
 
 Examples:
-  ./build.sh --target all    # Build base + current platform
-  ./build.sh --target base   # Build only the base bundle
-  ./build.sh --target linux  # Build Linux binary (requires Docker)
-  ./build.sh --target mac    # Build macOS binary (requires macOS)
+  ./build.sh --target all     # Build all platforms and combine
+  ./build.sh --target base    # Build only the base bundle
+  ./build.sh --target linux   # Build Linux binary (requires Docker)
+  ./build.sh --target mac     # Build macOS binary (requires macOS)
+  ./build.sh --target combine # Combine existing platform bundles
 
 Platform Requirements:
   Base:   Any OS with bash, curl, unzip
@@ -117,7 +120,14 @@ EOF
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --target|-t) BUILD_TARGET="${2:-}"; shift 2 ;;
+        --target|-t)
+            if [[ $# -lt 2 || -z "${2:-}" ]]; then
+                echo "❌ --target requires a value"
+                echo ""
+                show_usage
+                exit 1
+            fi
+            BUILD_TARGET="$2"; shift 2 ;;
         --help|-h)   show_usage; exit 0 ;;
         *) echo "❌ Unknown option: $1"; echo ""; show_usage; exit 1 ;;
     esac

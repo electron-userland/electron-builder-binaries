@@ -145,27 +145,22 @@ jobs:
         include:
           - platform: Windows (powershell)
             runner: windows-latest
-            binary: makensis.ps1
             platform_slug: windows
             upload_installer: true
           - platform: Windows (cmd)
             runner: windows-latest
-            binary: makensis.cmd
             platform_slug: ""
             upload_installer: false
           - platform: Linux
             runner: ubuntu-latest
-            binary: makensis
             platform_slug: linux
             upload_installer: true
           - platform: macOS (x64)
             runner: macos-15-intel
-            binary: makensis
             platform_slug: macos-x64
             upload_installer: true
           - platform: macOS (arm64)
             runner: macos-15
-            binary: makensis
             platform_slug: macos-arm64
             upload_installer: true
     steps:

@@ -177,8 +177,6 @@ esac
 # ----------------------------------------
 # Platform dispatch
 # ----------------------------------------
-NSISDIR_WIN=""
-
 case "$UNAME_S" in
   Darwin)
     case "$ARCH" in
@@ -225,11 +223,7 @@ if [ ! -x "$BINARY" ]; then
   chmod +x "$BINARY" 2>/dev/null || true
 fi
 
-if [ -n "$NSISDIR_WIN" ]; then
-  export NSISDIR="$NSISDIR_WIN"
-else
-  export NSISDIR="$SCRIPT_DIR/windows"
-fi
+export NSISDIR="$SCRIPT_DIR/windows"
 
 exec "$BINARY" "$@"
 

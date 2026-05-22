@@ -643,9 +643,20 @@ NSI
                 fail "E2E install: installer returned non-zero"
             fi
 
-            # $TEMP in bash on Windows (Git Bash) maps to the Windows TEMP dir.
-            # NSIS $TEMP macro also expands to the Windows TEMP dir.
-            E2E_INSTALL_DIR="${TEMP:-/tmp}/NsisE2ETest"
+            # Resolve the install directory. NSIS $TEMP expands differently on Wine vs. native.
+            if $IS_WINDOWS; then
+                # Git Bash $TEMP already maps to the Windows TEMP dir.
+                E2E_INSTALL_DIR="${TEMP:-/tmp}/NsisE2ETest"
+            else
+                # Wine: NSIS $TEMP resolves inside the Wine prefix, not the host $TEMP.
+                _wine_temp=$(wine cmd /c 'echo %TEMP%' 2>/dev/null | tr -d '\r\n')
+                if command -v winepath &>/dev/null && [ -n "$_wine_temp" ]; then
+                    E2E_INSTALL_DIR=$(winepath -u "${_wine_temp}\\NsisE2ETest" 2>/dev/null \
+                        || echo "${HOME}/.wine/drive_c/users/$(id -un)/Temp/NsisE2ETest")
+                else
+                    E2E_INSTALL_DIR="${HOME}/.wine/drive_c/users/$(id -un)/Temp/NsisE2ETest"
+                fi
+            fi
 
             if [ -f "$E2E_INSTALL_DIR/INSTALLED.txt" ]; then
                 pass "E2E install: INSTALLED.txt created"

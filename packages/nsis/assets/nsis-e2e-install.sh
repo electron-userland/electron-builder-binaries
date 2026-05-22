@@ -32,7 +32,14 @@ echo "  E2E Install + Uninstall — all compiled platforms"
 echo "  Installers: $INSTALLERS_DIR"
 echo "═══════════════════════════════════════════════════════════════"
 
-for dir in "$INSTALLERS_DIR"/nsis-e2e-installer-*/; do
+shopt -s nullglob
+dirs=( "$INSTALLERS_DIR"/nsis-e2e-installer-*/ )
+if [[ ${#dirs[@]} -eq 0 ]]; then
+    echo "❌ No installer directories found in $INSTALLERS_DIR"
+    exit 1
+fi
+
+for dir in "${dirs[@]}"; do
     platform="${dir#"$INSTALLERS_DIR"/nsis-e2e-installer-}"
     platform="${platform%/}"
     installer="$dir/e2e-installer.exe"
