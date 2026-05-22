@@ -6,6 +6,15 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
     exit 1
 fi
 
+XCODE_VER="$(xcodebuild -version 2>/dev/null | awk '/^Xcode /{print $2}')"
+XCODE_MAJOR="${XCODE_VER%%.*}"
+if [[ -z "$XCODE_MAJOR" || "$XCODE_MAJOR" -lt 26 ]]; then
+    echo "❌ Xcode 26+ required (found: ${XCODE_VER:-none})"
+    echo "   install_name_tool in Xcode < 26 rejects Homebrew ld_prime binaries."
+    echo "   Use a macos-26 runner."
+    exit 1
+fi
+
 ### ================================
 ### ARGS
 ### ================================
@@ -54,6 +63,7 @@ FORMULA_BINS=(
 
 echo "🛠️  linux-tools-mac macOS bundle"
 echo "   Arch:   $ARCH"
+echo "   Xcode:  $XCODE_VER"
 echo "   Output: $OUTPUT_DIR"
 
 ### ================================
@@ -174,67 +184,6 @@ done
 find "$LIB_DIR" -name "*.dylib" -type f | while read -r lib; do
     collect_deps "$lib"
 done
-
-### ================================
-### REMOVE EXISTING SIGNATURES
-### Must happen BEFORE any install_name_tool changes
-### ================================
-echo ""
-echo "🔓 Removing existing code signatures..."
-find "$BUNDLE_DIR" -type f | while read -r f; do
-    codesign --remove-signature "$f" 2>/dev/null || true
-done
-
-### ================================
-### FIX LINKEDIT VMSIZE
-### Homebrew bottles built with Xcode 16+ ld_prime have __LINKEDIT.vmsize
-### larger than filesize. codesign --remove-signature does not shrink vmsize,
-### leaving a gap that Xcode 16.4 install_name_tool rejects outright.
-### Directly patch vmsize = page_aligned(filesize) before running install_name_tool.
-### ================================
-echo ""
-echo "🔧 Fixing __LINKEDIT vmsize..."
-FIX_LINKEDIT_PY='
-import sys, struct
-
-def fix(path):
-    try:
-        data = open(path, "rb").read()
-        if len(data) < 32:
-            return
-        magic = struct.unpack_from("<I", data, 0)[0]
-        if magic == 0xFEEDFACF:
-            e = "<"
-        elif magic == 0xCFFAEDFE:
-            e = ">"
-        else:
-            return
-        ncmds, = struct.unpack_from(e + "I", data, 16)
-        ba, off, changed = bytearray(data), 32, False
-        for _ in range(ncmds):
-            if off + 8 > len(ba):
-                break
-            cmd, sz = struct.unpack_from(e + "II", ba, off)
-            if sz == 0:
-                break
-            if cmd == 0x19 and off + 56 <= len(ba):
-                segname = ba[off + 8:off + 24].rstrip(b"\x00")
-                if segname == b"__LINKEDIT":
-                    vmsize,  = struct.unpack_from(e + "Q", ba, off + 32)
-                    filesize, = struct.unpack_from(e + "Q", ba, off + 48)
-                    if vmsize > filesize:
-                        struct.pack_into(e + "Q", ba, off + 32, (filesize + 4095) & ~4095)
-                        changed = True
-            off += sz
-        if changed:
-            open(path, "wb").write(ba)
-    except Exception:
-        pass
-
-for p in sys.argv[1:]:
-    fix(p)
-'
-find "$BUNDLE_DIR" -type f -print0 | xargs -0 python3 -c "$FIX_LINKEDIT_PY"
 
 ### ================================
 ### PATCH DYLIB REFERENCES
