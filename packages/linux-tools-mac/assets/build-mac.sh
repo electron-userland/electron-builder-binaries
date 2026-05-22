@@ -197,10 +197,12 @@ patch_binary() {
 
     is_macho "$binary" || return 0
 
-    # Re-remove signature immediately before patching; the batch removal may have
-    # silently failed for some arm64 binaries, and install_name_tool refuses to
-    # modify a still-signed binary on Apple Silicon.
+    # Remove signature and normalize LINKEDIT before patching.
+    # Xcode 16+ ARM64 binaries have gaps in the __LINKEDIT segment that
+    # install_name_tool can't handle; strip -x rewrites LINKEDIT contiguously,
+    # and the signature must be removed first so strip/install_name_tool can write.
     codesign --remove-signature "$binary" 2>/dev/null || true
+    strip -x "$binary" 2>/dev/null || true
 
     # Set install name for dylibs
     if [[ "$is_lib" == "true" ]]; then
