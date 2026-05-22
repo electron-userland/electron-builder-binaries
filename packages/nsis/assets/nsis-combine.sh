@@ -4,7 +4,7 @@ set -euo pipefail
 # =============================================================================
 # NSIS Bundle Combiner
 # =============================================================================
-# Combines base, Linux, and macOS bundles into a single complete bundle
+# Combines base, Linux, macOS, and elevate bundles into a single complete bundle
 # Generates universal entrypoint wrapper script
 # =============================================================================
 
@@ -99,6 +99,10 @@ echo "⬆️  Injecting elevate.exe..."
 TEMP_ELEVATE="$BUILD_DIR/temp-elevate"
 mkdir -p "$TEMP_ELEVATE"
 tar -xzf "$ELEVATE_BUNDLE" -C "$TEMP_ELEVATE"
+if [ ! -f "$TEMP_ELEVATE/nsis-bundle/elevate.exe" ]; then
+    echo "❌ elevate.exe not found at expected path in bundle: $TEMP_ELEVATE/nsis-bundle/elevate.exe"
+    exit 1
+fi
 cp "$TEMP_ELEVATE/nsis-bundle/elevate.exe" "$BUILD_DIR/nsis-bundle/elevate.exe"
 rm -rf "$TEMP_ELEVATE" "$ELEVATE_BUNDLE"
 echo "  ✓ elevate.exe injected"
@@ -335,6 +339,7 @@ This bundle contains NSIS (Nullsoft Scriptable Install System) binaries for mult
 - **Windows**: \`windows/makensis.exe\` (official pre-built binary)
 - **Linux**: \`linux/makensis\` (native ELF binary, compiled from source)
 - **macOS**: \`mac/makensis\` (native Mach-O binary, compiled from source)
+- **Elevate**: \`elevate.exe\` (Windows privilege elevation utility, compiled from source)
 - **NSIS Data**: \`windows/\` (Contrib, Include, Plugins, Stubs)
 - **Universal Wrapper**: \`makensis\` (auto-detects platform, sets \`NSISDIR\`) [.cmd and .ps1 versions for Windows]
 

@@ -24,7 +24,8 @@ ELEVATE_VERSION="1.3.0"
 ELEVATE_SHA256="b1b3f070353a0eadee2cea3a575049d10df9763ff24e39313da4cec9455382e1"
 
 # Docker configuration
-IMAGE_NAME="nsis-elevate-builder:${NSIS_BRANCH}"
+IMAGE_TAG="${NSIS_BRANCH//\//_}"
+IMAGE_NAME="nsis-elevate-builder:${IMAGE_TAG}"
 CONTAINER_NAME="nsis-elevate-build-$$"
 
 OUTPUT_ARCHIVE="$OUT_DIR/nsis-bundle-elevate-$NSIS_BRANCH.tar.gz"
@@ -58,6 +59,8 @@ cleanup() {
     echo ""
     echo "🧹 Cleaning up Docker resources..."
     docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
+    [ -n "${DOCKERFILE:-}" ] && rm -f "$DOCKERFILE" 2>/dev/null || true
+    [ -n "${TEMP_DIR:-}" ] && rm -rf "$TEMP_DIR" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 
@@ -137,8 +140,7 @@ docker build \
     --build-arg ELEVATE_VERSION="$ELEVATE_VERSION" \
     --build-arg ELEVATE_SHA256="$ELEVATE_SHA256" \
     -t "$IMAGE_NAME" \
-    -f "$DOCKERFILE" \
-    "$OUT_DIR"
+    - < "$DOCKERFILE"
 
 if [ $? -ne 0 ]; then
     echo "❌ Docker build failed"
