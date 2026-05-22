@@ -197,6 +197,11 @@ patch_binary() {
 
     is_macho "$binary" || return 0
 
+    # Re-remove signature immediately before patching; the batch removal may have
+    # silently failed for some arm64 binaries, and install_name_tool refuses to
+    # modify a still-signed binary on Apple Silicon.
+    codesign --remove-signature "$binary" 2>/dev/null || true
+
     # Set install name for dylibs
     if [[ "$is_lib" == "true" ]]; then
         local lib_name
@@ -213,11 +218,15 @@ patch_binary() {
         local dest="$LIB_DIR/$dep_name"
 
         if [[ -f "$dest" ]]; then
+            local new_path
             if [[ "$is_lib" == "true" ]]; then
-                install_name_tool -change "$dep" "@loader_path/$dep_name" "$binary" 2>/dev/null || true
+                new_path="@loader_path/$dep_name"
             else
-                install_name_tool -change "$dep" "@loader_path/../lib/$dep_name" "$binary" 2>/dev/null || true
+                new_path="@loader_path/../lib/$dep_name"
             fi
+            local it_err
+            it_err="$(install_name_tool -change "$dep" "$new_path" "$binary" 2>&1)" \
+                || echo "    ⚠️  patch failed [$(basename "$binary")] $dep: $it_err"
         fi
     done
 }
