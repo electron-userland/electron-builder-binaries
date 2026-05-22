@@ -158,18 +158,6 @@ if [ "${#MAC_BUNDLES[@]}" -gt 0 ]; then
         
         rm -rf "$TEMP_MAC" "$mac_bundle"
     done
-
-    # Create legacy-compat flat mac/makensis — copies the first available arch binary.
-    # Consumers using the old path (mac/makensis) continue to work alongside the
-    # arch-specific paths (mac/x64/makensis, mac/arm64/makensis).
-    FIRST_MAC_BIN=$(find "$BUILD_DIR/nsis-bundle/mac" -name "makensis" \
-        ! -path "$BUILD_DIR/nsis-bundle/mac/makensis" -type f | head -1)
-    if [ -n "$FIRST_MAC_BIN" ]; then
-        cp "$FIRST_MAC_BIN" "$BUILD_DIR/nsis-bundle/mac/makensis"
-        chmod +x "$BUILD_DIR/nsis-bundle/mac/makensis"
-        FLAT_ARCH=$(basename "$(dirname "$FIRST_MAC_BIN")")
-        echo "  ✓ Legacy mac/makensis created (→ $FLAT_ARCH)"
-    fi
 fi
 
 # =============================================================================
