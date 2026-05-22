@@ -181,7 +181,7 @@ done
 ### ================================
 echo ""
 echo "🔓 Removing existing code signatures..."
-find "$BUNDLE_DIR" -type f \( -name "*.dylib" -o -perm /111 \) | while read -r f; do
+find "$BUNDLE_DIR" -type f | while read -r f; do
     codesign --remove-signature "$f" 2>/dev/null || true
 done
 
@@ -248,7 +248,7 @@ done
 ### ================================
 echo ""
 echo "✂️  Stripping symbols..."
-find "$BUNDLE_DIR" -type f \( -name "*.dylib" -o -perm /111 \) | while read -r f; do
+find "$BUNDLE_DIR" -type f | while read -r f; do
     strip -x "$f" 2>/dev/null || true
 done
 
