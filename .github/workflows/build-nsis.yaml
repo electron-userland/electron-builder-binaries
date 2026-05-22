@@ -20,7 +20,7 @@ jobs:
           update: true
           install: >-
             git
-            mingw-w64-x86_64-python-scons
+            mingw-w64-x86_64-scons
             mingw-w64-x86_64-zlib
             p7zip
             unzip
