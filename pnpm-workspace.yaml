@@ -8,6 +8,7 @@ overrides:
   undici: ^6.24.0
   picomatch: ^2.3.2
   js-yaml: ^3.14.2
+  ip-address: ^10.1.1
 
 # 10080 minutes = 7 days
 minimumReleaseAge: 10080
