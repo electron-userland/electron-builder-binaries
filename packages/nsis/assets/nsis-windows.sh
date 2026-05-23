@@ -440,10 +440,16 @@ for plugin_zip in "$PLUGINS_DIR"/*.zip; do
                 elif echo "$plugin_name" | grep -qiE 'NSISunzU'; then
                     cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-unicode/" 2>/dev/null || true
                 else
-                    # No architecture indicator: copy to both so the plugin is
-                    # available for both ANSI and Unicode compilations.
+                    # No architecture indicator: copy to x86-ansi unconditionally.
+                    # Only copy to x86-unicode when no paired *W.dll exists in this
+                    # plugin's directory — if one does exist, the W-variant will be
+                    # installed to x86-unicode (and aliased without the W suffix), so
+                    # copying the ANSI binary there too would overwrite that alias.
                     cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-ansi/" 2>/dev/null || true
-                    cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-unicode/" 2>/dev/null || true
+                    _wvariant="${dll_basename%.dll}W.dll"
+                    if ! find "$extract_dir" -name "$_wvariant" -type f 2>/dev/null | grep -q .; then
+                        cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-unicode/" 2>/dev/null || true
+                    fi
                 fi
             fi
         done

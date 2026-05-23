@@ -517,6 +517,8 @@ Section "Main"
   NSISdl::download "http://localhost" "$TEMP\noop.tmp"
   nsProcess::_FindProcess "makensis.exe" $0
   Pop $0
+  nsProcessW::_FindProcess "makensis.exe" $0
+  Pop $0
 
   ; --- Community plugins ---
   INetC::get "http://localhost" "$TEMP\inetc.tmp" /end
@@ -541,7 +543,7 @@ NSI
 cd "$TMPDIR_TEST"
 SMOKE_OUT=$(run_wrapper "$WRAPPER" "plugin-smoke.nsi" 2>&1 || true)
 if [ -f "plugin-smoke.exe" ]; then
-    pass "Plugin smoke compile: all 25 plugin DLLs loaded and embedded"
+    pass "Plugin smoke compile: all 26 plugin DLLs loaded and embedded"
 else
     fail "Plugin smoke compile: failed — $SMOKE_OUT"
 fi
