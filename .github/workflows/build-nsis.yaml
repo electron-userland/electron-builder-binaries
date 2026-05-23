@@ -179,9 +179,13 @@ jobs:
             runner: windows-latest
             platform_slug: ""
             upload_installer: false
-          - platform: Linux
+          - platform: Linux (x64)
             runner: ubuntu-latest
-            platform_slug: linux
+            platform_slug: linux-x64
+            upload_installer: true
+          - platform: Linux (arm64)
+            runner: ubuntu-22.04-arm
+            platform_slug: linux-arm64
             upload_installer: true
           - platform: macOS (x64)
             runner: macos-15-intel
@@ -215,25 +219,11 @@ jobs:
           tar -xzf "${archives[0]}" -C "$BUNDLE_PATH"
           echo "✅ Extracted to $BUNDLE_PATH/nsis-bundle"
 
-      - name: Set up QEMU (Linux only, for arm64 smoke test)
-        if: matrix.platform_slug == 'linux'
-        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392
-
       - name: Run NSIS test suite
         timeout-minutes: 10
         shell: bash
         run: |
           bash packages/nsis/assets/nsis-test.sh --bundle-dir packages/nsis/out/nsis/nsis-bundle
-
-      - name: Smoke-test arm64 binary via Docker (Linux only)
-        if: matrix.platform_slug == 'linux'
-        timeout-minutes: 5
-        shell: bash
-        run: |
-          docker run --rm --platform linux/arm64 \
-            -v "$(pwd)/packages/nsis/out/nsis/nsis-bundle:/bundle" \
-            ubuntu:22.04 /bundle/linux/arm64/makensis -VERSION
-          echo "✅ arm64 makensis binary executes correctly"
 
       - name: Compile E2E installer
         if: matrix.upload_installer == true

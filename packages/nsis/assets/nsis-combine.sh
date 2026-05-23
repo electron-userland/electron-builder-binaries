@@ -329,7 +329,7 @@ This bundle contains NSIS (Nullsoft Scriptable Install System) binaries for mult
 
 ## Contents
 
-- **Windows**: \`windows/makensis.exe\` (official pre-built binary)
+- **Windows**: \`windows/makensis.exe\` (compiled from source via Docker + MinGW-w64)
 - **Linux**: \`linux/makensis\` (native ELF binary, compiled from source)
 - **macOS**: \`mac/makensis\` (native Mach-O binary, compiled from source)
 - **Elevate**: \`elevate.exe\` (Windows privilege elevation utility, compiled from source)

@@ -137,16 +137,14 @@ FROM ubuntu:22.04
 ARG NSIS_BRANCH
 ARG DEBIAN_FRONTEND=noninteractive
 
-# MinGW-w64 cross-compilers. i686 builds a 32-bit makensis.exe that uses x86 stubs
-# (matching the original SourceForge distribution). x86_64 kept for amd64 stub detection.
+# i686 builds a 32-bit makensis.exe that uses x86-* stubs at startup,
+# matching the original SourceForge bundle behaviour.
 RUN apt-get update && apt-get install -y \
     build-essential \
     scons \
     git \
     nasm \
     halibut \
-    gcc-mingw-w64-x86-64 \
-    g++-mingw-w64-x86-64 \
     gcc-mingw-w64-i686 \
     g++-mingw-w64-i686 \
     libz-mingw-w64-dev \
