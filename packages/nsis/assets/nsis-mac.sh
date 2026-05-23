@@ -84,7 +84,7 @@ mkdir -p "$BUILD_DIR"
 
 if ! { git init "$BUILD_DIR/nsis" && \
        git -C "$BUILD_DIR/nsis" remote add origin https://github.com/NSIS-Dev/nsis.git && \
-       git -C "$BUILD_DIR/nsis" fetch --depth=1 --single-branch origin "$NSIS_BRANCH" && \
+       git -C "$BUILD_DIR/nsis" fetch --depth=1 origin "$NSIS_BRANCH" && \
        git -C "$BUILD_DIR/nsis" checkout FETCH_HEAD; }; then
     echo "❌ Failed to clone NSIS repository"
     exit 1

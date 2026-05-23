@@ -156,7 +156,7 @@ WORKDIR /build
 
 RUN git init nsis && \
     git -C nsis remote add origin https://github.com/NSIS-Dev/nsis.git && \
-    git -C nsis fetch --depth=1 --single-branch origin ${NSIS_BRANCH} && \
+    git -C nsis fetch --depth=1 origin ${NSIS_BRANCH} && \
     git -C nsis checkout FETCH_HEAD
 
 WORKDIR /build/nsis
@@ -201,15 +201,15 @@ RUN echo '#!/bin/bash' > /usr/local/bin/i686-w64-mingw32-gcc && \
     chmod +x /usr/local/bin/i686-w64-mingw32-gcc
 
 # Build 32-bit makensis.exe + x86 stubs + data files from source.
-# 32-bit makensis.exe (i686) defaults to x86 stubs, matching the original SourceForge bundle.
-# SKIPUTILS/SKIPMISC: skip makensisw.exe, zip2exe, and other unused utilities.
+# 32-bit (i686) uses x86 stubs at startup, matching the original SourceForge bundle.
+# SKIPUTILS="NSIS Menu": matches the official NSIS CI — only skips the GUI menu launcher.
+# All other utils including Contrib/UIs (required by MUI2) are compiled from source.
 RUN scons \
     CC=i686-w64-mingw32-gcc \
     CXX=i686-w64-mingw32-g++ \
     RANLIB=i686-w64-mingw32-ranlib \
     AR=i686-w64-mingw32-ar \
-    SKIPUTILS=all \
-    SKIPMISC=all \
+    SKIPUTILS="NSIS Menu" \
     NSIS_CONFIG_CONST_DATA_PATH=no \
     NSIS_CONFIG_LOG=yes \
     NSIS_MAX_STRLEN=8192 \
@@ -221,16 +221,10 @@ RUN scons \
 # Rename to makensis.exe for Windows compatibility.
 RUN mv /build/install/makensis /build/install/makensis.exe
 
-# scons install does not copy Contrib/Language files or other Contrib script dirs.
-# Use space-free intermediate names: docker cp on macOS strips dirs with spaces.
-RUN mkdir -p /build/install/ContribLangFiles /build/install/Contrib && \
-    cp "Contrib/Language files/"* /build/install/ContribLangFiles/ && \
-    cp -r "/build/nsis/Contrib/Modern UI 2" /build/install/Contrib/ContribModernUI2 && \
-    cp -r "/build/nsis/Contrib/Modern UI" /build/install/Contrib/ContribModernUI && \
-    cp -r /build/nsis/Contrib/Graphics /build/install/Contrib/Graphics && \
-    cp -r /build/nsis/Contrib/UIs /build/install/Contrib/UIs
-
-RUN mkdir -p /output && cp -r /build/install/. /output/
+# Tar the install tree so that directory names with spaces survive extraction on all hosts.
+# docker cp on macOS Docker Desktop silently drops directories whose names contain spaces,
+# which would corrupt Contrib/Language files/, Contrib/Modern UI 2/, etc.
+RUN tar -czf /install.tar.gz -C /build/install .
 DOCKERFILE_END
 
 # =============================================================================
@@ -256,21 +250,10 @@ echo ""
 echo "📦 Extracting NSIS build output..."
 
 docker create --name "$CONTAINER_NAME" "$IMAGE_NAME" /bin/true
-docker cp "$CONTAINER_NAME:/output/." "$BUNDLE_DIR/windows/"
-
-# docker cp on macOS strips directory names with spaces (macOS Docker Desktop bug).
-# Restore "Contrib/Language files/" from the space-free "ContribLangFiles/" transit directory.
-if [ -d "$BUNDLE_DIR/windows/ContribLangFiles" ]; then
-    mkdir -p "$BUNDLE_DIR/windows/Contrib/Language files"
-    mv "$BUNDLE_DIR/windows/ContribLangFiles/"* "$BUNDLE_DIR/windows/Contrib/Language files/" 2>/dev/null || true
-    rmdir "$BUNDLE_DIR/windows/ContribLangFiles" 2>/dev/null || true
-fi
-if [ -d "$BUNDLE_DIR/windows/Contrib/ContribModernUI2" ]; then
-    mv "$BUNDLE_DIR/windows/Contrib/ContribModernUI2" "$BUNDLE_DIR/windows/Contrib/Modern UI 2"
-fi
-if [ -d "$BUNDLE_DIR/windows/Contrib/ContribModernUI" ]; then
-    mv "$BUNDLE_DIR/windows/Contrib/ContribModernUI" "$BUNDLE_DIR/windows/Contrib/Modern UI"
-fi
+docker cp "$CONTAINER_NAME:/install.tar.gz" "$TEMP_DIR/install.tar.gz"
+mkdir -p "$BUNDLE_DIR/windows"
+tar -xzf "$TEMP_DIR/install.tar.gz" -C "$BUNDLE_DIR/windows"
+rm -f "$TEMP_DIR/install.tar.gz"
 
 if [ ! -f "$BUNDLE_DIR/windows/makensis.exe" ]; then
     echo "❌ makensis.exe not found in Docker output"
