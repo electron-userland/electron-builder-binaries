@@ -491,6 +491,7 @@ SilentInstall silent
 ; Each Plugin::Function call causes makensis to locate the DLL,
 ; read its PE export table, and embed it. Installer is never executed.
 Section "Main"
+  ; --- NSIS built-in plugins ---
   nsExec::Exec 'echo test'
   Pop $0
   Math::Script 'var x=1;'
@@ -516,13 +517,31 @@ Section "Main"
   NSISdl::download "http://localhost" "$TEMP\noop.tmp"
   nsProcess::_FindProcess "makensis.exe" $0
   Pop $0
+
+  ; --- Community plugins ---
+  INetC::get "http://localhost" "$TEMP\inetc.tmp" /end
+  Pop $0
+  StdUtils::GetRealOsName
+  Pop $0
+  SpiderBanner::Show /NOUNLOAD "Smoke Test"
+  Pop $0
+  EmbedHTML::GetIEVersion
+  Pop $0
+  WinShell::SetLnkAUMI "$TEMP\test.lnk" "App.ID"
+  Pop $0
+  nsis7z::Extract "$EXEPATH" "$TEMP\7ztest"
+  Pop $0
+  nsisunz::Unzip "$EXEPATH" "$TEMP\unztest"
+  Pop $0
+  UAC::_ 0
+  Pop $0
 SectionEnd
 NSI
 
 cd "$TMPDIR_TEST"
 SMOKE_OUT=$(run_wrapper "$WRAPPER" "plugin-smoke.nsi" 2>&1 || true)
 if [ -f "plugin-smoke.exe" ]; then
-    pass "Plugin smoke compile: all 17 plugin DLLs loaded and embedded"
+    pass "Plugin smoke compile: all 25 plugin DLLs loaded and embedded"
 else
     fail "Plugin smoke compile: failed — $SMOKE_OUT"
 fi
