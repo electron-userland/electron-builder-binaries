@@ -434,7 +434,10 @@ for plugin_zip in "$PLUGINS_DIR"/*.zip; do
                 elif echo "$plugin_name" | grep -qiE 'NSISunzU'; then
                     cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-unicode/" 2>/dev/null || true
                 else
+                    # No architecture indicator: copy to both so the plugin is
+                    # available for both ANSI and Unicode compilations.
                     cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-ansi/" 2>/dev/null || true
+                    cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-unicode/" 2>/dev/null || true
                 fi
             fi
         done

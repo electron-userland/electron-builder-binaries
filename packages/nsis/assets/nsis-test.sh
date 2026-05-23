@@ -300,6 +300,7 @@ BASE_DLLS=(
     VPatch.dll
     nsDialogs.dll
     nsExec.dll
+    nsProcess.dll
 )
 
 for arch_dir in x86-unicode x86-ansi; do
@@ -493,6 +494,8 @@ Section "Main"
   LangDLL::LangDialog "Smoke Test" "" "English" "English"
   Dialer::AttemptConnect
   NSISdl::download "http://localhost" "$TEMP\noop.tmp"
+  nsProcess::_FindProcess "makensis.exe" $0
+  Pop $0
 SectionEnd
 NSI
 

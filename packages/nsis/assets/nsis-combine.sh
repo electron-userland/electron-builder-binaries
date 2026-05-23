@@ -261,17 +261,17 @@ cat > "$BUILD_DIR/nsis-bundle/makensis.cmd" <<'EOF'
 @echo off
 setlocal ENABLEEXTENSIONS
 
-REM =============================================================
-REM NSIS Windows CMD Entrypoint
-REM =============================================================
-REM Delegates to makensis.ps1 via pwsh so that makensisw.exe
-REM (GUI subsystem) can be run hidden and auto-closed after compile.
-REM =============================================================
+set "SCRIPT_DIR=%~dp0"
+set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
+set "NSISDIR=%SCRIPT_DIR%\windows"
+set "MAKENSIS_EXE=%NSISDIR%\makensis.exe"
 
-set SCRIPT_DIR=%~dp0
-set SCRIPT_DIR=%SCRIPT_DIR:~0,-1%
+if not exist "%MAKENSIS_EXE%" (
+    echo makensis.exe not found at: %MAKENSIS_EXE% 1>&2
+    exit /b 1
+)
 
-pwsh -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%\makensis.ps1" %*
+"%MAKENSIS_EXE%" %*
 exit /b %ERRORLEVEL%
 EOF
 
