@@ -2,11 +2,11 @@
 set -euo pipefail
 
 # =============================================================================
-# Linux NSIS Binary Builder (Docker buildx, multi-arch)
+# Linux NSIS Binary Builder (Docker-based)
 # =============================================================================
-# Compiles native Linux makensis binaries for x64 and arm64 from source using
-# Docker buildx multi-platform builds. Does NOT download or merge with base bundle.
-# Output: Single tar.gz with linux/x64/makensis and linux/arm64/makensis
+# Compiles ONLY the native Linux makensis binary from source using Docker
+# Does NOT download or merge with base bundle
+# Output: Single zip with just the Linux binary
 # =============================================================================
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -34,9 +34,14 @@ mkdir -p "$OUT_DIR"
 # Check Prerequisites
 # =============================================================================
 
+if ! command -v docker &> /dev/null; then
+    echo "❌ Docker is required but not installed"
+    echo "   Install Docker: https://docs.docker.com/get-docker/"
+    exit 1
+fi
+
 if ! docker buildx version &> /dev/null; then
     echo "❌ Docker buildx is required but not available"
-    echo "   Install Docker with buildx support: https://docs.docker.com/build/buildx/"
     exit 1
 fi
 
@@ -57,16 +62,17 @@ trap cleanup EXIT INT TERM
 # Create Dockerfile
 # =============================================================================
 
-echo "📝 Creating Dockerfile for Linux multi-arch build..."
+echo "📝 Creating Dockerfile for Linux build..."
 
 DOCKERFILE="$OUT_DIR/Dockerfile.linux"
 
 cat > "$DOCKERFILE" <<'DOCKERFILE_END'
-FROM ubuntu:22.04 AS builder
+FROM ubuntu:22.04
 
 ARG NSIS_BRANCH
 ARG DEBIAN_FRONTEND=noninteractive
 
+# Install build dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
     scons \
@@ -76,29 +82,30 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /build
 
-RUN git init nsis && \
-    git -C nsis remote add origin https://github.com/NSIS-Dev/nsis.git && \
-    git -C nsis fetch --depth=1 origin ${NSIS_BRANCH} && \
-    git -C nsis checkout FETCH_HEAD
+# Clone NSIS source
+RUN git clone --branch ${NSIS_BRANCH} --depth=1 https://github.com/NSIS-Dev/nsis.git nsis
 
 WORKDIR /build/nsis
 
+# Build native Linux makensis
+# Skip stubs, plugins, utils - we only need the compiler
 RUN scons \
     SKIPSTUBS=all \
     SKIPPLUGINS=all \
     SKIPUTILS=all \
     SKIPMISC=all \
     NSIS_CONFIG_CONST_DATA_PATH=no \
-    NSIS_CONFIG_LOG=yes \
+    NSIS_CONFIG_LOG=no \
     NSIS_MAX_STRLEN=8192 \
     PREFIX=/build/install \
     install-compiler
 
-# Multi-stage: copy only the binary into a scratch image so that
-# --output type=local exports just the binary (~2MB) instead of the
-# entire ubuntu build environment (~200MB per arch).
-FROM scratch
-COPY --from=builder /build/install/makensis /output/makensis
+# The binary is now at /build/install/makensis
+RUN chmod +x /build/install/makensis
+
+# Create output directory
+RUN mkdir -p /output && \
+    cp /build/install/makensis /output/makensis
 DOCKERFILE_END
 
 # =============================================================================
@@ -161,8 +168,8 @@ echo "📝 Creating version metadata..."
 
 cat > "$TEMP_DIR/nsis-bundle/linux/VERSION.txt" <<EOF
 Platform: Linux
-Architectures: x64, arm64
 Binary: makensis (native ELF binary)
+Architectures: x64, arm64
 Build Date: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 Compiled from source: NSIS $NSIS_BRANCH
 Compiler: GCC (Ubuntu 22.04)
@@ -170,14 +177,14 @@ Build system: SCons
 Docker image: ubuntu:22.04
 
 This binary is compiled from source with:
-- NSIS_CONFIG_LOG=yes
+- Static linking where possible
 - NSIS_MAX_STRLEN=8192
 - NSIS_CONFIG_CONST_DATA_PATH=no
 
 Usage:
-  export NSISDIR="\$(pwd)/windows"
-  ./linux/x64/makensis your-script.nsi   # x64
-  ./linux/arm64/makensis your-script.nsi  # arm64
+  export NSISDIR="\$(pwd)/share/nsis"
+  ./linux/x64/makensis your-script.nsi   # x86_64
+  ./linux/arm64/makensis your-script.nsi # aarch64
 EOF
 
 # =============================================================================
@@ -203,7 +210,7 @@ rm -rf "$TEMP_DIR"
 
 echo ""
 echo "================================================================"
-echo "  ✅ Linux Build Complete (x64 + arm64)!"
+echo "  ✅ Linux Build Complete!"
 echo "================================================================"
 echo "  📁 Archive: $OUTPUT_ARCHIVE"
 echo "  📊 Size:    $(du -h "$OUTPUT_ARCHIVE" | cut -f1)"

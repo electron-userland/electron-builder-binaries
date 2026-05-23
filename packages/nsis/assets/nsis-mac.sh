@@ -115,7 +115,7 @@ if ! scons \
     SKIPUTILS=all \
     SKIPMISC=all \
     NSIS_CONFIG_CONST_DATA_PATH=no \
-    NSIS_CONFIG_LOG=yes \
+    NSIS_CONFIG_LOG=no \
     NSIS_MAX_STRLEN=8192 \
     $SCONS_BREW_FLAGS \
     PREFIX="$BUILD_DIR/install" \
