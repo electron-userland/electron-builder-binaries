@@ -288,19 +288,27 @@ BASE_DLLS=(
     Banner.dll
     BgImage.dll
     Dialer.dll
+    EmbedHTML.dll
+    INetC.dll
     InstallOptions.dll
     LangDLL.dll
     Math.dll
     NSISdl.dll
+    SpiderBanner.dll
     Splash.dll
     StartMenu.dll
+    StdUtils.dll
     System.dll
     TypeLib.dll
+    UAC.dll
     UserInfo.dll
     VPatch.dll
+    WinShell.dll
+    nsis7z.dll
     nsDialogs.dll
     nsExec.dll
     nsProcess.dll
+    nsisunz.dll
 )
 
 for arch_dir in x86-unicode x86-ansi; do
@@ -309,6 +317,10 @@ for arch_dir in x86-unicode x86-ansi; do
             "Plugins/$arch_dir/$dll present"
     done
 done
+
+# nsProcessW.dll is the Unicode variant — only present in x86-unicode under its W-suffixed name
+assert_file "$BUNDLE_DIR/windows/Plugins/x86-unicode/nsProcessW.dll" \
+    "Plugins/x86-unicode/nsProcessW.dll present"
 
 # Validate each DLL is a genuine Windows PE (MZ magic bytes)
 for arch_dir in x86-unicode x86-ansi; do
@@ -326,6 +338,14 @@ for arch_dir in x86-unicode x86-ansi; do
         fi
     done
 done
+_nsprocessw="$BUNDLE_DIR/windows/Plugins/x86-unicode/nsProcessW.dll"
+if [ -f "$_nsprocessw" ]; then
+    MZ_DLL=$(od -N 2 -A n -t x1 "$_nsprocessw" 2>/dev/null | tr -d ' \n')
+    [ "$MZ_DLL" = "4d5a" ] && pass "Plugins/x86-unicode/nsProcessW.dll valid MZ header" \
+                             || fail "Plugins/x86-unicode/nsProcessW.dll invalid or missing MZ header"
+else
+    skip "Plugins/x86-unicode/nsProcessW.dll not found (existence checked above)"
+fi
 
 # =============================================================================
 # Set up the wrapper for compile tests 7-15
@@ -502,7 +522,7 @@ NSI
 cd "$TMPDIR_TEST"
 SMOKE_OUT=$(run_wrapper "$WRAPPER" "plugin-smoke.nsi" 2>&1 || true)
 if [ -f "plugin-smoke.exe" ]; then
-    pass "Plugin smoke compile: all 16 plugin DLLs loaded and embedded"
+    pass "Plugin smoke compile: all 17 plugin DLLs loaded and embedded"
 else
     fail "Plugin smoke compile: failed — $SMOKE_OUT"
 fi

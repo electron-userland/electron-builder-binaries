@@ -431,6 +431,12 @@ for plugin_zip in "$PLUGINS_DIR"/*.zip; do
                 # Filename-based heuristics
                 if echo "$dll_basename" | grep -qE 'W\.dll$|Unicode|unicode'; then
                     cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-unicode/" 2>/dev/null || true
+                    # Strip the W suffix so NSIS can find the DLL via PluginName::Function syntax
+                    # (e.g. nsProcessW.dll → nsProcess.dll so nsProcess::_FindProcess works)
+                    if echo "$dll_basename" | grep -qE 'W\.dll$'; then
+                        _base="${dll_basename%W.dll}.dll"
+                        cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-unicode/$_base" 2>/dev/null || true
+                    fi
                 elif echo "$plugin_name" | grep -qiE 'NSISunzU'; then
                     cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-unicode/" 2>/dev/null || true
                 else
