@@ -67,7 +67,7 @@ echo "📝 Creating Dockerfile for Linux build..."
 DOCKERFILE="$OUT_DIR/Dockerfile.linux"
 
 cat > "$DOCKERFILE" <<'DOCKERFILE_END'
-FROM ubuntu:22.04
+FROM ubuntu:22.04 AS builder
 
 ARG NSIS_BRANCH
 ARG DEBIAN_FRONTEND=noninteractive
@@ -100,12 +100,12 @@ RUN scons \
     PREFIX=/build/install \
     install-compiler
 
-# The binary is now at /build/install/makensis
 RUN chmod +x /build/install/makensis
 
-# Create output directory
-RUN mkdir -p /output && \
-    cp /build/install/makensis /output/makensis
+# Export stage: scratch image contains only the binary so `type=local` output
+# is the binary alone rather than the full Ubuntu filesystem (~400 MB).
+FROM scratch
+COPY --from=builder /build/install/makensis /output/makensis
 DOCKERFILE_END
 
 # =============================================================================

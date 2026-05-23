@@ -431,10 +431,25 @@ for plugin_zip in "$PLUGINS_DIR"/*.zip; do
                 # Filename-based heuristics
                 if echo "$dll_basename" | grep -qE 'W\.dll$|Unicode|unicode'; then
                     cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-unicode/" 2>/dev/null || true
+                    # Strip the W suffix so NSIS can find the DLL via PluginName::Function syntax
+                    # (e.g. nsProcessW.dll → nsProcess.dll so nsProcess::_FindProcess works)
+                    if echo "$dll_basename" | grep -qE 'W\.dll$'; then
+                        _base="${dll_basename%W.dll}.dll"
+                        cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-unicode/$_base" 2>/dev/null || true
+                    fi
                 elif echo "$plugin_name" | grep -qiE 'NSISunzU'; then
                     cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-unicode/" 2>/dev/null || true
                 else
+                    # No architecture indicator: copy to x86-ansi unconditionally.
+                    # Only copy to x86-unicode when no paired *W.dll exists in this
+                    # plugin's directory — if one does exist, the W-variant will be
+                    # installed to x86-unicode (and aliased without the W suffix), so
+                    # copying the ANSI binary there too would overwrite that alias.
                     cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-ansi/" 2>/dev/null || true
+                    _wvariant="${dll_basename%.dll}W.dll"
+                    if ! find "$extract_dir" -name "$_wvariant" -type f 2>/dev/null | grep -q .; then
+                        cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-unicode/" 2>/dev/null || true
+                    fi
                 fi
             fi
         done
