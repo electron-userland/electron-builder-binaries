@@ -174,7 +174,13 @@ RUN gcc -o /usr/local/bin/halibut-nsis Docs/src/bin/halibut/*.c
 # the scons target without extension, so the install step fails with "file not found".
 # Wrap g++ so it creates a no-extension copy alongside the .exe for SCons to find.
 RUN echo '#!/bin/bash' > /usr/local/bin/i686-w64-mingw32-g++ && \
-    echo '/usr/bin/i686-w64-mingw32-g++ "$@" || exit $?' >> /usr/local/bin/i686-w64-mingw32-g++ && \
+    echo 'is_link=1' >> /usr/local/bin/i686-w64-mingw32-g++ && \
+    echo 'for a in "$@"; do [ "$a" = "-c" ] && is_link=0; done' >> /usr/local/bin/i686-w64-mingw32-g++ && \
+    echo 'if [ "$is_link" = "1" ]; then' >> /usr/local/bin/i686-w64-mingw32-g++ && \
+    echo '  /usr/bin/i686-w64-mingw32-g++ "$@" -static-libgcc -static-libstdc++ || exit $?' >> /usr/local/bin/i686-w64-mingw32-g++ && \
+    echo 'else' >> /usr/local/bin/i686-w64-mingw32-g++ && \
+    echo '  /usr/bin/i686-w64-mingw32-g++ "$@" || exit $?' >> /usr/local/bin/i686-w64-mingw32-g++ && \
+    echo 'fi' >> /usr/local/bin/i686-w64-mingw32-g++ && \
     echo 'out=""; prev=""' >> /usr/local/bin/i686-w64-mingw32-g++ && \
     echo 'for a in "$@"; do [ "$prev" = "-o" ] && out="$a"; prev="$a"; done' >> /usr/local/bin/i686-w64-mingw32-g++ && \
     echo '[ -n "$out" ] && [ -f "${out}.exe" ] && [ ! -f "$out" ] && cp "${out}.exe" "$out"' >> /usr/local/bin/i686-w64-mingw32-g++ && \
@@ -197,6 +203,10 @@ RUN echo '#!/bin/bash' > /usr/local/bin/i686-w64-mingw32-gcc && \
     echo 'fi' >> /usr/local/bin/i686-w64-mingw32-gcc && \
     echo 'exec /usr/bin/i686-w64-mingw32-gcc "$@"' >> /usr/local/bin/i686-w64-mingw32-gcc && \
     chmod +x /usr/local/bin/i686-w64-mingw32-gcc
+
+# Remove the zlib import library so the linker uses libz.a (static) instead of zlib1.dll.
+# Without this, makensis.exe would dynamically link zlib1.dll which is absent on stock Windows.
+RUN rm -f /usr/i686-w64-mingw32/lib/libz.dll.a
 
 # Build 32-bit makensis.exe + x86 stubs + data files from source.
 # 32-bit (i686) uses x86 stubs at startup, matching the original SourceForge bundle.
@@ -481,6 +491,14 @@ for plugin_zip in "$PLUGINS_DIR"/*.zip; do
 
     echo "  ✓ $plugin_name"
 done
+
+# NsProcess ships as an ANSI-only DLL but modern NSIS compiles Unicode by default
+# and looks in x86-unicode. Copy it there so nsProcess::FindProcess resolves.
+nsprocess_ansi="$BUNDLE_DIR/windows/Plugins/x86-ansi/NsProcess.dll"
+if [ -f "$nsprocess_ansi" ]; then
+    cp "$nsprocess_ansi" "$BUNDLE_DIR/windows/Plugins/x86-unicode/NsProcess.dll"
+    echo "  ✓ NsProcess.dll placed in x86-unicode"
+fi
 
 if test -f "$PLUGINS_DIR/nsis7z.7z"; then
     nsis7z_dir="$PLUGINS_DIR/nsis7z"

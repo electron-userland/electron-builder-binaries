@@ -67,7 +67,7 @@ echo "📝 Creating Dockerfile for Linux build..."
 DOCKERFILE="$OUT_DIR/Dockerfile.linux"
 
 cat > "$DOCKERFILE" <<'DOCKERFILE_END'
-FROM ubuntu:22.04
+FROM ubuntu:22.04 AS builder
 
 ARG NSIS_BRANCH
 ARG DEBIAN_FRONTEND=noninteractive
@@ -83,8 +83,11 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /build
 
 # Clone NSIS source
-RUN git clone --branch ${NSIS_BRANCH} --depth=1 https://github.com/NSIS-Dev/nsis.git nsis
-
+RUN git init nsis && \
+    git -C nsis remote add origin https://github.com/NSIS-Dev/nsis.git && \
+    git -C nsis fetch --depth=1 origin ${NSIS_BRANCH} && \
+    git -C nsis checkout FETCH_HEAD
+    
 WORKDIR /build/nsis
 
 # Build native Linux makensis
@@ -103,9 +106,11 @@ RUN scons \
 # The binary is now at /build/install/makensis
 RUN chmod +x /build/install/makensis
 
-# Create output directory
 RUN mkdir -p /output && \
     cp /build/install/makensis /output/makensis
+
+FROM scratch
+COPY --from=builder /output/makensis /output/makensis
 DOCKERFILE_END
 
 # =============================================================================
