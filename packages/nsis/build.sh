@@ -20,7 +20,7 @@ OUT_DIR="$SCRIPT_DIR/out"
 
 # Build configuration
 export NSIS_VERSION="3.12"
-export NSIS_BRANCH_OR_COMMIT="e3f60402bcdf7be822d159b531c6e38ddf32de12"
+export NSIS_BRANCH_OR_COMMIT="e3f60402bcdf7be822d159b531c6e38ddf32de12" # v3.12 stable release
 
 # Detect current OS
 OS_TYPE=${TARGET:-$(uname -s | tr '[:upper:]' '[:lower:]')}
