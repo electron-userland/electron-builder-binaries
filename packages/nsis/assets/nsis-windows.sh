@@ -208,10 +208,14 @@ RUN echo '#!/bin/bash' > /usr/local/bin/i686-w64-mingw32-gcc && \
 # Without this, makensis.exe would dynamically link zlib1.dll which is absent on stock Windows.
 RUN rm -f /usr/i686-w64-mingw32/lib/libz.dll.a
 
-# Build 32-bit makensis.exe + x86 stubs + data files from source.
-# 32-bit (i686) uses x86 stubs at startup, matching the original SourceForge bundle.
-# SKIPUTILS="NSIS Menu": matches the official NSIS CI — only skips the GUI menu launcher.
-# All other utils including Contrib/UIs (required by MUI2) are compiled from source.
+# Build 32-bit makensis.exe + stubs + data files from source.
+# NSIS_CONFIG_LOG=yes and NSIS_MAX_STRLEN=8192 apply to both makensis.exe and
+# all stubs, so generated installers have consistent runtime behaviour.
+# The NSIS source tree's crossmingw.py tool auto-configures
+# i686-w64-mingw32-windres for resource compilation, embedding the icon
+# section that CEXEBuild requires at startup — no SKIPSTUBS needed.
+# SKIPUTILS="NSIS Menu": skips the Windows-only GUI launcher.
+# All Contrib/ UIs (required by MUI2) are compiled from source.
 RUN scons \
     CC=i686-w64-mingw32-gcc \
     CXX=i686-w64-mingw32-g++ \
