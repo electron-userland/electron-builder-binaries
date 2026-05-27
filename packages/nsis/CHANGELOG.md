@@ -1,5 +1,11 @@
 # nsis
 
+## 1.2.1
+
+### Patch Changes
+
+- [#177](https://github.com/electron-userland/electron-builder-binaries/pull/177) [`736238b`](https://github.com/electron-userland/electron-builder-binaries/commit/736238b93da99a135906d815bdec4313b6dbae99) Thanks [@mmaietta](https://github.com/mmaietta)! - fix(nsis): properly copy `nsProcess.dll`/`nsProcessW.dll` to both Plugin directories and add to sanity test script
+
 ## 1.2.0
 
 ### Minor Changes
