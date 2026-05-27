@@ -172,14 +172,19 @@ RUN gcc -o /usr/local/bin/halibut-nsis Docs/src/bin/halibut/*.c
 
 # MinGW cross-linker auto-appends .exe to PE output. NSIS SConstruct (on Linux) names
 # the scons target without extension, so the install step fails with "file not found".
-# Wrap g++ so it creates a no-extension copy alongside the .exe for SCons to find.
+# Also adds -U__BIG_ENDIAN__ to all compilation steps: SCons/Config/gnu uses TryRun()
+# to detect endianness; the cross-compiled test PE cannot execute on Linux so TryRun
+# returns failure, which NSIS interprets as "big-endian" and adds -D__BIG_ENDIAN__ to
+# makensis_env's CPPDEFINES. That makes FIX_ENDIAN_INT16() byte-swap ICO fields, causing
+# load_icon_file() to misread the Stubs/uninst header and throw "invalid icon file".
+# Appending -U__BIG_ENDIAN__ after all SCons-generated flags overrides the spurious -D.
 RUN echo '#!/bin/bash' > /usr/local/bin/i686-w64-mingw32-g++ && \
     echo 'is_link=1' >> /usr/local/bin/i686-w64-mingw32-g++ && \
     echo 'for a in "$@"; do [ "$a" = "-c" ] && is_link=0; done' >> /usr/local/bin/i686-w64-mingw32-g++ && \
     echo 'if [ "$is_link" = "1" ]; then' >> /usr/local/bin/i686-w64-mingw32-g++ && \
     echo '  /usr/bin/i686-w64-mingw32-g++ "$@" -static-libgcc -static-libstdc++ || exit $?' >> /usr/local/bin/i686-w64-mingw32-g++ && \
     echo 'else' >> /usr/local/bin/i686-w64-mingw32-g++ && \
-    echo '  /usr/bin/i686-w64-mingw32-g++ "$@" || exit $?' >> /usr/local/bin/i686-w64-mingw32-g++ && \
+    echo '  /usr/bin/i686-w64-mingw32-g++ "$@" -U__BIG_ENDIAN__ || exit $?' >> /usr/local/bin/i686-w64-mingw32-g++ && \
     echo 'fi' >> /usr/local/bin/i686-w64-mingw32-g++ && \
     echo 'out=""; prev=""' >> /usr/local/bin/i686-w64-mingw32-g++ && \
     echo 'for a in "$@"; do [ "$prev" = "-o" ] && out="$a"; prev="$a"; done' >> /usr/local/bin/i686-w64-mingw32-g++ && \
@@ -190,7 +195,7 @@ RUN echo '#!/bin/bash' > /usr/local/bin/i686-w64-mingw32-g++ && \
 # gcc wrapper: halibut (the HTML doc generator) is compiled with the cross-compiler,
 # producing a Windows PE that cannot run on Linux. Intercept the halibut link step
 # and replace the output with a shell-script wrapper to the system halibut binary.
-# All other gcc calls (compilation of .o files, other link steps) pass through unchanged.
+# All compile steps also get -U__BIG_ENDIAN__ for the same reason as the g++ wrapper above.
 RUN echo '#!/bin/bash' > /usr/local/bin/i686-w64-mingw32-gcc && \
     echo 'out=""; prev=""; has_c=0' >> /usr/local/bin/i686-w64-mingw32-gcc && \
     echo 'for a in "$@"; do [ "$prev" = "-o" ] && out="$a"; [ "$a" = "-c" ] && has_c=1; prev="$a"; done' >> /usr/local/bin/i686-w64-mingw32-gcc && \
@@ -200,6 +205,9 @@ RUN echo '#!/bin/bash' > /usr/local/bin/i686-w64-mingw32-gcc && \
     echo '  echo '"'"'exec /usr/local/bin/halibut-nsis "$@"'"'"' >> "$out"' >> /usr/local/bin/i686-w64-mingw32-gcc && \
     echo '  chmod +x "$out"' >> /usr/local/bin/i686-w64-mingw32-gcc && \
     echo '  exit 0' >> /usr/local/bin/i686-w64-mingw32-gcc && \
+    echo 'fi' >> /usr/local/bin/i686-w64-mingw32-gcc && \
+    echo 'if [ "$has_c" = "1" ]; then' >> /usr/local/bin/i686-w64-mingw32-gcc && \
+    echo '  exec /usr/bin/i686-w64-mingw32-gcc "$@" -U__BIG_ENDIAN__' >> /usr/local/bin/i686-w64-mingw32-gcc && \
     echo 'fi' >> /usr/local/bin/i686-w64-mingw32-gcc && \
     echo 'exec /usr/bin/i686-w64-mingw32-gcc "$@"' >> /usr/local/bin/i686-w64-mingw32-gcc && \
     chmod +x /usr/local/bin/i686-w64-mingw32-gcc
