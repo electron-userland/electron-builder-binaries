@@ -85,6 +85,11 @@ jobs:
     uses: ./.github/workflows/build-squirrel.yaml
     needs: detect
 
+  wix:
+    if: contains(needs.detect.outputs.matrix, '"wix"')
+    uses: ./.github/workflows/build-wix.yaml
+    needs: detect
+
   combine:
     runs-on: macos-latest
     needs: [
@@ -95,7 +100,8 @@ jobs:
         nsis,
         dmg-builder,
         linux-tools-mac,
-        squirrel
+        squirrel,
+        wix
       ]
     if: |
       always() &&

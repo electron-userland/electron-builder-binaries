@@ -1,0 +1,30 @@
+name: Build WiX toolset bundle
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Install dependencies
+        run: sudo apt-get install -y unzip rsync wine64
+
+      - name: Build
+        run: bash ./packages/wix/build.sh
+
+      - name: Smoke test
+        run: bash ./packages/wix/assets/test.sh
+
+      - name: Upload wix artifact
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        with:
+          name: wix
+          path: ./packages/wix/out/**/*.tar.gz
+          if-no-files-found: error
+          retention-days: 1
