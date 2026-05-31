@@ -100,7 +100,7 @@ jobs:
         nsis,
         dmg-builder,
         squirrel,
-        wine
+        wine,
         linux-tools-mac
       ]
     if: |
