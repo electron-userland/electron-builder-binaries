@@ -51,7 +51,7 @@ jobs:
         uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
         with:
           name: wix
-          path: ./packages/wix/out/wix
+          path: ./packages/wix/out
 
       - name: Install Wine (macOS)
         if: runner.os == 'macOS'
