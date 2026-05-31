@@ -186,26 +186,27 @@ echo "🍇 Initializing Wine prefix..."
 export WINEPREFIX="$STAGE_DIR/wine-home"
 export WINEARCH=win64
 export WINEDEBUG=-all
-export DISPLAY=:99  # Virtual display for headless
+# macOS: no X needed (native graphics); Linux --without-x: null display driver
+if $IS_DARWIN; then
+    export DISPLAY=:99
+fi
 
 if $IS_DARWIN; then
     "$STAGE_DIR/bin/wineboot" --init
     sleep 2
 else
-    # Start a virtual X server if not running
-    if ! command -v Xvfb &> /dev/null; then
-        echo "⚠️  Xvfb not available"
-        exit 1
-    else
+    # Built with --without-x: Wine uses a null display driver and doesn't require X11.
+    # Start Xvfb if available for belt-and-suspenders; fall back to headless if not.
+    if command -v Xvfb >/dev/null 2>&1; then
         Xvfb :99 -screen 0 1024x768x24 &
         XVFB_PID=$!
+        trap "kill $XVFB_PID 2>/dev/null || true" EXIT
         sleep 2
-        
-        "$STAGE_DIR/bin/wineboot" --init
+        DISPLAY=:99 "$STAGE_DIR/bin/wineboot" --init || true
         sleep 2
-        
-        # Kill Xvfb
-        kill $XVFB_PID
+    else
+        DISPLAY= "$STAGE_DIR/bin/wineboot" --init || true
+        sleep 2
     fi
 fi
 

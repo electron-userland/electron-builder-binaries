@@ -47,6 +47,8 @@ RUN apt-get update && apt-get install -y \
     libxrandr-dev \
     libxrender-dev \
     libxxf86vm-dev \
+    unzip \
+    xvfb \
     xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
