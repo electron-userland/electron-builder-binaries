@@ -6,22 +6,34 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    name: Build and test (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, macos-26]
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
-      - name: Install dependencies
-        run: sudo apt-get install -y unzip rsync wine64
+      - name: Install Wine (macOS)
+        if: runner.os == 'macOS'
+        run: brew install --cask wine-stable
 
-      - name: Build
-        run: bash ./packages/wix/build.sh
+      - name: Build bundle
+        run: bash ./packages/wix/build.sh --target build
 
-      - name: Smoke test
-        run: bash ./packages/wix/assets/test.sh
+      - name: Test (Linux — Docker)
+        if: runner.os == 'Linux'
+        run: bash ./packages/wix/build.sh --target test-linux
+
+      - name: Test (macOS — native Wine)
+        if: runner.os == 'macOS'
+        run: bash ./packages/wix/build.sh --target test-mac
 
       - name: Upload wix artifact
+        if: runner.os == 'Linux'
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
         with:
           name: wix

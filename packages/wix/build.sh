@@ -1,10 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# =============================================================================
+# WiX Toolset Bundle Builder
+# =============================================================================
+# Downloads the official WiX v3 release, filters to runtime-only files,
+# and packages them into a tar.gz artifact.
+#
+# Build order:
+#   1. build        - Download, verify, filter, and compress WiX binaries
+#   2. test-mac     - Run smoke test natively (needs wine in PATH, e.g. via Homebrew)
+#   3. test-linux   - Build linux/amd64 Docker image and run smoke test via Wine
+#   4. test-all     - Run test-mac and test-linux
+#   5. all          - Run build then test-linux (default, matches CI)
+# =============================================================================
+
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+ASSETS_DIR="$SCRIPT_DIR/assets"
 OUT_DIR="$SCRIPT_DIR/out/wix"
-BUILD_DIR="$(mktemp -d)"
-trap 'rm -rf "$BUILD_DIR"' EXIT
 
 WIX_VERSION="3.14.1"
 WIX_TAG="wix3141rtm"
@@ -12,22 +25,170 @@ WIX_ZIP_URL="https://github.com/wixtoolset/wix3/releases/download/${WIX_TAG}/wix
 WIX_SHA256="6ac824e1642d6f7277d0ed7ea09411a508f6116ba6fae0aa5f2c7daa2ff43d31"
 ARCHIVE_NAME="wix-${WIX_VERSION}.tar.gz"
 
-mkdir -p "$OUT_DIR" "$BUILD_DIR/extract" "$BUILD_DIR/bundle"
+DOCKER_IMAGE="wix-builder"
 
-echo "Downloading WiX ${WIX_VERSION}..."
-curl -fsSL --retry 3 "$WIX_ZIP_URL" -o "$BUILD_DIR/wix.zip"
+BUILD_TARGET=""
 
-echo "Verifying checksum..."
-echo "${WIX_SHA256}  $BUILD_DIR/wix.zip" | sha256sum -c -
+# =============================================================================
+# Functions
+# =============================================================================
 
-echo "Extracting..."
-unzip -q "$BUILD_DIR/wix.zip" -d "$BUILD_DIR/extract"
+print_banner() {
+    echo ""
+    echo "═══════════════════════════════════════════════════════════════"
+    echo "  WiX Toolset Bundle Builder"
+    echo "═══════════════════════════════════════════════════════════════"
+    echo "  Version: ${WIX_VERSION} (${WIX_TAG})"
+    echo "  Target:  ${BUILD_TARGET:-all}"
+    echo "═══════════════════════════════════════════════════════════════"
+    echo ""
+}
 
-echo "Filtering runtime files (excluding sdk/ and doc/)..."
-rsync -a --exclude='sdk/' --exclude='doc/' "$BUILD_DIR/extract/" "$BUILD_DIR/bundle/"
+build_bundle() {
+    echo "Downloading and packaging WiX ${WIX_VERSION}..."
+    echo ""
 
-echo "Creating archive..."
-(cd "$BUILD_DIR/bundle" && tar -czf "$OUT_DIR/$ARCHIVE_NAME" .)
+    local BUILD_DIR
+    BUILD_DIR="$(mktemp -d)"
 
-echo "Done: $OUT_DIR/$ARCHIVE_NAME"
-echo "Size: $(du -h "$OUT_DIR/$ARCHIVE_NAME" | cut -f1)"
+    mkdir -p "$OUT_DIR" "$BUILD_DIR/extract" "$BUILD_DIR/bundle"
+
+    echo "  Downloading..."
+    curl -fsSL --retry 3 "$WIX_ZIP_URL" -o "$BUILD_DIR/wix.zip"
+
+    echo "  Verifying checksum..."
+    echo "${WIX_SHA256}  $BUILD_DIR/wix.zip" | sha256sum -c -
+
+    echo "  Extracting..."
+    unzip -q "$BUILD_DIR/wix.zip" -d "$BUILD_DIR/extract"
+
+    echo "  Filtering runtime files (excluding sdk/ and doc/)..."
+    rsync -a --exclude='sdk/' --exclude='doc/' "$BUILD_DIR/extract/" "$BUILD_DIR/bundle/"
+
+    echo "  Creating archive..."
+    rm -f "$OUT_DIR/$ARCHIVE_NAME"
+    (cd "$BUILD_DIR/bundle" && tar -czf "$OUT_DIR/$ARCHIVE_NAME" .)
+
+    echo ""
+    echo "  Done: $OUT_DIR/$ARCHIVE_NAME"
+    echo "  Size: $(du -h "$OUT_DIR/$ARCHIVE_NAME" | cut -f1)"
+
+    rm -rf "$BUILD_DIR"
+}
+
+test_mac() {
+    echo "Running smoke test (macOS native)..."
+    echo ""
+
+    if ! command -v wine &>/dev/null; then
+        echo "❌ wine not found in PATH. Install via: brew install wine-stable"
+        exit 1
+    fi
+
+    bash "$ASSETS_DIR/test.sh"
+}
+
+build_image() {
+    echo "Building Docker image (linux/amd64)..."
+    echo ""
+    docker build --platform linux/amd64 -t "$DOCKER_IMAGE" "$SCRIPT_DIR"
+}
+
+test_linux() {
+    echo "Running smoke test (linux/amd64 via Docker)..."
+    echo ""
+    docker run --rm \
+        --platform linux/amd64 \
+        -v "$SCRIPT_DIR:/pkg" \
+        -w /pkg \
+        "$DOCKER_IMAGE" \
+        bash assets/test.sh
+}
+
+build_all() {
+    build_bundle
+    build_image
+    test_linux
+}
+
+show_usage() {
+    cat << EOF
+Usage: $0 [--target TARGET]
+
+Options:
+  --target, -t TARGET   Build target (default: all)
+  --help, -h            Show this help
+
+Targets:
+  build       Download WiX binaries and produce the tar.gz artifact
+  test-mac    Run smoke test natively (requires wine in PATH, e.g. brew install wine-stable)
+  test-linux  Build linux/amd64 Docker image and run smoke test via Wine
+  test-all    Run test-mac and test-linux
+  all         Run build then test-linux (default)
+
+Examples:
+  ./build.sh                       # Build artifact and run Docker smoke test
+  ./build.sh --target build        # Produce artifact only (no Docker/Wine)
+  ./build.sh --target test-mac     # Test natively on macOS with local Wine
+  ./build.sh --target test-linux   # Test inside linux/amd64 Docker container
+  ./build.sh --target test-all     # Run both test-mac and test-linux
+
+Requirements:
+  build:       curl, unzip, rsync, tar, sha256sum
+  test-mac:    wine (brew install wine-stable)
+  test-linux:  Docker
+
+EOF
+}
+
+# =============================================================================
+# Main
+# =============================================================================
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --target|-t)
+            if [[ $# -lt 2 || -z "${2:-}" ]]; then
+                echo "❌ --target requires a value"
+                echo ""
+                show_usage
+                exit 1
+            fi
+            BUILD_TARGET="$2"; shift 2 ;;
+        --help|-h) show_usage; exit 0 ;;
+        *) echo "❌ Unknown option: $1"; echo ""; show_usage; exit 1 ;;
+    esac
+done
+
+print_banner
+
+case "$BUILD_TARGET" in
+    ""|all)
+        build_all
+        ;;
+    build)
+        build_bundle
+        ;;
+    test-mac)
+        test_mac
+        ;;
+    test-linux)
+        build_image
+        test_linux
+        ;;
+    test-all)
+        test_mac
+        build_image
+        test_linux
+        ;;
+    *)
+        echo "❌ Unknown target: $BUILD_TARGET"
+        echo ""
+        show_usage
+        exit 1
+        ;;
+esac
+
+echo ""
+echo "✅ Done!"
+echo ""
