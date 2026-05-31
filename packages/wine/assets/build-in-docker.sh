@@ -216,7 +216,7 @@ fi
 
 echo "🧪 Generating DLL load traces"
 TRACE_EXES_FILE=$(
-    sh "$SCRIPT_DIR/generate-trace-exes.sh" \
+    bash "$SCRIPT_DIR/generate-trace-exes.sh" \
     | grep '^EXE_LIST_FILE=' \
     | cut -d= -f2
 )
