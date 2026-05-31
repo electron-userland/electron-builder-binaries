@@ -75,8 +75,18 @@ build_bundle() {
     echo "  Building from source (Release, tests disabled)..."
     cd "$SRC_DIR/wix"
     export RuntimeTestsEnabled=false
+    # WixSkipVsDevCmd=1: build_all.cmd's StartDeveloperCommandPrompt uses vswhere
+    # with -version [17.0,18.0) which excludes VS 2026 (18.x). We initialize the
+    # VS developer environment in the workflow step before calling this script, so
+    # we tell build_all.cmd to trust the already-configured environment.
+    export WixSkipVsDevCmd=1
     # Use build_all.cmd directly to avoid the signing step in build_official.cmd
     cmd //c "src\\build_all.cmd" Release
+    local BUILD_RC=$?
+    if [ $BUILD_RC -ne 0 ]; then
+        echo "❌ build_all.cmd failed with exit code $BUILD_RC"
+        exit $BUILD_RC
+    fi
 
     echo "  Locating nupkg artifact..."
     local NUPKG
