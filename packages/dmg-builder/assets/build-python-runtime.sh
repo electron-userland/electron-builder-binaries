@@ -238,6 +238,9 @@ for ext in _asyncio _bz2 _codecs_{cn,hk,iso2022,jp,kr,tw} _crypt \
     test_dmgbuild
 done
 
+echo "Installing pytest for Test 8 (before pip is removed)"
+run_arch "$PREFIX/bin/python3" -m pip install --quiet --no-warn-script-location pytest 2>/dev/null || true
+
 echo "Removing pip and setuptools"
 rm -rf "$PREFIX/bin/pip"* "$PREFIX/bin/easy_install"*
 SITE_PACKAGES="$PYTHON_LIB_DIR/site-packages"

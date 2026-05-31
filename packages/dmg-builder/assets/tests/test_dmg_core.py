@@ -150,8 +150,8 @@ class TestSizeFormula(unittest.TestCase):
             except Exception:
                 pass
 
-        if sizes_passed:
-            self.assertEqual(sizes_passed[0], "99m")
+        self.assertTrue(sizes_passed, "hdiutil 'create' was never called with -size — explicit-size bypass path not exercised")
+        self.assertEqual(sizes_passed[0], "99m")
 
 
 # ---------------------------------------------------------------------------
@@ -213,7 +213,7 @@ class TestDittoCopyFailure(unittest.TestCase):
 
     def test_ditto_failure_raises_exception(self):
         """Non-zero ditto exit must raise CalledProcessError (not silently pass)."""
-        with self.assertRaises((subprocess.CalledProcessError, Exception)):
+        with self.assertRaises(subprocess.CalledProcessError):
             self._run_build_with_ditto_returncode(1)
 
     def test_ditto_success_does_not_raise(self):
