@@ -6,7 +6,7 @@ set -x
 
 WINE_VERSION=${WINE_VERSION:-11.0}
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+ROOT_DIR="${ROOT_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 BUILD_DIR=${BUILD_DIR:-$ROOT_DIR/build}
 
 # NOTE: update the checksums here as new versions are added
@@ -26,7 +26,6 @@ if [ "$OS_TARGET" = "darwin" ]; then
   IS_DARWIN=true
 fi
 
-ARCH_CMD=''
 if $IS_DARWIN; then
     echo "🍺 Ensuring Homebrew dependencies (brew bundle)"
     
@@ -65,27 +64,10 @@ if $IS_DARWIN; then
     }
     
     if [ "$HOST_ARCH" = 'arm64' ]; then
-        echo "🔄 ARM64 - building x86_64 via Rosetta"
-        ARCH_CMD='arch -x86_64'
+        echo "🔄 ARM64 host — will cross-compile x86_64 Wine via -arch x86_64"
         export SDKROOT="$(xcode-select -p)/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
     fi
 fi
-
-if $IS_DARWIN; then
-  export CC=x86_64-w64-mingw32-gcc
-  export CXX=x86_64-w64-mingw32-g++
-else
-  unset CC
-  unset CXX
-fi
-
-execute_cmd() {
-    if [[ -n "$ARCH_CMD" ]]; then
-        $ARCH_CMD "$@"
-    else
-        "$@"
-    fi
-}
 
 CHECKSUM=$(get_checksum "$WINE_VERSION")
 WINE_MAJOR=$(echo "$WINE_VERSION" | cut -d. -f1)
@@ -95,7 +77,8 @@ DOWNLOAD_DIR="$BUILD_DIR/downloads"
 SOURCE_DIR="$BUILD_DIR/wine-${WINE_VERSION}"
 BUILD_WINE_DIR="$BUILD_DIR/wine64-build"
 STAGE_DIR="$BUILD_DIR/wine-stage"
-OUTPUT_DIR="$BUILD_DIR/wine-${WINE_VERSION}-darwin-${PLATFORM_ARCH}"
+OUTPUT_DIR="$BUILD_DIR/wine-${WINE_VERSION}-${OS_TARGET}-${PLATFORM_ARCH}"
+OUT_DIR="${OUT_DIR:-$ROOT_DIR/out}"
 TRACE_LOG="$BUILD_DIR/dll-trace.log"
 SYS32_ALLOW="$BUILD_DIR/system32.allow"
 WINE_ALLOW="$BUILD_DIR/wine.allow"
@@ -124,12 +107,6 @@ if [ ! -d "$SOURCE_DIR" ]; then
     tar -xJf "$ARCHIVE" -C "$BUILD_DIR"
 fi
 
-# Configure Wine
-echo "⚙️  Configuring Wine (without FreeType)..."
-rm -rf "$BUILD_WINE_DIR" "$STAGE_DIR"
-mkdir -p "$BUILD_WINE_DIR" "$STAGE_DIR"
-cd "$BUILD_WINE_DIR"
-
 CONFIGURE_FLAGS=(
   --prefix="$STAGE_DIR"
   --enable-win64
@@ -139,53 +116,70 @@ CONFIGURE_FLAGS=(
   --without-freetype
 )
 
-if $IS_DARWIN; then
-  CONFIGURE_FLAGS+=(
-    --host=x86_64-w64-mingw32
-  )
+NCPU=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+
+# On ARM64 macOS, run configure+make via Rosetta so uname -m returns x86_64.
+# Wine then detects x86_64, uses x86_64-w64-mingw32-gcc (Homebrew mingw-w64) for PE DLLs,
+# and compiles x86_64 Wine binaries that run via Rosetta on this machine.
+# /usr/bin/make is a universal binary — arch -x86_64 /usr/bin/make works; Homebrew's make is not.
+if $IS_DARWIN && [ "$HOST_ARCH" = 'arm64' ]; then
+    CONFIGURE_CMD=(arch -x86_64 "$SOURCE_DIR/configure")
+    MAKE_CMD=(arch -x86_64 /usr/bin/make)
+else
+    CONFIGURE_CMD=("$SOURCE_DIR/configure")
+    MAKE_CMD=(make)
 fi
 
-execute_cmd "$SOURCE_DIR/configure" \
-  "${CONFIGURE_FLAGS[@]}" \
-  2>&1 | tee configure.log
+echo "⚙️  Configuring Wine (without FreeType)..."
+rm -rf "$BUILD_WINE_DIR" "$STAGE_DIR"
+mkdir -p "$BUILD_WINE_DIR" "$STAGE_DIR"
+cd "$BUILD_WINE_DIR"
+"${CONFIGURE_CMD[@]}" "${CONFIGURE_FLAGS[@]}" 2>&1 | tee configure.log
 
 if [ "$OS_TARGET" = "darwin" ]; then
-    # 🧠 Auto-update Brewfile if dependencies changed
     bash "$SCRIPT_DIR/generate-brewfile.sh" "$BUILD_WINE_DIR/config.log"
 fi
 
 echo "🔨 Building..."
-execute_cmd make -j$(sysctl -n hw.ncpu)
+"${MAKE_CMD[@]}" -j"$NCPU"
 
 echo "📦 Installing..."
-execute_cmd make install
+"${MAKE_CMD[@]}" install
 
 cd "$ROOT_DIR"
+
+# Wine 9+ with --enable-win64 no longer installs a separate wine64 binary.
+# Add wine64 → wine symlink for electron-builder compatibility.
+if [ ! -e "$STAGE_DIR/bin/wine64" ] && [ -f "$STAGE_DIR/bin/wine" ]; then
+    ln -s wine "$STAGE_DIR/bin/wine64"
+    echo "🔗 Created wine64 → wine symlink"
+fi
 
 # Remove unnecessary directories
 rm -rf "$STAGE_DIR/share/man"  "$STAGE_DIR/share/doc"  "$STAGE_DIR/share/gtk-doc" "$STAGE_DIR/include" "$STAGE_DIR/share/applications"
 
-# Adjust RPATHs for all binaries
-add_rpath_if_missing() {
-    local binary="$1"
-    local rpath="$2"
-    
-    echo "🔍 Checking RPATH in: $binary"
-    
-    # List existing rpaths
-    if otool -l "$binary" | grep -A2 LC_RPATH | grep -q "$rpath"; then
-        echo "✅ RPATH already present: $rpath — skipping 🛑"
-        return 0
-    fi
-    
-    echo "➕ Adding RPATH: $rpath"
-    install_name_tool -add_rpath "$rpath" "$binary"
-}
+# Adjust RPATHs for all binaries (macOS only — otool/install_name_tool are macOS-specific)
+if $IS_DARWIN; then
+    add_rpath_if_missing() {
+        local binary="$1"
+        local rpath="$2"
 
-for binary in wine64 wine wineserver wineboot winecfg; do
-    binary_path="$STAGE_DIR/bin/$binary"
-    [ -f "$binary_path" ] && add_rpath_if_missing "$binary_path" "@executable_path/../lib"
-done
+        echo "🔍 Checking RPATH in: $binary"
+
+        if otool -l "$binary" | grep -A2 LC_RPATH | grep -q "$rpath"; then
+            echo "✅ RPATH already present: $rpath — skipping 🛑"
+            return 0
+        fi
+
+        echo "➕ Adding RPATH: $rpath"
+        install_name_tool -add_rpath "$rpath" "$binary"
+    }
+
+    for binary in wine64 wine wineserver wineboot winecfg; do
+        binary_path="$STAGE_DIR/bin/$binary"
+        [ -f "$binary_path" ] && add_rpath_if_missing "$binary_path" "@executable_path/../lib"
+    done
+fi
 
 # Initialize Wine prefix
 echo "🍇 Initializing Wine prefix..."
@@ -195,7 +189,7 @@ export WINEDEBUG=-all
 export DISPLAY=:99  # Virtual display for headless
 
 if $IS_DARWIN; then
-    execute_cmd "$STAGE_DIR/bin/wineboot" --init
+    "$STAGE_DIR/bin/wineboot" --init
     sleep 2
 else
     # Start a virtual X server if not running
@@ -315,10 +309,11 @@ find "$STAGE_DIR/bin" "$STAGE_DIR/lib" -type f -perm +111 -exec strip -x {} \; 2
 ############################################
 
 echo "📦 Packaging archive"
-mkdir -p "$OUTPUT_DIR"
+mkdir -p "$OUTPUT_DIR" "$OUT_DIR"
 cp -R "$STAGE_DIR/"* "$OUTPUT_DIR/"
 
-tar -C "$BUILD_DIR" -cJf "$ROOT_DIR/wine-${WINE_VERSION}-${PLATFORM}-${PLATFORM_ARCH}.tar.xz" "$(basename "$OUTPUT_DIR")"
+ARCHIVE="$OUT_DIR/wine-${WINE_VERSION}-${OS_TARGET}-${PLATFORM_ARCH}.tar.xz"
+tar -C "$BUILD_DIR" -cJf "$ARCHIVE" "$(basename "$OUTPUT_DIR")"
 
 echo "✅ DONE"
-du -sh "$ROOT_DIR/wine-${WINE_VERSION}-${PLATFORM}-${PLATFORM_ARCH}.tar.xz"
+du -sh "$ARCHIVE"

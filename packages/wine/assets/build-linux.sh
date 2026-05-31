@@ -7,7 +7,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="${ROOT_DIR:-$SCRIPT_DIR/..}"
 WINE_VERSION="${WINE_VERSION:-11.0}"
-OUTPUT_DIR="${OUTPUT_DIR:-$ROOT_DIR/out/wine}"
+OUTPUT_DIR="${OUTPUT_DIR:-$ROOT_DIR/out}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -80,6 +80,8 @@ docker run \
     --rm \
     -v "$OUTPUT_DIR:/output" \
     -e WINE_VERSION="$WINE_VERSION" \
+    -e OS_TARGET=linux \
+    -e OUT_DIR=/output \
     "$IMAGE_NAME"
 
 if [ $? -ne 0 ]; then
@@ -91,12 +93,13 @@ log_info "Wine build completed successfully!"
 log_info "Output location: $OUTPUT_DIR"
 
 # List the built artifacts
-if [ -f "$OUTPUT_DIR/wine-${WINE_VERSION}-linux-x86_64.tar.xz" ]; then
+ARTIFACT="$OUTPUT_DIR/wine-${WINE_VERSION}-linux-x86_64.tar.xz"
+if [ -f "$ARTIFACT" ]; then
     log_info "Build artifact:"
-    ls -lh "$OUTPUT_DIR/wine-${WINE_VERSION}-linux-x86_64.tar.xz"
+    ls -lh "$ARTIFACT"
 else
-    log_warn "Expected output file not found"
+    log_warn "Expected output file not found: $ARTIFACT"
     log_info "Contents of output directory:"
-    ls -lh "$OUTPUT_DIR"
+    ls -lh "$OUTPUT_DIR" 2>/dev/null || echo "(empty)"
     exit 1
 fi
