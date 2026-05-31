@@ -18,15 +18,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
-      # Initialize VS 2026 developer environment (MSVC, MSBuild 18.x) before
-      # calling the build script. build_all.cmd uses vswhere -version [17.0,18.0)
-      # which excludes VS 2026 (18.x), so we set WixSkipVsDevCmd=1 in build.sh
-      # and initialize here instead. bash inherits env vars from the cmd parent.
       - name: Build WiX from source
-        shell: cmd
-        run: |
-          call "C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\Tools\VsDevCmd.bat" -no_logo || exit /b 1
-          bash ./packages/wix/build.sh --target build
+        shell: bash
+        run: bash ./packages/wix/build.sh --target build
 
       - name: Upload wix artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1

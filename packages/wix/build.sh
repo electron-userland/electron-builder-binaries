@@ -72,15 +72,23 @@ build_bundle() {
     echo "  Cloning wixtoolset/wix ${WIX_TAG}..."
     git clone --depth=1 --branch "$WIX_TAG" "$WIX_REPO" "$SRC_DIR/wix"
 
+    # WiX generates its global.json from this template during build_init.cmd.
+    # The template's "sdk" block only sets allowPrerelease:false with NO version
+    # pin, so .NET picks the highest installed SDK (10.x on the runner). .NET SDK
+    # 10 requires MSBuild 18, but the v143 C++ toolset WiX needs only ships with
+    # VS 2022 (MSBuild 17). Pin the SDK to 8.x so MSBuild 17 can load it. This
+    # preserves the template's msbuild-sdks pins (Traversal, NoTargets).
+    echo "  Pinning .NET SDK to 8.x in global.json template..."
+    local GLOBAL_JSON_PP="$SRC_DIR/wix/src/internal/SetBuildNumber/global.json.pp"
+    sed -i.bak 's/"allowPrerelease": false/"version": "8.0.100",\n    "rollForward": "latestFeature",\n    "allowPrerelease": false/' \
+        "$GLOBAL_JSON_PP"
+
     echo "  Building from source (Release, tests disabled)..."
     cd "$SRC_DIR/wix"
     export RuntimeTestsEnabled=false
-    # WixSkipVsDevCmd=1: build_all.cmd's StartDeveloperCommandPrompt uses vswhere
-    # with -version [17.0,18.0) which excludes VS 2026 (18.x). We initialize the
-    # VS developer environment in the workflow step before calling this script, so
-    # we tell build_all.cmd to trust the already-configured environment.
-    export WixSkipVsDevCmd=1
-    # Use build_all.cmd directly to avoid the signing step in build_official.cmd
+    # Use build_all.cmd directly to avoid the signing step in build_official.cmd.
+    # On windows-2022, build_all.cmd's vswhere -version [17.0,18.0) finds VS 2022
+    # and initializes the v143 developer environment automatically.
     cmd //c "src\\build_all.cmd" Release
     local BUILD_RC=$?
     if [ $BUILD_RC -ne 0 ]; then
