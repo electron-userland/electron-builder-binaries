@@ -2,7 +2,19 @@
 # assets/compiler-flags.sh
 set -euo pipefail
 
-ARCH="${1:-amd64}"
+usage() {
+    echo "Usage: $0 --arch <amd64|i386|arm64>" >&2
+    exit 1
+}
+
+ARCH="amd64"
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --arch) ARCH="$2"; shift 2 ;;
+        -h|--help) usage ;;
+        *) echo "Unknown argument: $1" >&2; usage ;;
+    esac
+done
 
 # Default: native build
 CMAKE_FLAGS=""
