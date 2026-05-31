@@ -64,14 +64,14 @@ do_build() {
         --platform=node \
         --target=node14 \
         --format=cjs \
+        --banner:js='var UZIP;' \
         --outfile="$BUNDLE_DIR/icon-tool.js"
     echo "  ✓ icon-tool.js bundled"
 
     echo ""
     echo "─── Copy resvg.wasm ────────────────────────────────────────────"
-    local wasm_path
-    wasm_path=$(find "$SCRIPT_DIR/node_modules/@resvg/resvg-wasm" -name 'index_bg.wasm' -type f | head -1)
-    if [ -z "$wasm_path" ] || [ ! -f "$wasm_path" ]; then
+    local wasm_path="$PACKAGE_DIR/node_modules/@resvg/resvg-wasm/index_bg.wasm"
+    if [ ! -f "$wasm_path" ]; then
         echo "ERROR: Could not locate @resvg/resvg-wasm/index_bg.wasm — is the package installed?"
         exit 1
     fi
@@ -93,11 +93,12 @@ do_test() {
     echo "─── Bundle e2e test runner ─────────────────────────────────────"
     cd "$SCRIPT_DIR"
     # validate.ts is imported by e2e.ts and bundled inline
-    ./node_modules/.bin/esbuild tests/e2e.ts \
+    "$ESBUILD" tests/e2e.ts \
         --bundle \
         --platform=node \
         --target=node14 \
         --format=cjs \
+        --banner:js='var UZIP;' \
         --outfile="$BUNDLE_DIR/e2e.js"
     echo "  ✓ e2e.js bundled"
 
