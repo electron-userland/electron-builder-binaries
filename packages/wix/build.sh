@@ -87,10 +87,13 @@ build_bundle() {
     cd "$SRC_DIR/wix"
     export RuntimeTestsEnabled=false
     # Use build_all.cmd directly to avoid the signing step in build_official.cmd.
-    # On windows-2022, build_all.cmd's vswhere -version [17.0,18.0) finds VS 2022
+    # On windows-2025, build_all.cmd's vswhere -version [17.0,18.0) finds VS 2022
     # and initializes the v143 developer environment automatically.
+    # set +e so cmd.exe exit codes aren't silently swallowed by Git Bash under set -e.
+    set +e
     cmd //c "src\\build_all.cmd" Release
     local BUILD_RC=$?
+    set -e
     if [ $BUILD_RC -ne 0 ]; then
         echo "❌ build_all.cmd failed with exit code $BUILD_RC"
         exit $BUILD_RC
