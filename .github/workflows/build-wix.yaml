@@ -7,9 +7,12 @@ on:
 jobs:
   # Build WiX v4 from source. Requires Windows: the C++ wixnative.exe component
   # needs MSVC, and the build entry point is a Windows batch script.
+  # windows-2025-vs2026 = Windows Server 2025 + Visual Studio 2026 (MSBuild 18.x).
+  # MSBuild 18 supports .NET SDK 10, avoiding the SDK/MSBuild version mismatch
+  # present on windows-2025 (VS 2022, MSBuild 17.x).
   build:
     name: Build (Windows source compile)
-    runs-on: windows-2025
+    runs-on: windows-2025-vs2026
     timeout-minutes: 60
     steps:
       - name: Checkout repository

@@ -72,13 +72,6 @@ build_bundle() {
     echo "  Cloning wixtoolset/wix ${WIX_TAG}..."
     git clone --depth=1 --branch "$WIX_TAG" "$WIX_REPO" "$SRC_DIR/wix"
 
-    # The windows-2025 runner defaults to .NET SDK 10, but VS 2022's MSBuild 17.x
-    # cannot load SDK 10 (requires MSBuild 18+). WiX v4 targets net6.0, so SDK 8.x
-    # is sufficient. Pin via global.json so build_all.cmd picks the right SDK.
-    echo "  Pinning .NET SDK to 8.x (MSBuild 17.x compatibility)..."
-    printf '{"sdk":{"version":"8.0.0","rollForward":"latestFeature"}}' \
-        > "$SRC_DIR/wix/global.json"
-
     echo "  Building from source (Release, tests disabled)..."
     cd "$SRC_DIR/wix"
     export RuntimeTestsEnabled=false
