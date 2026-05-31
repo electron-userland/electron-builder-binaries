@@ -86,8 +86,11 @@ build_bundle() {
     echo "  Building from source (Release, tests disabled)..."
     cd "$SRC_DIR/wix"
     export RuntimeTestsEnabled=false
+    # .NET SDK 8.0.400+ promotes targeting net6.0 from a warning to a build error
+    # (NETSDK1138). WiX v4.0.6's wix.csproj targets net6.0; disable the EOL check.
+    export CheckEolTargetFramework=false
     # Use build_all.cmd directly to avoid the signing step in build_official.cmd.
-    # On windows-2025, build_all.cmd's vswhere -version [17.0,18.0) finds VS 2022
+    # On windows-2022, build_all.cmd's vswhere -version [17.0,18.0) finds VS 2022
     # and initializes the v143 developer environment automatically.
     # set +e so cmd.exe exit codes aren't silently swallowed by Git Bash under set -e.
     set +e

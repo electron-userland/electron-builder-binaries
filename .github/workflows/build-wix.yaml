@@ -7,12 +7,13 @@ on:
 jobs:
   # Build WiX v4 from source. Requires Windows: the C++ wixnative.exe component
   # needs MSVC, and the build entry point is a Windows batch script.
-  # build_all.cmd uses vswhere -version [17.0,18.0) to find VS 2022; windows-2025
-  # has VS 2022 (MSBuild 17.x). build.sh pins the .NET SDK to 8.x so MSBuild 17
-  # can load it (the runner also has SDK 10 installed, which requires MSBuild 18).
+  # build_all.cmd uses vswhere -version [17.0,18.0) to find VS 2022; windows-2022
+  # has VS 2022 (MSBuild 17.x). windows-2025 would also work today but is scheduled
+  # to redirect to windows-2025-vs2026 (VS 2026 only) on 2026-06-15, breaking the
+  # vswhere check. build.sh pins the .NET SDK to 8.x so MSBuild 17 can load it.
   build:
     name: Build (Windows source compile)
-    runs-on: windows-2025
+    runs-on: windows-2022
     timeout-minutes: 60
     steps:
       - name: Checkout repository
