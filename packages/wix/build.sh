@@ -83,6 +83,14 @@ build_bundle() {
     sed -i.bak 's/"allowPrerelease": false/"version": "8.0.100",\n    "rollForward": "latestFeature",\n    "allowPrerelease": false/' \
         "$GLOBAL_JSON_PP"
 
+    # Pre-create wixnative intermediate directories to avoid RC1109 on windows-2022:
+    # parallel MSBuild sometimes invokes RC.exe before the IntDir exists, which
+    # causes "fatal error RC1109: error creating ver.res" and silently drops the
+    # wix.*.nupkg without aborting build_all.cmd.
+    mkdir -p "$SRC_DIR/wix/build/wix/obj/wixnative/Release/x86"
+    mkdir -p "$SRC_DIR/wix/build/wix/obj/wixnative/Release/x64"
+    mkdir -p "$SRC_DIR/wix/build/wix/obj/wixnative/Release/ARM64"
+
     echo "  Building from source (Release, tests disabled)..."
     cd "$SRC_DIR/wix"
     export RuntimeTestsEnabled=false
@@ -104,10 +112,13 @@ build_bundle() {
 
     echo "  Locating nupkg artifact..."
     local NUPKG
-    NUPKG="$(find "$SRC_DIR/wix/build/artifacts" -name "wix.*.nupkg" | grep -v symbols | head -1)"
+    # grep -v on empty input exits 1, which with pipefail kills the script before
+    # the diagnostic below runs.  Use find's own filter and || true instead.
+    NUPKG="$(find "$SRC_DIR/wix/build/artifacts" -name "wix.*.nupkg" \
+        ! -name "*.symbols.nupkg" 2>/dev/null | head -1 || true)"
     if [ -z "$NUPKG" ]; then
         echo "❌ wix.*.nupkg not found in build/artifacts/ — listing contents:"
-        find "$SRC_DIR/wix/build/artifacts" -type f | head -20 || true
+        find "$SRC_DIR/wix/build/artifacts" -type f 2>/dev/null | head -30 || true
         exit 1
     fi
     echo "  Found: $(basename "$NUPKG")"
