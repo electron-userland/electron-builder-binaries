@@ -1,0 +1,62 @@
+name: Build WiX toolset bundle
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  # Build WiX v4 from source. Requires Windows: the C++ wixnative.exe component
+  # needs MSVC, and the build entry point is a Windows batch script.
+  build:
+    name: Build (Windows source compile)
+    runs-on: windows-2025
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Build WiX from source
+        shell: bash
+        run: bash ./packages/wix/build.sh --target build
+
+      - name: Upload wix artifact
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        with:
+          name: wix
+          path: ./packages/wix/out/**/*.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  # Smoke test on each platform. Structural checks always pass;
+  # the full Wine functional test (wix.exe build → .msi) requires
+  # .NET 6 Windows runtime in the Wine prefix (see Dockerfile notes).
+  test:
+    name: Test (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    needs: build
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, macos-26]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Download artifact
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with:
+          name: wix
+          path: ./packages/wix/out/wix
+
+      - name: Install Wine (macOS)
+        if: runner.os == 'macOS'
+        run: brew install --cask wine-stable
+
+      - name: Test (Linux — Docker)
+        if: runner.os == 'Linux'
+        run: bash ./packages/wix/build.sh --target test-linux
+
+      - name: Test (macOS — native Wine)
+        if: runner.os == 'macOS'
+        run: bash ./packages/wix/build.sh --target test-mac

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="WixBundleTest" Manufacturer="electron-builder" Version="1.0.0.0"
+           UpgradeCode="12345678-1234-1234-1234-000000000001" Scope="perUser">
+    <MediaTemplate EmbedCab="yes" />
+    <Feature Id="ProductFeature" Title="Stub" />
+  </Package>
+</Wix>
