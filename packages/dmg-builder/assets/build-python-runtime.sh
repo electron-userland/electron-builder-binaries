@@ -248,6 +248,7 @@ echo "Removing test files, bytecode, and metadata"
 find "$PREFIX" -type d \( -name test -o -name tests -o -name __pycache__ \) -exec rm -rf {} + 2>/dev/null || true
 find "$PREFIX" -type f \( -name "*.pyc" -o -name "*.pyo" -o -name "test_*.py" \) -delete
 find "$PREFIX" -type d \( -name "*.dist-info" -o -name "*.egg-info" \) -exec rm -rf {} + 2>/dev/null || true
+find "$PREFIX" -type d -name "*.dSYM" -exec rm -rf {} + 2>/dev/null || true
 
 # Remove dev files
 rm -rf "$PREFIX"/{include,share} "$PREFIX/lib"/{pkgconfig,*.a} "$PREFIX/lib/python*/config-*"
