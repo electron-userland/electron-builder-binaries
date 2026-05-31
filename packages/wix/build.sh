@@ -51,6 +51,7 @@ build_bundle() {
     local BUILD_DIR
     BUILD_DIR="$(mktemp -d)"
 
+    rm -rf "$OUT_DIR"
     mkdir -p "$OUT_DIR" "$BUILD_DIR/extract" "$BUILD_DIR/bundle"
 
     echo "  Downloading..."
@@ -65,9 +66,11 @@ build_bundle() {
     echo "  Filtering runtime files (excluding sdk/ and doc/)..."
     rsync -a --exclude='sdk/' --exclude='doc/' "$BUILD_DIR/extract/" "$BUILD_DIR/bundle/"
 
+    echo "  Deleting existing output and copying bundle..."
+    cp -r "$BUILD_DIR/bundle" "$OUT_DIR"
+
     echo "  Creating archive..."
-    rm -f "$OUT_DIR/$ARCHIVE_NAME"
-    (cd "$BUILD_DIR/bundle" && tar -czf "$OUT_DIR/$ARCHIVE_NAME" .)
+    (cd "$OUT_DIR/bundle" && tar -czf "$OUT_DIR/$ARCHIVE_NAME" .)
 
     echo ""
     echo "  Done: $OUT_DIR/$ARCHIVE_NAME"
@@ -88,15 +91,10 @@ test_mac() {
     bash "$ASSETS_DIR/test.sh"
 }
 
-build_image() {
-    echo "Building Docker image (linux/amd64)..."
-    echo ""
-    docker build --platform linux/amd64 -t "$DOCKER_IMAGE" "$SCRIPT_DIR"
-}
-
 test_linux() {
     echo "Running smoke test (linux/amd64 via Docker)..."
     echo ""
+    docker build --platform linux/amd64 -t "$DOCKER_IMAGE" "$SCRIPT_DIR"
     docker run --rm \
         --platform linux/amd64 \
         -v "$SCRIPT_DIR:/pkg" \
@@ -105,10 +103,10 @@ test_linux() {
         bash assets/test.sh
 }
 
-build_all() {
+run_all() {
     build_bundle
-    build_image
     test_linux
+    test_mac
 }
 
 show_usage() {
@@ -164,7 +162,7 @@ print_banner
 
 case "$BUILD_TARGET" in
     ""|all)
-        build_all
+        run_all
         ;;
     build)
         build_bundle
@@ -173,13 +171,11 @@ case "$BUILD_TARGET" in
         test_mac
         ;;
     test-linux)
-        build_image
         test_linux
         ;;
     test-all)
-        test_mac
-        build_image
         test_linux
+        test_mac
         ;;
     *)
         echo "❌ Unknown target: $BUILD_TARGET"
