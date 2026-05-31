@@ -115,8 +115,10 @@ build_bundle() {
     echo "  Extracting bundle contents from nupkg..."
     local EXTRACT_DIR="$SRC_DIR/extract"
     mkdir -p "$EXTRACT_DIR"
-    # nupkg is a zip — extract only the tool payload (tools/net6.0/any/)
-    unzip -q "$NUPKG" "tools/net6.0/any/*" -d "$EXTRACT_DIR"
+    # nupkg is a zip; extract everything — unzip's * doesn't cross /, so a
+    # pattern like "tools/net6.0/any/*" silently drops runtimes/ and cubes/.
+    # The archive is built from CONTENT_DIR so NuGet metadata is never included.
+    unzip -q "$NUPKG" -d "$EXTRACT_DIR"
 
     local CONTENT_DIR="$EXTRACT_DIR/tools/net6.0/any"
     if [ ! -d "$CONTENT_DIR" ]; then
