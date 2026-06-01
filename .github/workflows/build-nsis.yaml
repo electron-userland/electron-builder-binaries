@@ -5,18 +5,19 @@ on:
   workflow_dispatch:
 
 jobs:
-  # Build base bundle (Windows binary + plugins + data)
+  # Build base bundle (Windows binary cross-compiled from Linux via Docker + MinGW-w64)
   base:
     name: Build Base Bundle
     runs-on: ubuntu-latest
     steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y curl unzip p7zip-full
+        run: sudo apt-get install -y curl unzip p7zip-full rsync
         shell: bash
 
       - name: Build base bundle
@@ -71,7 +72,7 @@ jobs:
     name: Build Linux Binary
     runs-on: ubuntu-latest
     steps:
-      - name: Set up QEMU
+      - name: Set up QEMU (for arm64 cross-build)
         uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392
 
       - name: Set up Docker Buildx
@@ -178,9 +179,13 @@ jobs:
             runner: windows-latest
             platform_slug: ""
             upload_installer: false
-          - platform: Linux
+          - platform: Linux (x64)
             runner: ubuntu-latest
-            platform_slug: linux
+            platform_slug: linux-x64
+            upload_installer: true
+          - platform: Linux (arm64)
+            runner: ubuntu-22.04-arm
+            platform_slug: linux-arm64
             upload_installer: true
           - platform: macOS (x64)
             runner: macos-15-intel

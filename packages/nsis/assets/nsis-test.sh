@@ -122,9 +122,7 @@ assert_file "$BUNDLE_DIR/makensis.ps1" "makensis.ps1 present"
 echo ""
 echo "── Test 2: Binary presence ─────────────────────────────────────"
 
-assert_file "$BUNDLE_DIR/windows/makensisw.exe"         "windows/makensisw.exe present"
-assert_file "$BUNDLE_DIR/windows/makensis.exe"          "windows/makensis.exe (console stub) present"
-assert_file "$BUNDLE_DIR/windows/Bin/makensis.exe"      "windows/Bin/makensis.exe (strlen-patched) present"
+assert_file "$BUNDLE_DIR/windows/makensis.exe"          "windows/makensis.exe present"
 assert_file "$BUNDLE_DIR/linux/x64/makensis"            "linux/x64/makensis present"
 assert_file "$BUNDLE_DIR/linux/arm64/makensis"          "linux/arm64/makensis present"
 assert_file "$BUNDLE_DIR/elevate.exe"              "elevate.exe present at bundle root"
@@ -205,22 +203,22 @@ if $IS_MAC; then
 fi
 
 if $IS_WINDOWS; then
-    # PE magic = MZ = 4d 5a — check the actual compiler (makensisw.exe)
-    _bin_path="$BUNDLE_DIR/windows/makensisw.exe"
+    # PE magic = MZ = 4d 5a — check the compiler binary
+    _bin_path="$BUNDLE_DIR/windows/makensis.exe"
     MZ=$(od -N 2 -A n -t x1 "$_bin_path" 2>/dev/null | tr -d ' \n')
     if [ "$MZ" = "4d5a" ]; then
-        pass "windows/makensisw.exe: valid PE binary (MZ header)"
+        pass "windows/makensis.exe: valid PE binary (MZ header)"
     elif command -v pwsh &>/dev/null; then
         WIN_MKS=$(cygpath -w "$_bin_path" 2>/dev/null || echo "$_bin_path")
         MZ_PS=$(pwsh -NoProfile -Command \
             "[System.IO.File]::ReadAllBytes('$WIN_MKS')[0] -eq 77" 2>/dev/null | tr -d '\r')
         if [ "$MZ_PS" = "True" ]; then
-            pass "windows/makensisw.exe: valid PE binary (MZ header via PowerShell)"
+            pass "windows/makensis.exe: valid PE binary (MZ header via PowerShell)"
         else
-            fail "windows/makensisw.exe: MZ header check failed"
+            fail "windows/makensis.exe: MZ header check failed"
         fi
     else
-        fail "windows/makensisw.exe: cannot verify PE header (od and pwsh both unavailable)"
+        fail "windows/makensis.exe: cannot verify PE header (od and pwsh both unavailable)"
     fi
 fi
 
@@ -231,14 +229,12 @@ fi
 echo ""
 echo "── Test 4: NSISDIR data files ──────────────────────────────────"
 
-assert_dir  "$BUNDLE_DIR/windows/Bin"                 "windows/Bin present"
 assert_dir  "$BUNDLE_DIR/windows/Contrib"             "windows/Contrib present"
 assert_dir  "$BUNDLE_DIR/windows/Include"             "windows/Include present"
 assert_dir  "$BUNDLE_DIR/windows/Plugins"             "windows/Plugins present"
 assert_dir  "$BUNDLE_DIR/windows/Stubs"               "windows/Stubs present"
 assert_dir  "$BUNDLE_DIR/windows/Plugins/x86-ansi"    "Plugins/x86-ansi present"
 assert_dir  "$BUNDLE_DIR/windows/Plugins/x86-unicode" "Plugins/x86-unicode present"
-assert_file "$BUNDLE_DIR/windows/makensisw.exe"       "windows/makensisw.exe present"
 assert_file "$BUNDLE_DIR/windows/nsisconf.nsh"        "windows/nsisconf.nsh present"
 
 # =============================================================================

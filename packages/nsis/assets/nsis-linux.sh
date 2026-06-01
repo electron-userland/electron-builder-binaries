@@ -83,8 +83,11 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /build
 
 # Clone NSIS source
-RUN git clone --branch ${NSIS_BRANCH} --depth=1 https://github.com/NSIS-Dev/nsis.git nsis
-
+RUN git init nsis && \
+    git -C nsis remote add origin https://github.com/NSIS-Dev/nsis.git && \
+    git -C nsis fetch --depth=1 origin ${NSIS_BRANCH} && \
+    git -C nsis checkout FETCH_HEAD
+    
 WORKDIR /build/nsis
 
 # Build native Linux makensis
@@ -100,12 +103,14 @@ RUN scons \
     PREFIX=/build/install \
     install-compiler
 
+# The binary is now at /build/install/makensis
 RUN chmod +x /build/install/makensis
 
-# Export stage: scratch image contains only the binary so `type=local` output
-# is the binary alone rather than the full Ubuntu filesystem (~400 MB).
+RUN mkdir -p /output && \
+    cp /build/install/makensis /output/makensis
+
 FROM scratch
-COPY --from=builder /build/install/makensis /output/makensis
+COPY --from=builder /output/makensis /output/makensis
 DOCKERFILE_END
 
 # =============================================================================

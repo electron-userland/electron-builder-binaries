@@ -7,9 +7,9 @@ set -euo pipefail
 # Orchestrates building NSIS bundles for all platforms
 #
 # Build order:
-#   1. Base (Windows) - Downloads official NSIS with all data files
-#   2. Linux         - Compiles native Linux binary, injects into base
-#   3. macOS         - Compiles native macOS binary, injects into base
+#   1. Base (Windows) - Compiles makensis.exe + stubs from source via Docker + MinGW
+#   2. Linux         - Compiles native Linux binary via Docker (x64 + arm64)
+#   3. macOS         - Compiles native macOS binary (x64 + arm64)
 #
 # Each platform can be built independently, but they all require the base.
 # =============================================================================
@@ -20,9 +20,7 @@ OUT_DIR="$SCRIPT_DIR/out"
 
 # Build configuration
 export NSIS_VERSION="3.12"
-export NSIS_BRANCH_OR_COMMIT="v312"
-export NSIS_SHA256="56581f90db321581c5381193d796fffcf2d24b2f8fed2160a6c6a3baa67f2c4f"
-export STRLEN_SHA256="44ebb4bfd5b763e295855718dbcf374fc396d03870ea038a0844abcbe1ff0c3a"
+export NSIS_BRANCH_OR_COMMIT="e3f60402bcdf7be822d159b531c6e38ddf32de12" # v3.12 stable release
 
 # Detect current OS
 OS_TYPE=${TARGET:-$(uname -s | tr '[:upper:]' '[:lower:]')}
@@ -33,6 +31,7 @@ case "$OS_TYPE" in
 esac
 
 BUILD_TARGET=""
+TEST_ARGS=()
 
 # =============================================================================
 # Functions
@@ -51,7 +50,7 @@ print_banner() {
 }
 
 build_base() {
-    echo "📦 Building base bundle (Windows + plugins)..."
+    echo "📦 Building base bundle (Windows makensis from source + plugins)..."
     echo ""
     bash "$ASSETS_DIR/nsis-windows.sh"
 }
@@ -90,6 +89,13 @@ combine() {
     bash "$ASSETS_DIR/nsis-combine.sh"
 }
 
+run_tests() {
+    BUNDLE_DIR="$OUT_DIR/nsis/nsis-bundle"
+    echo "🧪 Running test suite..."
+    echo ""
+    bash "$ASSETS_DIR/nsis-test.sh" --bundle-dir "$BUNDLE_DIR" ${TEST_ARGS[@]+"${TEST_ARGS[@]}"}
+}
+
 show_usage() {
     cat << EOF
 Usage: $0 --target TARGET
@@ -105,19 +111,22 @@ Targets:
   mac, macos        Build macOS native binary (requires macOS)
   elevate           Build elevate.exe from source (requires Docker)
   combine           Combine previously built platform bundles into final archive
+  test              Run the test suite against the combined bundle
   all               Build all platforms (base + mac + linux + elevate + combine)
 
 Examples:
-  ./build.sh --target all     # Build all platforms and combine
+  ./build.sh --target all     # Build all platforms, combine, and run test suite
   ./build.sh --target base    # Build only the base bundle
   ./build.sh --target linux   # Build Linux binary (requires Docker)
   ./build.sh --target mac     # Build macOS binary (requires macOS)
   ./build.sh --target combine # Combine existing platform bundles
+  ./build.sh --target test    # Run test suite against combined bundle
+  ./build.sh --target test --full  # Run test suite including E2E install
 
 Platform Requirements:
-  Base:   Any OS with bash, curl, unzip
-  Linux:  Docker (can run on any OS)
-  macOS:  Must run on macOS with Xcode Command Line Tools
+  Base:   Docker (can run on any OS with Docker)
+  Linux:  Docker (can run on any OS with Docker)
+  macOS:  Must run on macOS with Xcode Command Line Tools + scons
 
 EOF
 }
@@ -136,6 +145,7 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             BUILD_TARGET="$2"; shift 2 ;;
+        --full)      TEST_ARGS+=("--full"); shift ;;
         --help|-h)   show_usage; exit 0 ;;
         *) echo "❌ Unknown option: $1"; echo ""; show_usage; exit 1 ;;
     esac
@@ -148,6 +158,7 @@ print_banner
 case "$BUILD_TARGET" in
     ""|all)
         build_all
+        run_tests
         ;;
     base|windows|win)
         build_base
@@ -163,6 +174,9 @@ case "$BUILD_TARGET" in
         ;;
     combine)
         combine
+        ;;
+    test)
+        run_tests
         ;;
     *)
         echo "❌ Unknown target: $BUILD_TARGET"
