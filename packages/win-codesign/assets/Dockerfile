@@ -83,7 +83,7 @@ WORKDIR /usr/src/osslsigncode/build
 RUN echo "Starting build for PLATFORM_ARCH=$PLATFORM_ARCH" && \
     if [ "$PLATFORM_ARCH" = "i386" ] || [ "$PLATFORM_ARCH" = "ia32" ]; then \
         echo "Building 32-bit binary using multilib" && \
-        CMAKE_FLAGS=$(/tmp/compiler-flags.sh "i386") && \
+        CMAKE_FLAGS=$(/tmp/compiler-flags.sh --arch i386) && \
         echo "CMake flags: $CMAKE_FLAGS" && \
         PKG_CONFIG_PATH=/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib32/pkgconfig \
         cmake .. -DCMAKE_BUILD_TYPE=Release $CMAKE_FLAGS \
@@ -107,7 +107,7 @@ WORKDIR /out/linux
 RUN echo "Creating portable bundle with PLATFORM_ARCH=$PLATFORM_ARCH" && \
     PLATFORM_ARCH="${PLATFORM_ARCH}" \
     bash /tmp/bundle-osslsigncode.sh \
-    /usr/src/osslsigncode/build/osslsigncode \
-    /out/linux/osslsigncode
+    --src /usr/src/osslsigncode/build/osslsigncode \
+    --output-dir /out/linux/osslsigncode
 
 CMD ["/bin/bash"]

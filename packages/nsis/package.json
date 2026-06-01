@@ -1,4 +1,5 @@
 {
     "name": "nsis",
-    "version": "1.0.0"
+    "version": "1.2.1",
+    "description": "Cross-platform NSIS bundle with native macOS, Linux, and Windows binaries — includes strlen_8192 patch, community plugins, and a universal entrypoint wrapper that auto-detects platform and sets NSISDIR"
 }

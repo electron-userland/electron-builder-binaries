@@ -66,6 +66,17 @@ foreach ($src in $copyMap.Keys) {
 
 Write-Host "`n✅ Build completed successfully!"
 
+# --- Copy LICENSE from cloned repo before cleanup
+$licenseSrc = Join-Path $repoRoot "LICENSE"
+$licenseDest = Join-Path $vendorDir "LICENSE"
+if (Test-Path $licenseSrc) {
+    Copy-Item $licenseSrc -Destination $licenseDest -Force
+    Write-Host "`n✅ LICENSE copied to vendor directory"
+} else {
+    Write-Error "`n⚠️ LICENSE not found in cloned repo at $licenseSrc"
+    exit 1
+}
+
 # --- Ensure output directory exists
 if (-not (Test-Path $artifactDir)) {
     New-Item -ItemType Directory -Path $artifactDir -Force | Out-Null

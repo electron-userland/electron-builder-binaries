@@ -4,18 +4,18 @@ set -euo pipefail
 # =============================================================================
 # NSIS Bundle Combiner
 # =============================================================================
-# Combines base, Linux, and macOS bundles into a single complete bundle
+# Combines base, Linux, macOS, and elevate bundles into a single complete bundle
 # Generates universal entrypoint wrapper script
 # =============================================================================
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 BASE_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 OUT_DIR="${OUT_DIR:-$BASE_DIR/out/nsis}"
-BUILD_DIR="/tmp/nsis-bundle-combine"
+BUILD_DIR="$(mktemp -d)"
 
 # Version info
-NSIS_VERSION=${NSIS_VERSION:-3.11}
-NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v311}
+NSIS_VERSION=${NSIS_VERSION:-3.12}
+NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v312}
 
 echo "🔗 Combining NSIS bundles..."
 echo "   Version: $NSIS_VERSION"
@@ -38,14 +38,12 @@ echo "📂 Locating bundle files..."
 BASE_BUNDLE=$(find "$OUT_DIR" -name "nsis-bundle-base-*.tar.gz" -type f | head -1)
 LINUX_BUNDLE=$(find "$OUT_DIR" -name "nsis-bundle-linux-*.tar.gz" -type f | head -1)
 
-# Find Mac bundles - may have different architectures
-MAC_BUNDLES=$(find "$OUT_DIR" -name "nsis-bundle-mac-*.tar.gz" -type f)
-# Debug output
-echo "Searching in: $OUT_DIR"
-echo "Files found:"
-find "$OUT_DIR" -name "*.tar.gz" -type f 2>/dev/null || echo "  (none)"
-echo ""
-
+# Find Mac bundles - may have different architectures (bash 3.2-compatible, no mapfile)
+MAC_BUNDLES=()
+while IFS= read -r _line; do
+    [[ -n "$_line" ]] && MAC_BUNDLES+=("$_line")
+done < <(find "$OUT_DIR" -name "nsis-bundle-mac-*.tar.gz" -type f)
+ELEVATE_BUNDLE=$(find "$OUT_DIR" -name "nsis-bundle-elevate-*.tar.gz" -type f | head -1)
 # Validate base bundle
 if [ -z "$BASE_BUNDLE" ] || [ ! -f "$BASE_BUNDLE" ]; then
     echo "❌ Base bundle not found in $OUT_DIR"
@@ -61,13 +59,19 @@ else
     LINUX_BUNDLE=""
 fi
 
-if [ -n "$MAC_BUNDLES" ]; then
-    for mac_bundle in $MAC_BUNDLES; do
+if [ "${#MAC_BUNDLES[@]}" -gt 0 ]; then
+    for mac_bundle in "${MAC_BUNDLES[@]}"; do
         echo "  ✓ macOS:        $(basename "$mac_bundle")"
     done
 else
     echo "  ⚠️  macOS:        not found (skipping)"
 fi
+
+if [ -z "$ELEVATE_BUNDLE" ] || [ ! -f "$ELEVATE_BUNDLE" ]; then
+    echo "❌ Elevate bundle not found in $OUT_DIR"
+    exit 1
+fi
+echo "  ✓ Elevate:      $(basename "$ELEVATE_BUNDLE")"
 
 # =============================================================================
 # Extract Base Bundle
@@ -85,6 +89,23 @@ if [ ! -d "$BUILD_DIR/nsis-bundle" ]; then
 fi
 
 echo "  ✓ Base bundle extracted"
+
+# =============================================================================
+# Inject elevate.exe
+# =============================================================================
+
+echo ""
+echo "⬆️  Injecting elevate.exe..."
+TEMP_ELEVATE="$BUILD_DIR/temp-elevate"
+mkdir -p "$TEMP_ELEVATE"
+tar -xzf "$ELEVATE_BUNDLE" -C "$TEMP_ELEVATE"
+if [ ! -f "$TEMP_ELEVATE/nsis-bundle/elevate.exe" ]; then
+    echo "❌ elevate.exe not found at expected path in bundle: $TEMP_ELEVATE/nsis-bundle/elevate.exe"
+    exit 1
+fi
+cp "$TEMP_ELEVATE/nsis-bundle/elevate.exe" "$BUILD_DIR/nsis-bundle/elevate.exe"
+rm -rf "$TEMP_ELEVATE" "$ELEVATE_BUNDLE"
+echo "  ✓ elevate.exe injected"
 
 # =============================================================================
 # Inject Linux Binary
@@ -114,11 +135,11 @@ fi
 # Inject macOS Binaries
 # =============================================================================
 
-if [ -n "$MAC_BUNDLES" ]; then
+if [ "${#MAC_BUNDLES[@]}" -gt 0 ]; then
     echo ""
     echo "🍎 Injecting macOS binaries..."
-    
-    for mac_bundle in $MAC_BUNDLES; do
+
+    for mac_bundle in "${MAC_BUNDLES[@]}"; do
         TEMP_MAC="$BUILD_DIR/temp-mac-$$"
         mkdir -p "$TEMP_MAC"
         
@@ -166,21 +187,40 @@ case "$UNAME_M" in
 esac
 
 # ----------------------------------------
-# macOS / Linux
+# Platform dispatch
 # ----------------------------------------
 case "$UNAME_S" in
   Darwin)
-    PLATFORM_DIR="mac"
     case "$ARCH" in
       x86_64) ARCH_DIR="x64" ;;
       arm64)  ARCH_DIR="arm64" ;;
-      *)      ARCH_DIR="$ARCH" ;;
+      *) echo "❌ Unsupported architecture: $UNAME_M" >&2; exit 1 ;;
     esac
-    BINARY="$SCRIPT_DIR/$PLATFORM_DIR/$ARCH_DIR/makensis"
+    BINARY="$SCRIPT_DIR/mac/$ARCH_DIR/makensis"
     ;;
   Linux)
-    PLATFORM_DIR="linux"
-    BINARY="$SCRIPT_DIR/$PLATFORM_DIR/makensis"
+    case "$ARCH" in
+      x86_64) ARCH_DIR="x64" ;;
+      arm64)  ARCH_DIR="arm64" ;;
+      *) echo "❌ Unsupported architecture: $UNAME_M" >&2; exit 1 ;;
+    esac
+    BINARY="$SCRIPT_DIR/linux/$ARCH_DIR/makensis"
+    ;;
+  MINGW*|MSYS*|CYGWIN*)
+    # makensisw.exe is GUI-subsystem. -VERSION triggers a MessageBox (hangs in
+    # headless CI). Read the version from the bundle's VERSION.txt instead.
+    # All other invocations (compilation) delegate to makensis.cmd via cmd.exe
+    # to avoid MSYS2 path-translation mangling of .nsi file arguments.
+    case "${1:-}" in
+      -VERSION|-version|/VERSION|/version)
+        ver=$(grep -oE "[0-9]+\.[0-9]+" "$SCRIPT_DIR/VERSION.txt" 2>/dev/null | head -1)
+        echo "v${ver:-unknown}"
+        exit 0
+        ;;
+    esac
+    CMD_WIN=$(cygpath -w "$SCRIPT_DIR/makensis.cmd" 2>/dev/null || echo "$SCRIPT_DIR\\makensis.cmd")
+    cmd.exe //c "$CMD_WIN" "$@"
+    exit $?
     ;;
   *)
     echo "❌ Unsupported platform: $UNAME_S" >&2
@@ -197,7 +237,7 @@ if [ ! -f "$BINARY" ]; then
 fi
 
 if [ ! -x "$BINARY" ]; then
-  chmod +x "$BINARY"
+  chmod +x "$BINARY" 2>/dev/null || true
 fi
 
 export NSISDIR="$SCRIPT_DIR/windows"
@@ -221,27 +261,18 @@ cat > "$BUILD_DIR/nsis-bundle/makensis.cmd" <<'EOF'
 @echo off
 setlocal ENABLEEXTENSIONS
 
-REM =============================================================
-REM NSIS Windows CMD Entrypoint
-REM =============================================================
-REM Sets NSISDIR and forwards all arguments to makensis.exe
-REM =============================================================
+set "SCRIPT_DIR=%~dp0"
+set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
+set "NSISDIR=%SCRIPT_DIR%\windows"
+set "MAKENSIS_EXE=%NSISDIR%\makensis.exe"
 
-REM Determine directory of this script
-set SCRIPT_DIR=%~dp0
-REM Remove trailing backslash
-set SCRIPT_DIR=%SCRIPT_DIR:~0,-1%
-
-REM Set NSISDIR if not already defined
-if not defined NSISDIR (
-  set NSISDIR=%SCRIPT_DIR%\windows
+if not exist "%MAKENSIS_EXE%" (
+    echo makensis.exe not found at: %MAKENSIS_EXE% 1>&2
+    exit /b 1
 )
 
-REM Execute makensis.exe with all passed arguments
-"%NSISDIR%\makensis.exe" %*
-set EXITCODE=%ERRORLEVEL%
-
-endlocal & exit /b %EXITCODE%
+"%MAKENSIS_EXE%" %*
+exit /b %ERRORLEVEL%
 EOF
 
 # Force CRLF line endings for CMD (always)
@@ -258,28 +289,22 @@ echo ""
 echo "🪟 Creating Windows PowerShell entrypoint..."
 
 cat > "$BUILD_DIR/nsis-bundle/makensis.ps1" <<'EOF'
-# =============================================================
-# NSIS Windows PowerShell Entrypoint (CI-safe)
-# =============================================================
-
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-# Ensure Windows-style paths
+# Normalise MSYS2/Git Bash /c/... style paths to Windows C:\... style
 if ($ScriptDir -notmatch '^[a-zA-Z]:[\\/]' -and $ScriptDir -match '^/([a-zA-Z])/(.*)') {
     $ScriptDir = "$($matches[1]):\$($matches[2] -replace '/', '\')"
 }
 
 $env:NSISDIR = Join-Path $ScriptDir "windows"
-$Makensis   = Join-Path $env:NSISDIR "makensis.exe"
+
+$Makensis = Join-Path $env:NSISDIR "makensis.exe"
 if (-not (Test-Path $Makensis)) {
     Write-Error "makensis.exe not found at: $Makensis"
     exit 1
 }
 
-Unblock-File $Makensis
-& "$Makensis" @args
-
-# Exit with same code
+& $Makensis @args
 exit $LASTEXITCODE
 EOF
 
@@ -305,8 +330,9 @@ This bundle contains NSIS (Nullsoft Scriptable Install System) binaries for mult
 ## Contents
 
 - **Windows**: \`windows/makensis.exe\` (official pre-built binary)
-- **Linux**: \`linux/makensis\` (native ELF binary, compiled from source)
+- **Linux**: \`linux/x64/makensis\` and \`linux/arm64/makensis\` (native ELF binaries, compiled from source)
 - **macOS**: \`mac/makensis\` (native Mach-O binary, compiled from source)
+- **Elevate**: \`elevate.exe\` (Windows privilege elevation utility, compiled from source)
 - **NSIS Data**: \`windows/\` (Contrib, Include, Plugins, Stubs)
 - **Universal Wrapper**: \`makensis\` (auto-detects platform, sets \`NSISDIR\`) [.cmd and .ps1 versions for Windows]
 
@@ -335,7 +361,8 @@ export NSISDIR="\$(pwd)/windows"
 
 # Run platform-specific binary
 ./windows/makensis.exe your-script.nsi  # Windows
-./linux/makensis your-script.nsi         # Linux
+./linux/x64/makensis your-script.nsi     # Linux x64
+./linux/arm64/makensis your-script.nsi   # Linux arm64
 ./mac/makensis your-script.nsi           # macOS
 \`\`\`
 
@@ -347,16 +374,18 @@ export NSISDIR="\$(pwd)/windows"
 
 ## Included Plugins
 
-This bundle includes 8 additional community plugins:
+This bundle includes 10 additional community plugins:
 
-1. NsProcess - Process management
-2. UAC - User Account Control
-3. WinShell - Shell integration
-4. NsJSON - JSON parsing
-5. NsArray - Array support
-6. INetC - HTTP client
-7. NsisMultiUser - Multi-user installs
-8. StdUtils - Standard utilities
+1. INetC - HTTP/HTTPS download plugin
+2. StdUtils - Standard utilities (strings, math, system)
+3. SpiderBanner - Animated splash/banner
+4. NsProcess - Process management (list, kill)
+5. UAC - User Account Control elevation
+6. WinShell - Shell integration (file associations, shortcuts)
+7. EmbedHTML - Embed HTML pages in installer
+8. Nsisunz - ZIP extraction (ANSI)
+9. NSISunzU - ZIP extraction (Unicode)
+10. nsis7z - 7-Zip extraction
 
 ## Environment Variables
 
@@ -389,6 +418,17 @@ EOF
 echo "  ✓ VERSION.txt updated"
 
 # =============================================================================
+# Download NSIS License
+# =============================================================================
+
+echo ""
+echo "📄 Downloading NSIS LICENSE..."
+curl -fsSL --retry 3 --retry-delay 2 --max-time 60 \
+  "https://raw.githubusercontent.com/NSIS-Dev/nsis/${NSIS_BRANCH}/COPYING" \
+  -o "$BUILD_DIR/nsis-bundle/LICENSE"
+echo "  ✓ LICENSE downloaded"
+
+# =============================================================================
 # Create Final Archive
 # =============================================================================
 
@@ -403,6 +443,9 @@ rm -f "$OUT_DIR/$ARCHIVE_NAME"
     tar -czf "$OUT_DIR/$ARCHIVE_NAME" nsis-bundle
 )
 
+rm -rf "$OUT_DIR/nsis-bundle"
+mv "$BUILD_DIR/nsis-bundle" "$OUT_DIR/nsis-bundle"
+
 # =============================================================================
 # Summary
 # =============================================================================
@@ -411,16 +454,11 @@ echo ""
 echo "================================================================"
 echo "  ✅ Bundle Combination Complete!"
 echo "================================================================"
-echo "  📁 Archive: $OUT_DIR/$ARCHIVE_NAME"
-echo "  📊 Size:    $(du -h "$OUT_DIR/$ARCHIVE_NAME" | cut -f1)"
+echo "  📁 Directory: $OUT_DIR/nsis-bundle"
+echo "  📁 Archive:   $OUT_DIR/$ARCHIVE_NAME"
+echo "  📊 Size:      $(du -h "$OUT_DIR/$ARCHIVE_NAME" | cut -f1)"
 echo "================================================================"
 echo ""
-
-# =============================================================================
-# Cleanup
-# =============================================================================
-
-rm -rf "$BUILD_DIR"
 
 echo "✅ Done!"
 echo ""

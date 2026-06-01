@@ -1,10 +1,34 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 
 CWD=$(cd "$(dirname "$BASH_SOURCE")" && pwd)
 source "$CWD/constants.sh"
 LIB_DIR="$RUBY_PREFIX/lib"
+
+# SHA256 of https://cache.ruby-lang.org/pub/ruby/3.4/ruby-${RUBY_VERSION}.tar.gz
+# Re-pin when bumping RUBY_VERSION: curl -fsSL <url> | sha256sum
+RUBY_SHA256="${RUBY_SHA256:-55a4cd1dcbe5ca27cf65e89a935a482c2bb2284832939266551c0ec68b437f46}"
+
+verify_sha256() {
+    local file="$1" expected="$2" actual
+    if command -v sha256sum >/dev/null 2>&1; then
+        actual=$(sha256sum "$file" | awk '{print $1}')
+    elif command -v shasum >/dev/null 2>&1; then
+        actual=$(shasum -a 256 "$file" | awk '{print $1}')
+    else
+        echo "❌ No sha256 tool found (sha256sum or shasum required)" >&2; return 1
+    fi
+    if [ "$actual" = "$expected" ]; then
+        echo "  ✓ Checksum verified"
+        return 0
+    else
+        echo "❌ Checksum mismatch for $(basename "$file")" >&2
+        echo "   expected: $expected" >&2
+        echo "   actual:   $actual" >&2
+        return 1
+    fi
+}
 
 # ===== Prepare folders =====
 echo "🪏 Creating install directories..."
@@ -14,7 +38,11 @@ mkdir -p "$INSTALL_DIR" "$SOURCE_DIR"
 # ===== Download Ruby source =====
 echo "⬇️ Downloading Ruby $RUBY_VERSION source..."
 cd "$SOURCE_DIR"
-curl -O "https://cache.ruby-lang.org/pub/ruby/${RUBY_VERSION%.*}/ruby-${RUBY_VERSION}.tar.gz"
+curl -fsSL --retry 3 --retry-delay 2 --max-time 300 \
+    "https://cache.ruby-lang.org/pub/ruby/${RUBY_VERSION%.*}/ruby-${RUBY_VERSION}.tar.gz" \
+    -o "ruby-${RUBY_VERSION}.tar.gz"
+echo "  🔍 Verifying Ruby source checksum..."
+verify_sha256 "ruby-${RUBY_VERSION}.tar.gz" "$RUBY_SHA256"
 tar -xzf "ruby-${RUBY_VERSION}.tar.gz"
 cd "ruby-${RUBY_VERSION}"
 
