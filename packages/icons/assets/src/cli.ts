@@ -4,6 +4,7 @@ import { svgToPng } from './svg'
 import { createIcns } from './icns'
 import { createIco } from './ico'
 import { createLinuxSet } from './linux'
+import { extractLargestPngFromIcns } from './icns-input'
 
 function parseArgs(argv: string[]): Record<string, string> {
   const args: Record<string, string> = {}
@@ -53,8 +54,16 @@ async function main(): Promise<void> {
     pngBuffer = await svgToPng(svgBuffer, SVG_RASTER_WIDTH)
   } else if (ext === '.png') {
     pngBuffer = readFileSync(input)
+  } else if (ext === '.icns') {
+    const icnsBuffer = readFileSync(input)
+    const extracted = extractLargestPngFromIcns(icnsBuffer)
+    if (!extracted) {
+      console.error('Could not extract a PNG frame from ICNS file')
+      process.exit(1)
+    }
+    pngBuffer = extracted
   } else {
-    console.error(`Unsupported input format "${ext}". Supported: .png, .svg`)
+    console.error(`Unsupported input format "${ext}". Supported: .png, .svg, .icns`)
     process.exit(1)
   }
 
