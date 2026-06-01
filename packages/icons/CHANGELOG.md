@@ -1,5 +1,11 @@
 # icons
 
+## 1.0.1
+
+### Patch Changes
+
+- [#186](https://github.com/electron-userland/electron-builder-binaries/pull/186) [`a568ac2`](https://github.com/electron-userland/electron-builder-binaries/commit/a568ac27c711b40be9b0f77222add8ef8e7cdf65) Thanks [@mmaietta](https://github.com/mmaietta)! - chore(deploy): redeploying due to failed attest CJS->ESM module update
+
 ## 1.0.0
 
 ### Major Changes
