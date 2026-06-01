@@ -1,5 +1,17 @@
 # win-codesign
 
+## 1.2.1
+
+### Patch Changes
+
+- [#186](https://github.com/electron-userland/electron-builder-binaries/pull/186) [`a568ac2`](https://github.com/electron-userland/electron-builder-binaries/commit/a568ac27c711b40be9b0f77222add8ef8e7cdf65) Thanks [@mmaietta](https://github.com/mmaietta)! - chore(deploy): redeploying due to failed attest CJS->ESM module update
+
+## 1.2.0
+
+### Minor Changes
+
+- [#182](https://github.com/electron-userland/electron-builder-binaries/pull/182) [`249606d`](https://github.com/electron-userland/electron-builder-binaries/commit/249606db4b2895a6b6c5de4b2a04164817c4b870) Thanks [@mmaietta](https://github.com/mmaietta)! - feat: add Windows arm64 support for signtool and osslsigncode
+
 ## 1.1.1
 
 ### Patch Changes

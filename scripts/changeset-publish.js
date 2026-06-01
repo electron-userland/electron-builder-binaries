@@ -1,5 +1,4 @@
 const path = require("path");
-const { attestProvenance } = require("@actions/attest");
 const { execSync } = require("child_process");
 const fs = require("fs");
 const { Octokit } = require("@octokit/rest");
@@ -10,8 +9,10 @@ const mime = require("mime-types");
 // We do this manually because we want specific/scoped assets to be uploaded to a corresponding SCOPED releases.
 // e.g. nsis artifacts should be uploaded to the nsis release, not in a zstd release.
 // JSON format: https://github.com/changesets/action?tab=readme-ov-file#outputs
+const isDryRun = process.argv.includes("--dry-run");
+
 const publishedPackages = process.env.PUBLISHED_PACKAGES;
-if (!publishedPackages) {
+if (!publishedPackages && !isDryRun) {
   console.error("PUBLISHED_PACKAGES environment variable is not set. See script for documentation.");
   process.exit(1);
 }
@@ -84,6 +85,13 @@ async function atomicReleaseWithStreams({ owner, repo, tag, name, body, assets, 
 }
 
 async function run() {
+  const { attestProvenance } = await import("@actions/attest");
+
+  if (isDryRun) {
+    console.log("Dry run: all imports resolved successfully.");
+    return;
+  }
+
   const releases = JSON.parse(publishedPackages);
 
   console.log("Release candidates:", releases);

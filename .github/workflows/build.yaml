@@ -37,6 +37,9 @@ jobs:
         run: |
           pnpm i --frozen-lockfile
 
+      - name: Validate release script imports
+        run: node scripts/changeset-publish.js --dry-run
+
       - name: Detect packages to release
         id: set
         run: sh ./scripts/detect-packages.sh
@@ -88,6 +91,13 @@ jobs:
   wine:
     if: contains(needs.detect.outputs.matrix, '"wine"')
     uses: ./.github/workflows/build-wine.yaml
+    needs: detect
+
+  wix:
+    if: contains(needs.detect.outputs.matrix, '"wix"')
+    uses: ./.github/workflows/build-wix.yaml
+    needs: detect
+    
   icons:
     if: contains(needs.detect.outputs.matrix, '"icons"')
     uses: ./.github/workflows/build-icons.yaml
@@ -106,6 +116,7 @@ jobs:
         wine,
         linux-tools-mac,
         squirrel,
+        wix,
         icons
       ]
     if: |
