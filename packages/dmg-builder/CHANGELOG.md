@@ -1,5 +1,17 @@
 # dmg-builder
 
+## 1.2.4
+
+### Patch Changes
+
+- [#186](https://github.com/electron-userland/electron-builder-binaries/pull/186) [`a568ac2`](https://github.com/electron-userland/electron-builder-binaries/commit/a568ac27c711b40be9b0f77222add8ef8e7cdf65) Thanks [@mmaietta](https://github.com/mmaietta)! - chore(deploy): redeploying due to failed attest CJS->ESM module update
+
+## 1.2.3
+
+### Patch Changes
+
+- [#181](https://github.com/electron-userland/electron-builder-binaries/pull/181) [`af42701`](https://github.com/electron-userland/electron-builder-binaries/commit/af427013d0bc0c05b2a7f42d1c4aa9f2537dcbfd) Thanks [@mmaietta](https://github.com/mmaietta)! - fix(dmg-builder): patch dmgbuild core — correct size formula and ditto error propagation
+
 ## 1.2.2
 
 ### Patch Changes

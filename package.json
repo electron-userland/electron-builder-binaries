@@ -15,7 +15,10 @@
     "@changesets/changelog-github": "^0.7.0",
     "@changesets/cli": "^2.30.0",
     "@octokit/rest": "22.0.1",
-    "mime-types": "^3.0.2"
+    "@types/node": "^18.0.0",
+    "esbuild": "^0.25.0",
+    "mime-types": "^3.0.2",
+    "typescript": "^5.0.0"
   },
   "packageManager": "pnpm@11.2.2+sha512.36e6621fad506178936455e70247b8808ef4ec25797a9f437a93281a020484e2607f6a469a22e982987c3dbb8866e3071514ab10a4a1749e06edcd1ec118436f"
 }
