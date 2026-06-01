@@ -80,7 +80,7 @@ do_build() {
 
     echo ""
     echo "─── Create tar.gz archive ──────────────────────────────────────"
-    local archive_name="icons-${VERSION}.tar.gz"
+    local archive_name="icons-bundle.tar.gz"
     (
         cd "$PACKAGE_DIR/out"
         tar -czf "$OUT_DIR/$archive_name" icons-bundle

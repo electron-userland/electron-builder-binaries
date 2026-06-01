@@ -163,6 +163,51 @@ tests.push({
   },
 })
 
+// Test 6: ICNS → ICO (exercises the .icns input path + extractLargestPngFromIcns)
+tests.push({
+  name: 'ICNS → ICO',
+  run(tmpDir, toolPath, pngFixture) {
+    const step1 = join(tmpDir, 'icns-ico-step1')
+    mkdirSync(step1)
+    execSync(`node "${toolPath}" --input="${pngFixture}" --format=icns --out="${step1}"`)
+    const icnsFile = join(step1, 'icon.icns')
+    if (!existsSync(icnsFile)) throw new Error('Step 1: icon.icns was not created')
+
+    const step2 = join(tmpDir, 'icns-ico-step2')
+    mkdirSync(step2)
+    execSync(`node "${toolPath}" --input="${icnsFile}" --format=ico --out="${step2}"`)
+    const icoFile = join(step2, 'icon.ico')
+    if (!existsSync(icoFile)) throw new Error('icon.ico from ICNS was not created')
+    const sizes = parseIco(readFileSync(icoFile))
+    if (!sizes.includes(256)) throw new Error(`ICO from ICNS is missing 256px entry (found: ${sizes.join(', ')})`)
+  },
+})
+
+// Test 7: ICNS → Linux set (exercises the .icns input path + linux set generation)
+tests.push({
+  name: 'ICNS → Linux set',
+  run(tmpDir, toolPath, pngFixture) {
+    const step1 = join(tmpDir, 'icns-set-step1')
+    mkdirSync(step1)
+    execSync(`node "${toolPath}" --input="${pngFixture}" --format=icns --out="${step1}"`)
+    const icnsFile = join(step1, 'icon.icns')
+    if (!existsSync(icnsFile)) throw new Error('Step 1: icon.icns was not created')
+
+    const step2 = join(tmpDir, 'icns-set-step2')
+    mkdirSync(step2)
+    execSync(`node "${toolPath}" --input="${icnsFile}" --format=set --out="${step2}"`)
+    const expectedSizes = [16, 24, 32, 48, 64, 128, 256, 512]
+    for (const sz of expectedSizes) {
+      const file = join(step2, `${sz}x${sz}.png`)
+      if (!existsSync(file)) throw new Error(`Missing ${sz}x${sz}.png`)
+      const dims = parsePngDimensions(readFileSync(file))
+      if (dims.width !== sz || dims.height !== sz) {
+        throw new Error(`Wrong dimensions for ${sz}x${sz}.png: got ${dims.width}x${dims.height}`)
+      }
+    }
+  },
+})
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------

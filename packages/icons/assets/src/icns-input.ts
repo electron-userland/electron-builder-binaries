@@ -2,6 +2,12 @@
 const PREFERRED_TYPES = ['ic10', 'ic09', 'ic14', 'ic08', 'ic13']
 const SKIP_TYPES = new Set(['info', 'TOC ', 'icnV', 'name'])
 
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+
+function isPng(data: Buffer): boolean {
+  return data.length >= 8 && data.subarray(0, 8).equals(PNG_MAGIC)
+}
+
 export function extractLargestPngFromIcns(data: Buffer): Buffer | null {
   const typeMap = new Map<string, { offset: number; length: number }>()
   let offset = 8 // skip 8-byte ICNS file header
@@ -17,7 +23,10 @@ export function extractLargestPngFromIcns(data: Buffer): Buffer | null {
   }
   for (const t of PREFERRED_TYPES) {
     const entry = typeMap.get(t)
-    if (entry) return data.subarray(entry.offset, entry.offset + entry.length)
+    if (entry) {
+      const payload = data.subarray(entry.offset, entry.offset + entry.length)
+      if (isPng(payload)) return payload
+    }
   }
   return null
 }
