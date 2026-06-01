@@ -8,3 +8,4 @@ artifacts-staging
 **/build
 .buildx-cache
 **/__pycache__
+**/Brewfile.generated

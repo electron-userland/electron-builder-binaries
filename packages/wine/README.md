@@ -50,11 +50,11 @@ Builds Wine **without FreeType** (fonts work via macOS fallback).
 ## Examples
 
 ```bash
-# Build Wine 9.0 (default)
+# Build Wine 11.0 (default)
 ./build.sh
 
-# Build Wine 8.0
-WINE_VERSION=8.0 ./build.sh
+# Build Wine 9.0
+WINE_VERSION=9.0 ./build.sh
 
 # Build for Linux (requires Docker)
 OS_TARGET=linux ./build.sh
@@ -93,7 +93,7 @@ A **portable Wine bundle**:
 ## Output Structure
 
 ```
-wine-9.0-darwin-x86_64/
+wine-11.0-darwin-x86_64/
 ├── bin/wine64              # Wine binary
 ├── lib/                    # Libraries
 ├── share/wine/             # Data files
@@ -110,8 +110,8 @@ wine-9.0-darwin-x86_64/
 ## Using the Bundle
 
 ```bash
-tar -xzf wine-9.0-darwin-x86_64.tar.gz
-cd wine-9.0-darwin-x86_64
+tar -xzf wine-11.0-darwin-x86_64.tar.gz
+cd wine-11.0-darwin-x86_64
 ./wine-launcher.sh notepad
 ```
 
@@ -133,9 +133,9 @@ rm -rf build/
 
 ## Available Wine Versions
 
-- **9.0** (latest stable, recommended)
+- **11.0** (latest stable, recommended)
+- **9.0**
 - **8.0**
-- **7.0**
 
 Source: https://dl.winehq.org/wine/source/
 

@@ -53,7 +53,7 @@ if $IS_DARWIN; then
     export PATH="$BREW_PREFIX/opt/bison/bin:$PATH"
     export PATH="$BREW_PREFIX/opt/flex/bin:$PATH"
     export PATH="$BREW_PREFIX/opt/make/libexec/gnubin:$PATH"
-    export PKG_CONFIG_PATH="$BREW_PREFIX/x86_64-w64-mingw32/lib/pkgconfig:${PKG_CONFIG_PATH:$BREW_PREFIX/lib/pkgconfig}"
+    export PKG_CONFIG_PATH="$BREW_PREFIX/x86_64-w64-mingw32/lib/pkgconfig:${PKG_CONFIG_PATH:-$BREW_PREFIX/lib/pkgconfig}"
 
     # Sanity checks (fail fast)
     bison --version | grep -E '3\.' >/dev/null || {
@@ -313,8 +313,8 @@ echo "📦 Packaging archive"
 mkdir -p "$OUTPUT_DIR" "$OUT_DIR"
 cp -R "$STAGE_DIR/"* "$OUTPUT_DIR/"
 
-ARCHIVE="$OUT_DIR/wine-${WINE_VERSION}-${OS_TARGET}-${PLATFORM_ARCH}.tar.xz"
-tar -C "$BUILD_DIR" -cJf "$ARCHIVE" "$(basename "$OUTPUT_DIR")"
+OUT_ARCHIVE="$OUT_DIR/wine-${WINE_VERSION}-${OS_TARGET}-${PLATFORM_ARCH}.tar.xz"
+tar -C "$BUILD_DIR" -cJf "$OUT_ARCHIVE" "$(basename "$OUTPUT_DIR")"
 
 echo "✅ DONE"
-du -sh "$ARCHIVE"
+du -sh "$OUT_ARCHIVE"

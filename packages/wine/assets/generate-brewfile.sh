@@ -33,16 +33,16 @@ map_lib_to_brew() {
     echo "# Generated from Wine config.log"
     echo
     echo "# Toolchain"
-    echo 'brew "pkg-config"'
     echo 'brew "bison"'
-    echo 'brew "libtool"'
-    echo 'brew "gettext"'
     echo 'brew "flex"'
+    echo 'brew "gettext"'
+    echo 'brew "libtool"'
     echo 'brew "mingw-w64"'
+    echo 'brew "pkg-config"'
     echo
-    
+
     echo "# Wine dependencies"
-    
+
     grep -oE -e '-l[a-zA-Z0-9_]+' "$CONFIG_LOG" \
     | sed 's/^-l//' \
     | sort -u \
@@ -50,8 +50,8 @@ map_lib_to_brew() {
         if brew_pkg=$(map_lib_to_brew "$lib"); then
             echo "brew \"$brew_pkg\""
         fi
-    done
-    
+    done | sort
+
     echo
     echo "# Build helpers"
     echo 'brew "autoconf"'
@@ -59,9 +59,6 @@ map_lib_to_brew() {
     echo 'brew "make"'
     echo 'brew "xz"'
 } > "$GENERATED"
-
-# Normalize ordering
-sort "$GENERATED" -o "$GENERATED"
 
 echo "✅ Generated $GENERATED"
 
