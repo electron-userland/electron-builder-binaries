@@ -2,4 +2,4 @@
 "wix": major
 ---
 
-feat(wix): WiX Toolset v4.0.6 — source-compiled build pipeline
+feat(wix): upgrade WiX Toolset to v4.0.6 (compiled from source code)
