@@ -9,7 +9,9 @@
   "scripts": {
     "ci:version": "node scripts/changeset-version.js && changeset version",
     "ci:publish": "changeset tag",
-    "ci:validate-staging": "bash scripts/validate-staging.sh"
+    "ci:validate-staging": "bash scripts/validate-staging.sh",
+    "ci:detect-changes": "bash ./scripts/detect-packages.sh",
+    "ci:version:dry-run": "node scripts/changeset-publish.js --dry-run"
   },
   "devDependencies": {
     "@actions/attest": "^3.2.0",

@@ -2,6 +2,8 @@ const path = require("path");
 const fs = require("fs");
 const { execSync } = require("child_process");
 
+const isDryRun = process.env.DRY_RUN || process.argv.includes("--dry-run");
+
 // changeset status expects relative __dirname even if we set absolute output path
 const changesetJsonPath = "changeset-status.json";
 
@@ -17,7 +19,7 @@ releases.forEach((release) => {
   const { name } = release;
   const artifactDestination = path.resolve(__dirname, "../artifacts", name);
   const stagingArtifactPath = path.resolve(stagingDir, name);
-  if (!process.env.DRY_RUN) {
+  if (!isDryRun) {
     fs.rmSync(artifactDestination, { recursive: true, force: true });
     fs.renameSync(stagingArtifactPath, artifactDestination);
     console.log(`Moved ${stagingArtifactPath} to ${artifactDestination}...`);
@@ -33,7 +35,7 @@ releases.forEach((release) => {
   }
 });
 
-if (!process.env.DRY_RUN) {
+if (!isDryRun) {
   // Remove the changeset status file
   fs.rmSync(stagingDir, { recursive: true, force: true });
   console.log(`Removed ${stagingDir}...`);
