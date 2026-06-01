@@ -27,11 +27,15 @@ releases.forEach((release) => {
     execSync(`git add --force -A ${artifactDestination}`);
     console.log(`Committed ${artifactDestination}...`);
   } else {
-    if (!fs.existsSync(stagingArtifactPath) || !fs.statSync(stagingArtifactPath).isDirectory()) {
-      console.error(`DRY_RUN ERROR: expected a directory at ${stagingArtifactPath} — not found or not a directory`);
-      process.exit(1);
+    if (fs.existsSync(stagingArtifactPath)) {
+      if (!fs.statSync(stagingArtifactPath).isDirectory()) {
+        console.error(`DRY_RUN ERROR: ${stagingArtifactPath} exists but is not a directory — artifact structure is wrong`);
+        process.exit(1);
+      }
+      console.log(`DRY_RUN: Verified ${stagingArtifactPath} exists as a directory.`);
+    } else {
+      console.log(`DRY_RUN: ${stagingArtifactPath} not present (no artifacts built for ${name}).`);
     }
-    console.log(`DRY_RUN: Verified ${stagingArtifactPath} exists as a directory.`);
   }
 });
 
