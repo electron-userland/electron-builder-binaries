@@ -7,7 +7,7 @@ on:
 jobs:
   dmg-builder:
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 15
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:

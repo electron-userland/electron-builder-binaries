@@ -88,6 +88,9 @@ jobs:
   wine:
     if: contains(needs.detect.outputs.matrix, '"wine"')
     uses: ./.github/workflows/build-wine.yaml
+  icons:
+    if: contains(needs.detect.outputs.matrix, '"icons"')
+    uses: ./.github/workflows/build-icons.yaml
     needs: detect
 
   combine:
@@ -101,7 +104,9 @@ jobs:
         dmg-builder,
         squirrel,
         wine,
-        linux-tools-mac
+        linux-tools-mac,
+        squirrel,
+        icons
       ]
     if: |
       always() &&

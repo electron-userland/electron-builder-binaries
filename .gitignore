@@ -7,7 +7,4 @@ artifacts
 artifacts-staging
 **/build
 .buildx-cache
-
-packages/**/*.zip
-packages/**/*.tar.gz
-packages/**/*.7z
+**/__pycache__
