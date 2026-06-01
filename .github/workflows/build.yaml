@@ -88,6 +88,11 @@ jobs:
     uses: ./.github/workflows/build-squirrel.yaml
     needs: detect
 
+  wix:
+    if: contains(needs.detect.outputs.matrix, '"wix"')
+    uses: ./.github/workflows/build-wix.yaml
+    needs: detect
+    
   icons:
     if: contains(needs.detect.outputs.matrix, '"icons"')
     uses: ./.github/workflows/build-icons.yaml
@@ -104,6 +109,7 @@ jobs:
         dmg-builder,
         linux-tools-mac,
         squirrel,
+        wix,
         icons
       ]
     if: |
