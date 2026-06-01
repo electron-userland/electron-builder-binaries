@@ -7,3 +7,4 @@ artifacts
 artifacts-staging
 **/build
 .buildx-cache
+**/__pycache__
