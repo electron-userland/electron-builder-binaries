@@ -35,8 +35,12 @@ jobs:
           retention-days: 1
 
   windows:
-    runs-on: windows-2025
-    timeout-minutes: 20
+    runs-on: ${{ matrix.arch == 'arm64' && 'windows-11-arm' || 'windows-2025' }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, arm64]
 
     defaults:
       run:
@@ -49,7 +53,7 @@ jobs:
       - name: Setup MSYS2
         uses: msys2/setup-msys2@fb197b72ce45fb24f17bf3f807a388985654d1f2 # v2.29.0
         with:
-          msystem: MINGW64
+          msystem: ${{ matrix.arch == 'arm64' && 'CLANGARM64' || 'MINGW64' }}
           update: true
           install: >-
             git
@@ -64,16 +68,16 @@ jobs:
             libgsf:p
             zlib:p
             pkgconf:p
-            nodejs:p 
+            nodejs:p
 
-      - name: Build osslsigncode (x64)
+      - name: Build osslsigncode (${{ matrix.arch }})
         run: |
-          PLATFORM_ARCH=x64 bash ./packages/win-codesign/build.sh
+          PLATFORM_ARCH=${{ matrix.arch }} bash ./packages/win-codesign/build.sh
 
       - name: Upload artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
         with:
-          name: win-codesign-windows-x64
+          name: win-codesign-windows-${{ matrix.arch }}
           path: ./packages/win-codesign/out/**/*.zip
           if-no-files-found: error
           retention-days: 1
