@@ -1,0 +1,19 @@
+# AUTO-GENERATED – DO NOT EDIT
+# Generated from Wine config.log
+
+# Toolchain
+brew "bison"
+brew "flex"
+brew "gettext"
+brew "libtool"
+brew "mingw-w64"
+brew "pkg-config"
+
+# Wine dependencies
+brew "gnutls"
+
+# Build helpers
+brew "autoconf"
+brew "automake"
+brew "make"
+brew "xz"

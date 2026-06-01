@@ -88,6 +88,11 @@ jobs:
     uses: ./.github/workflows/build-squirrel.yaml
     needs: detect
 
+  wine:
+    if: contains(needs.detect.outputs.matrix, '"wine"')
+    uses: ./.github/workflows/build-wine.yaml
+    needs: detect
+
   wix:
     if: contains(needs.detect.outputs.matrix, '"wix"')
     uses: ./.github/workflows/build-wix.yaml
@@ -107,6 +112,8 @@ jobs:
         ran,
         nsis,
         dmg-builder,
+        squirrel,
+        wine,
         linux-tools-mac,
         squirrel,
         wix,

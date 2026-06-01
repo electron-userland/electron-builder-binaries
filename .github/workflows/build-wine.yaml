@@ -1,0 +1,49 @@
+name: Build Wine
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+concurrency: 
+  group: ${{ github.head_ref }}
+  cancel-in-progress: true # for the love of all that is holy, cancel in progress runs on new pushes. linux builds take forever
+    
+jobs:
+  mac:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Build for macOS
+        run: bash ./build.sh
+        shell: bash
+        working-directory: ./packages/wine
+
+      - name: Upload wine artifact
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        with:
+          name: wine-macos
+          path: packages/wine/out/*.tar.xz
+          if-no-files-found: error
+          retention-days: 1
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120 # holy moly docker builds take forever
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Build for Linux
+        run: bash ./build.sh
+        shell: bash
+        working-directory: ./packages/wine
+
+      - name: Upload wine artifact
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        with:
+          name: wine-linux
+          path: packages/wine/out/*.tar.xz
+          if-no-files-found: error
+          retention-days: 1
