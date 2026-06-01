@@ -68,7 +68,7 @@ for PKG in $PACKAGES; do
 done
 
 # Run compress-artifacts to copy out/* → artifacts-staging/*
-sh "$ROOT_DIR/scripts/compress-artifacts.sh"
+bash "$ROOT_DIR/scripts/compress-artifacts.sh"
 
 # Validate with DRY_RUN (now asserts each staging path is a directory)
 DRY_RUN=true node "$ROOT_DIR/scripts/changeset-version.js"
