@@ -1,5 +1,11 @@
 # dmg-builder
 
+## 1.2.3
+
+### Patch Changes
+
+- [#181](https://github.com/electron-userland/electron-builder-binaries/pull/181) [`af42701`](https://github.com/electron-userland/electron-builder-binaries/commit/af427013d0bc0c05b2a7f42d1c4aa9f2537dcbfd) Thanks [@mmaietta](https://github.com/mmaietta)! - fix(dmg-builder): patch dmgbuild core — correct size formula and ditto error propagation
+
 ## 1.2.2
 
 ### Patch Changes
