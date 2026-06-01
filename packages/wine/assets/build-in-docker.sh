@@ -81,7 +81,6 @@ OUTPUT_DIR="$BUILD_DIR/wine-${WINE_VERSION}-${OS_TARGET}-${PLATFORM_ARCH}"
 OUT_DIR="${OUT_DIR:-$ROOT_DIR/out}"
 TRACE_LOG="$BUILD_DIR/dll-trace.log"
 SYS32_ALLOW="$BUILD_DIR/system32.allow"
-WINE_ALLOW="$BUILD_DIR/wine.allow"
 
 mkdir -p "$DOWNLOAD_DIR"
 
@@ -244,10 +243,6 @@ grep -o 'system32\\\\[^"]*\.dll' "$TRACE_LOG" \
 | tr 'A-Z' 'a-z' \
 | sort -u > "$SYS32_ALLOW"
 
-# Convert foo.dll → foo (for dll.so matching)
-sed 's/\.dll$//' "$SYS32_ALLOW" \
-| sort -u > "$WINE_ALLOW"
-
 echo "✅ Allowed system32 DLLs:"
 cat "$SYS32_ALLOW"
 
@@ -258,10 +253,10 @@ cat "$SYS32_ALLOW"
 echo "🔥 Pruning Wine Windows DLLs"
 WINE_WINDOWS_DIR="$STAGE_DIR/lib/wine/${PLATFORM_ARCH}-windows"
 
-for f in "$WINE_WINDOWS_DIR"/*.dll.so; do
+for f in "$WINE_WINDOWS_DIR"/*.dll; do
     [ ! -f "$f" ] && continue
-    base="$(basename "$f" .dll.so)"
-    if ! grep -qx "$base" "$WINE_ALLOW"; then
+    lower="$(basename "$f" | tr 'A-Z' 'a-z')"
+    if ! grep -qx "$lower" "$SYS32_ALLOW"; then
         rm -f "$f"
     fi
 done
@@ -289,14 +284,23 @@ echo "🧹 Removing Windows bulk"
 WINDOWS_DIR="$WINEPREFIX/drive_c/windows"
 
 rm -rf \
-"$WINDOWS_DIR/Installer" \
-"$WINDOWS_DIR/Microsoft.NET" \
-"$WINDOWS_DIR/mono" \
-"$WINDOWS_DIR/syswow64" \
-"$WINDOWS_DIR/logs" \
-"$WINDOWS_DIR/inf" \
-"$WINDOWS_DIR/Temp" \
-"$WINDOWS_DIR/system32/gecko"
+  "$WINDOWS_DIR/Installer" \
+  "$WINDOWS_DIR/Microsoft.NET" \
+  "$WINDOWS_DIR/mono" \
+  "$WINDOWS_DIR/syswow64" \
+  "$WINDOWS_DIR/logs" \
+  "$WINDOWS_DIR/inf" \
+  "$WINDOWS_DIR/Temp" \
+  "$WINDOWS_DIR/system32/gecko" \
+  "$WINDOWS_DIR/winsxs" \
+  "$WINDOWS_DIR/resources" \
+  "$WINDOWS_DIR/globalization"
+
+rm -f \
+  "$WINDOWS_DIR/notepad.exe" \
+  "$WINDOWS_DIR/regedit.exe" \
+  "$WINDOWS_DIR/explorer.exe" \
+  "$WINDOWS_DIR/hh.exe"
 
 ############################################
 # 🪓 STRIP BINARIES

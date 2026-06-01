@@ -71,7 +71,6 @@ echo "🔎 Scanning for Windows executables"
 echo "----------------------------------"
 
 find "$UNPACK_DIR" -type f -iname "*.exe" \
-  | sed 's|^.*/||' \
   | sort -u \
   | tee "$OUT_FILE"
 
