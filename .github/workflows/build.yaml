@@ -85,6 +85,11 @@ jobs:
     uses: ./.github/workflows/build-squirrel.yaml
     needs: detect
 
+  icons:
+    if: contains(needs.detect.outputs.matrix, '"icons"')
+    uses: ./.github/workflows/build-icons.yaml
+    needs: detect
+
   combine:
     runs-on: macos-latest
     needs: [
@@ -95,7 +100,8 @@ jobs:
         nsis,
         dmg-builder,
         linux-tools-mac,
-        squirrel
+        squirrel,
+        icons
       ]
     if: |
       always() &&
