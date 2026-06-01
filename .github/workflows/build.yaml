@@ -37,6 +37,9 @@ jobs:
         run: |
           pnpm i --frozen-lockfile
 
+      - name: Validate release script imports
+        run: node scripts/changeset-publish.js --dry-run
+
       - name: Detect packages to release
         id: set
         run: sh ./scripts/detect-packages.sh
