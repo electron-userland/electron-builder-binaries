@@ -88,6 +88,10 @@ jobs:
   wix:
     if: contains(needs.detect.outputs.matrix, '"wix"')
     uses: ./.github/workflows/build-wix.yaml
+    
+  icons:
+    if: contains(needs.detect.outputs.matrix, '"icons"')
+    uses: ./.github/workflows/build-icons.yaml
     needs: detect
 
   combine:
@@ -101,7 +105,8 @@ jobs:
         dmg-builder,
         linux-tools-mac,
         squirrel,
-        wix
+        wix,
+        icons
       ]
     if: |
       always() &&

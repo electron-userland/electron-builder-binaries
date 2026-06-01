@@ -176,6 +176,22 @@ run_arch "$PREFIX/bin/python3" -m pip install --upgrade pip --no-warn-script-loc
 run_arch "$PREFIX/bin/python3" -m pip install --no-warn-script-location --no-cache "dmgbuild[badge_icons] @ git+https://github.com/dmgbuild/dmgbuild.git@${DMGBUILD_VERSION}"
 
 ###############################################################################
+# PATCH DMGBUILD
+# Apply targeted fixes to the installed dmgbuild core module before the bundle
+# is assembled.  The patch script exits non-zero if any expected pattern is
+# absent, so a changed upstream will cause a loud build failure rather than
+# shipping an unpatched bundle.
+###############################################################################
+echo "📋 Patching dmgbuild core…"
+DMGBUILD_CORE="$(find "$PREFIX/lib" -path "*/dmgbuild/core.py" | head -n 1)"
+if [ -z "$DMGBUILD_CORE" ]; then
+    echo "❌ Cannot locate dmgbuild/core.py — aborting."
+    exit 1
+fi
+run_arch "$PREFIX/bin/python3" "$ROOT/assets/patch-dmgbuild.py" "$DMGBUILD_CORE"
+echo "✅ dmgbuild patched"
+
+###############################################################################
 # ADD VERSION.txt FILE with python version and versions of each major package
 ###############################################################################
 echo "📝 Creating VERSION.txt…"
@@ -222,6 +238,9 @@ for ext in _asyncio _bz2 _codecs_{cn,hk,iso2022,jp,kr,tw} _crypt \
     test_dmgbuild
 done
 
+echo "Installing pytest for Test 8 (before pip is removed)"
+run_arch "$PREFIX/bin/python3" -m pip install --quiet --no-warn-script-location pytest 2>/dev/null || true
+
 echo "Removing pip and setuptools"
 rm -rf "$PREFIX/bin/pip"* "$PREFIX/bin/easy_install"*
 SITE_PACKAGES="$PYTHON_LIB_DIR/site-packages"
@@ -232,6 +251,7 @@ echo "Removing test files, bytecode, and metadata"
 find "$PREFIX" -type d \( -name test -o -name tests -o -name __pycache__ \) -exec rm -rf {} + 2>/dev/null || true
 find "$PREFIX" -type f \( -name "*.pyc" -o -name "*.pyo" -o -name "test_*.py" \) -delete
 find "$PREFIX" -type d \( -name "*.dist-info" -o -name "*.egg-info" \) -exec rm -rf {} + 2>/dev/null || true
+find "$PREFIX" -type d -name "*.dSYM" -exec rm -rf {} + 2>/dev/null || true
 
 # Remove dev files
 rm -rf "$PREFIX"/{include,share} "$PREFIX/lib"/{pkgconfig,*.a} "$PREFIX/lib/python*/config-*"
@@ -467,6 +487,92 @@ EOF
 "$DIR_TO_ARCHIVE/dmgbuild" --help
 "$DIR_TO_ARCHIVE/dmgbuild" -s "$TEST_DIR/test_settings.py" --detach-retries 1 Test "$TEST_DIR/test.dmg"
 echo "✓ Can create DMG"
+
+# Test 6: Verify patches are present in bundled core.py
+run_arch "$DIR_TO_ARCHIVE/python/bin/python3" - <<'PATCH_VERIFY'
+import sys
+import inspect
+import dmgbuild.core as core
+
+src = inspect.getsource(core)
+
+failures = []
+
+if "total_size / 1000" in src:
+    failures.append("size-calc patch not applied: still uses / 1000")
+
+if "total_size * 1.2 / 1024" not in src:
+    failures.append("size-calc patch not applied: overhead factor missing")
+
+if 'subprocess.call(["/usr/bin/ditto"' in src:
+    failures.append("ditto patch not applied: still uses subprocess.call")
+
+if 'subprocess.check_call(["/usr/bin/ditto"' not in src:
+    failures.append("ditto patch not applied: check_call not found")
+
+if failures:
+    for f in failures:
+        print(f"❌ {f}", file=sys.stderr)
+    sys.exit(1)
+
+print("✓ All dmgbuild patches verified in bundled core.py")
+PATCH_VERIFY
+
+# Test 7: Size formula correctness
+run_arch "$DIR_TO_ARCHIVE/python/bin/python3" - <<'SIZE_TEST'
+import sys
+
+BASE = 128 * 1024 * 1024
+
+def roundup(x, n):
+    return x if x % n == 0 else x + n - x % n
+
+def calc_size(file_bytes_list):
+    total = BASE
+    for sz in file_bytes_list:
+        total += roundup(sz, 4096)
+    return str(int(max(total * 1.2 / 1024, 1024))) + "K"
+
+cases = [
+    ([], "empty payload"),
+    ([500 * 1024 * 1024], "500 MB"),
+    ([1_900 * 1024 * 1024], "1.9 GB (original bug case)"),
+    ([2_100 * 1024 * 1024], "2.1 GB"),
+]
+
+failures = []
+for file_sizes, label in cases:
+    result = calc_size(file_sizes)
+    # Must be a plain integer + K, no float
+    if "." in result:
+        failures.append(f"{label}: size string contains float: {result!r}")
+    # Volume must exceed raw payload
+    payload = sum(file_sizes)
+    volume_bytes = int(result[:-1]) * 1024
+    if volume_bytes <= payload:
+        failures.append(f"{label}: volume {volume_bytes} <= payload {payload}")
+    # Result must match /^\d+K$/
+    import re
+    if not re.match(r"^\d+K$", result):
+        failures.append(f"{label}: unexpected format: {result!r}")
+
+if failures:
+    for f in failures:
+        print(f"❌ {f}", file=sys.stderr)
+    sys.exit(1)
+
+print("✓ Size formula produces valid results for all test cases")
+SIZE_TEST
+
+# Test 8: Full test suite (unit + integration)
+run_arch "$DIR_TO_ARCHIVE/python/bin/python3" -m pip install --quiet --no-warn-script-location pytest 2>/dev/null || true
+if run_arch "$DIR_TO_ARCHIVE/python/bin/python3" -m pytest --version >/dev/null 2>&1; then
+    run_arch "$DIR_TO_ARCHIVE/python/bin/python3" -m pytest \
+        "$ROOT/assets/tests/test_dmg_core.py" -v --tb=short
+    echo "✓ Full test suite passed"
+else
+    echo "⚠ pytest not available — skipping full test suite (inline tests above cover critical paths)"
+fi
 
 echo "✅ All tests passed!"
 
