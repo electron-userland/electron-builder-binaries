@@ -40,6 +40,9 @@ jobs:
       - name: Validate release script imports
         run: node scripts/changeset-publish.js --dry-run
 
+      - name: Validate staging artifact structure
+        run: sh ./scripts/validate-staging.sh
+
       - name: Detect packages to release
         id: set
         run: sh ./scripts/detect-packages.sh

@@ -8,7 +8,8 @@
   "private": true,
   "scripts": {
     "ci:version": "node scripts/changeset-version.js && changeset version",
-    "ci:publish": "changeset tag"
+    "ci:publish": "changeset tag",
+    "ci:validate-staging": "sh scripts/validate-staging.sh"
   },
   "devDependencies": {
     "@actions/attest": "^3.2.0",

@@ -25,7 +25,11 @@ releases.forEach((release) => {
     execSync(`git add --force -A ${artifactDestination}`);
     console.log(`Committed ${artifactDestination}...`);
   } else {
-    console.log(`DRY_RUN: Verified ${artifactDestination}...`);
+    if (!fs.existsSync(stagingArtifactPath) || !fs.statSync(stagingArtifactPath).isDirectory()) {
+      console.error(`DRY_RUN ERROR: expected a directory at ${stagingArtifactPath} — not found or not a directory`);
+      process.exit(1);
+    }
+    console.log(`DRY_RUN: Verified ${stagingArtifactPath} exists as a directory.`);
   }
 });
 
