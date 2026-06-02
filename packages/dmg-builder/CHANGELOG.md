@@ -1,5 +1,11 @@
 # dmg-builder
 
+## 1.2.5
+
+### Patch Changes
+
+- [#194](https://github.com/electron-userland/electron-builder-binaries/pull/194) [`be9f070`](https://github.com/electron-userland/electron-builder-binaries/commit/be9f070f066084c921b06fe70233cd8600516893) Thanks [@mmaietta](https://github.com/mmaietta)! - fix(dmg-builder): CJK license encoding in DMG builds: re-bundle CJK codec extensions, correct the `multibyte_encoding` → `multibyte` key-name bug in `licensing.py`, and add UTF-8 fallbacks so a missing codec never aborts the build.
+
 ## 1.2.4
 
 ### Patch Changes
