@@ -52,7 +52,7 @@ build_mac() {
     echo "🍎 Building macOS Wine bundle..."
     echo ""
     export OS_TARGET=darwin
-    bash "$ASSETS_DIR/build-in-docker.sh"
+    bash "$ASSETS_DIR/build-wine.sh"
 }
 
 build_linux() {

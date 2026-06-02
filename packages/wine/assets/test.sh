@@ -127,7 +127,6 @@ else
     assert_exec "$WINE_ROOT/bin/wineserver"              "wineserver binary is executable"
     assert_exec "$WINE_ROOT/bin/wineboot"                "wineboot binary is executable"
     assert_dir  "$WINE_ROOT/lib/wine/x86_64-unix"        "lib/wine/x86_64-unix DLLs"
-    assert_dir  "$WINE_ROOT/lib/wine/x86_64-windows"     "lib/wine/x86_64-windows DLLs"
 
     # Verify wine --version output (check stdout only, not stderr, to avoid matching paths)
     WINE_BIN="$WINE_ROOT/bin/wine"
@@ -172,16 +171,12 @@ else
         if [ -n "$RCEDIT_EXE" ]; then
             pass "rcedit .exe downloaded and extracted"
 
-            # Initialize a minimal Wine prefix for the test
-            export WINEPREFIX="$WORK_DIR/wine-test-prefix"
-            export WINEARCH=win64
+            # Use the pre-initialized wine-home shipped in the bundle.
+            # electron-builder always uses the bundled prefix; creating a fresh one
+            # requires lib/wine/x86_64-windows which is removed after prefix init.
+            export WINEPREFIX="$WINE_ROOT/wine-home"
             export WINEDEBUG=-all
             export DISPLAY="${DISPLAY:-:99}"
-
-            mkdir -p "$WINEPREFIX"
-            echo "  🍷 Initializing test Wine prefix..."
-            "$WINE_ROOT/bin/wineboot" --init >/dev/null 2>&1 || true
-            sleep 1
 
             echo "  ▶️  Running rcedit --help through Wine..."
             WINE_OUT=$("$WINE_ROOT/bin/wine" "$RCEDIT_EXE" --help 2>&1 || true)
