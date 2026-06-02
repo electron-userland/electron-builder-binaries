@@ -194,7 +194,7 @@ if [ -n "$E2E_SKIP_REASON" ]; then
     skip "rcedit (${E2E_SKIP_REASON})"
 else
     echo "  📥 Downloading rcedit..."
-    if curl -fsSL --retry 3 --retry-delay 2 "$RCEDIT_URL" -o "$WORK_DIR/rcedit.zip" 2>/dev/null; then
+    if curl -fsSL --retry 3 --retry-delay 2 --max-time 300 "$RCEDIT_URL" -o "$WORK_DIR/rcedit.zip" 2>/dev/null; then
         mkdir -p "$RCEDIT_DIR"
         unzip -q "$WORK_DIR/rcedit.zip" -d "$RCEDIT_DIR" 2>/dev/null || true
         RCEDIT_EXE=$(find "$RCEDIT_DIR" -name "*.exe" | head -1)
@@ -229,7 +229,7 @@ else
         skip "WiX tools (7z not found — install p7zip or 7-Zip)"
     else
         echo "  📥 Downloading WiX bundle..."
-        if curl -fsSL --retry 3 --retry-delay 2 "$WIX_URL" -o "$WORK_DIR/wix.7z" 2>/dev/null; then
+        if curl -fsSL --retry 3 --retry-delay 2 --max-time 300 "$WIX_URL" -o "$WORK_DIR/wix.7z" 2>/dev/null; then
             mkdir -p "$WIX_DIR"
             "$SEVENZ" x -o"$WIX_DIR" -y "$WORK_DIR/wix.7z" >/dev/null 2>&1 || true
 
@@ -259,7 +259,7 @@ if [ -n "$E2E_SKIP_REASON" ]; then
     skip "signtool (${E2E_SKIP_REASON})"
 else
     echo "  📥 Downloading Windows Kits bundle..."
-    if curl -fsSL --retry 3 --retry-delay 2 "$KITS_URL" -o "$WORK_DIR/kits.zip" 2>/dev/null; then
+    if curl -fsSL --retry 3 --retry-delay 2 --max-time 300 "$KITS_URL" -o "$WORK_DIR/kits.zip" 2>/dev/null; then
         mkdir -p "$KITS_DIR"
         unzip -q "$WORK_DIR/kits.zip" -d "$KITS_DIR" 2>/dev/null || true
         SIGNTOOL_EXE=$(find "$KITS_DIR" -iname "signtool.exe" | head -1)

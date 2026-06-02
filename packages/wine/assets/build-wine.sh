@@ -96,7 +96,7 @@ run_quiet() {
 ARCHIVE="$DOWNLOAD_DIR/wine-${WINE_VERSION}.tar.xz"
 if [ ! -f "$ARCHIVE" ]; then
     echo "📥 Downloading Wine ${WINE_VERSION}..."
-    curl -L --progress-bar "$WINE_URL" -o "$ARCHIVE"
+    curl -fSL --retry 3 --retry-delay 5 --max-time 1800 --progress-bar -o "$ARCHIVE" "$WINE_URL"
 
     if [ -n "$CHECKSUM" ]; then
         ACTUAL=$(shasum -a 256 "$ARCHIVE" | awk '{print $1}')
