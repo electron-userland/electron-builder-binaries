@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Enable command tracing
-set -x
-
 WINE_VERSION=${WINE_VERSION:-11.0}
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="${ROOT_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
@@ -28,17 +25,17 @@ fi
 
 if $IS_DARWIN; then
     echo "🍺 Ensuring Homebrew dependencies (brew bundle)"
-    
+
     if ! command -v brew >/dev/null 2>&1; then
         echo "❌ Homebrew not found"
         exit 1
     fi
-    
+
     if [ ! -f "$SCRIPT_DIR/Brewfile" ]; then
         echo "❌ Brewfile not found"
         exit 1
     fi
-    
+
     (
         cd "$SCRIPT_DIR"
         if ! brew bundle check; then
@@ -62,7 +59,7 @@ if $IS_DARWIN; then
         bison --version
         exit 1
     }
-    
+
     if [ "$HOST_ARCH" = 'arm64' ]; then
         echo "🔄 ARM64 host — will cross-compile x86_64 Wine via -arch x86_64"
         export SDKROOT="$(xcode-select -p)/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
@@ -79,18 +76,28 @@ BUILD_WINE_DIR="$BUILD_DIR/wine64-build"
 STAGE_DIR="$BUILD_DIR/wine-stage"
 OUTPUT_DIR="$BUILD_DIR/wine-${WINE_VERSION}-${OS_TARGET}-${PLATFORM_ARCH}"
 OUT_DIR="${OUT_DIR:-$ROOT_DIR/out}"
-TRACE_LOG="$BUILD_DIR/dll-trace.log"
-SYS32_ALLOW="$BUILD_DIR/system32.allow"
-WINE_ALLOW="$BUILD_DIR/wine.allow"
 
 mkdir -p "$DOWNLOAD_DIR"
+
+# Capture stdout to a log file; on failure print the tail so CI logs stay readable.
+run_quiet() {
+    local label="$1"; shift
+    local log="$BUILD_DIR/${label// /_}.log"
+    echo "⏳ ${label}..."
+    if ! "$@" > "$log" 2>&1; then
+        echo "❌ ${label} FAILED — last 50 lines:"
+        tail -n 50 "$log" >&2
+        exit 1
+    fi
+    echo "✅ ${label} done"
+}
 
 # Download and verify archive
 ARCHIVE="$DOWNLOAD_DIR/wine-${WINE_VERSION}.tar.xz"
 if [ ! -f "$ARCHIVE" ]; then
     echo "📥 Downloading Wine ${WINE_VERSION}..."
-    curl -L --progress-bar "$WINE_URL" -o "$ARCHIVE"
-    
+    curl -fSL --retry 3 --retry-delay 5 --max-time 1800 --progress-bar -o "$ARCHIVE" "$WINE_URL"
+
     if [ -n "$CHECKSUM" ]; then
         ACTUAL=$(shasum -a 256 "$ARCHIVE" | awk '{print $1}')
         if [ "$ACTUAL" != "$CHECKSUM" ]; then
@@ -130,21 +137,29 @@ else
     MAKE_CMD=(make)
 fi
 
-echo "⚙️  Configuring Wine (without FreeType)..."
 rm -rf "$BUILD_WINE_DIR" "$STAGE_DIR"
 mkdir -p "$BUILD_WINE_DIR" "$STAGE_DIR"
 cd "$BUILD_WINE_DIR"
-"${CONFIGURE_CMD[@]}" "${CONFIGURE_FLAGS[@]}" 2>&1 | tee configure.log
+
+run_quiet "configure" "${CONFIGURE_CMD[@]}" "${CONFIGURE_FLAGS[@]}"
 
 if [ "$OS_TARGET" = "darwin" ]; then
     bash "$SCRIPT_DIR/generate-brewfile.sh" "$BUILD_WINE_DIR/config.log"
 fi
 
-echo "🔨 Building..."
-"${MAKE_CMD[@]}" -j"$NCPU"
+run_quiet "make -j${NCPU}" "${MAKE_CMD[@]}" -j"$NCPU"
 
-echo "📦 Installing..."
-"${MAKE_CMD[@]}" install
+# make install must NOT run under arch -x86_64 on ARM64 Mac.
+# Homebrew's x86_64-w64-mingw32-strip is an ARM64 binary; under Rosetta it
+# fails with "Bad CPU type", silently skipping PE DLL installation for DLLs
+# that need winebuild --builtin processing (wintrust, setupapi, etc.).
+# Running install natively lets that ARM64 strip tool work while winebuild
+# (x86_64) is transparently handled by Rosetta.
+if $IS_DARWIN && [ "$HOST_ARCH" = 'arm64' ]; then
+    run_quiet "make install" /usr/bin/make install
+else
+    run_quiet "make install" "${MAKE_CMD[@]}" install
+fi
 
 cd "$ROOT_DIR"
 
@@ -155,8 +170,9 @@ if [ ! -e "$STAGE_DIR/bin/wine64" ] && [ -f "$STAGE_DIR/bin/wine" ]; then
     echo "🔗 Created wine64 → wine symlink"
 fi
 
-# Remove unnecessary directories
-rm -rf "$STAGE_DIR/share/man"  "$STAGE_DIR/share/doc"  "$STAGE_DIR/share/gtk-doc" "$STAGE_DIR/include" "$STAGE_DIR/share/applications"
+# Remove docs, headers, and unused share content
+rm -rf "$STAGE_DIR/share/man" "$STAGE_DIR/share/doc" "$STAGE_DIR/share/gtk-doc" \
+       "$STAGE_DIR/include" "$STAGE_DIR/share/applications"
 
 # Adjust RPATHs for all binaries (macOS only — otool/install_name_tool are macOS-specific)
 if $IS_DARWIN; then
@@ -164,14 +180,10 @@ if $IS_DARWIN; then
         local binary="$1"
         local rpath="$2"
 
-        echo "🔍 Checking RPATH in: $binary"
-
         if otool -l "$binary" | grep -A2 LC_RPATH | grep -q "$rpath"; then
-            echo "✅ RPATH already present: $rpath — skipping 🛑"
             return 0
         fi
 
-        echo "➕ Adding RPATH: $rpath"
         install_name_tool -add_rpath "$rpath" "$binary"
     }
 
@@ -181,12 +193,14 @@ if $IS_DARWIN; then
     done
 fi
 
-# Initialize Wine prefix
+############################################
+# 🍇 INITIALIZE WINE PREFIX
+############################################
+
 echo "🍇 Initializing Wine prefix..."
 export WINEPREFIX="$STAGE_DIR/wine-home"
 export WINEARCH=win64
 export WINEDEBUG=-all
-# macOS: no X needed (native graphics); Linux --without-x: null display driver
 if $IS_DARWIN; then
     export DISPLAY=:99
 fi
@@ -211,75 +225,60 @@ else
 fi
 
 ############################################
-# 🧪 DLL TRACE
+# 🗑️  REMOVE LIB/WINE PE DLLS (post-init)
 ############################################
 
-echo "🧪 Generating DLL load traces"
-TRACE_EXES_FILE=$(
-    bash "$SCRIPT_DIR/generate-trace-exes.sh" \
-    | grep '^EXE_LIST_FILE=' \
-    | cut -d= -f2
-)
-
-echo "🧪 Tracing DLL loads"
-: > "$TRACE_LOG"
-
-export WINEDEBUG=+loaddll
-
-while IFS= read -r exe; do
-    [ -z "$exe" ] && continue
-    echo "▶️ Tracing $exe"
-    "$STAGE_DIR/bin/wine" "$exe" >> "$TRACE_LOG" 2>&1 || true
-done < "$TRACE_EXES_FILE"
+# lib/wine/x86_64-windows/ seeds the prefix with PE DLLs during wineboot --init.
+# Now that wine-home is pre-initialized, this directory is not needed at runtime —
+# Wine loads DLLs from the prefix's system32, not from lib/wine.
+# Removing it saves ~770 MB extracted.
+echo "🗑️  Removing lib/wine/x86_64-windows (prefix is pre-initialized)"
+rm -rf "$STAGE_DIR/lib/wine/${PLATFORM_ARCH}-windows"
 
 ############################################
-# 🧠 GENERATE ALLOW-LISTS
+# 🧹 PRUNE system32 — whitelist-based
 ############################################
 
-echo "🧠 Generating allow-lists"
-
-# Extract system32 DLL names
-grep -o 'system32\\\\[^"]*\.dll' "$TRACE_LOG" \
-| sed 's|.*system32\\\\||' \
-| tr 'A-Z' 'a-z' \
-| sort -u > "$SYS32_ALLOW"
-
-# Convert foo.dll → foo (for dll.so matching)
-sed 's/\.dll$//' "$SYS32_ALLOW" \
-| sort -u > "$WINE_ALLOW"
-
-echo "✅ Allowed system32 DLLs:"
-cat "$SYS32_ALLOW"
-
-############################################
-# 🔥 PRUNE lib/wine/*-windows
-############################################
-
-echo "🔥 Pruning Wine Windows DLLs"
-WINE_WINDOWS_DIR="$STAGE_DIR/lib/wine/${PLATFORM_ARCH}-windows"
-
-for f in "$WINE_WINDOWS_DIR"/*.dll.so; do
-    [ ! -f "$f" ] && continue
-    base="$(basename "$f" .dll.so)"
-    if ! grep -qx "$base" "$WINE_ALLOW"; then
-        rm -f "$f"
-    fi
-done
-
-############################################
-# 🔥 PRUNE PREFIX system32
-############################################
-
-echo "🔥 Pruning prefix system32"
+echo "🧹 Pruning system32 to whitelist"
 SYSTEM32_DIR="$WINEPREFIX/drive_c/windows/system32"
 
-for f in "$SYSTEM32_DIR"/*.dll; do
-    [ ! -f "$f" ] && continue
-    lower="$(basename "$f" | tr 'A-Z' 'a-z')"
-    if ! grep -qx "$lower" "$SYS32_ALLOW"; then
-        rm -f "$f"
-    fi
+# DLLs sufficient for electron-builder tools (rcedit + WiX candle/light).
+# Derived from: CI baseline (32 DLLs that make install produced on x86_64)
+# plus rcedit loaddll trace. Removing everything else saves ~500 MB.
+SYSTEM32_KEEP_DLLS="
+  advapi32.dll bcrypt.dll combase.dll comctl32.dll comdlg32.dll coml2.dll
+  crypt32.dll cryptbase.dll cryptui.dll gdi32.dll imm32.dll kernel32.dll
+  kernelbase.dll mpr.dll msvcrt.dll ncrypt.dll ntdll.dll ole32.dll
+  oleaut32.dll rpcrt4.dll sechost.dll shcore.dll shell32.dll shlwapi.dll
+  ucrtbase.dll urlmon.dll user32.dll version.dll win32u.dll wininet.dll
+  ws2_32.dll xmllite.dll
+"
+for _dll in "$SYSTEM32_DIR"/*.dll; do
+    [ -f "$_dll" ] || continue
+    _name=$(basename "$_dll")
+    case " $SYSTEM32_KEEP_DLLS " in
+        *" $_name "*) ;;
+        *) rm -f "$_dll" ;;
+    esac
 done
+
+# EXEs: keep only wine's internal service processes; drop all user-visible tools
+SYSTEM32_KEEP_EXES="
+  conhost.exe plugplay.exe rpcss.exe services.exe start.exe
+  svchost.exe wineboot.exe winedevice.exe
+"
+for _exe in "$SYSTEM32_DIR"/*.exe; do
+    [ -f "$_exe" ] || continue
+    _name=$(basename "$_exe")
+    case " $SYSTEM32_KEEP_EXES " in
+        *" $_name "*) ;;
+        *) rm -f "$_exe" ;;
+    esac
+done
+
+# Non-essential file types
+rm -f "$SYSTEM32_DIR"/*.cpl "$SYSTEM32_DIR"/*.tlb "$SYSTEM32_DIR"/*.ocx \
+      "$SYSTEM32_DIR"/*.drv "$SYSTEM32_DIR"/*.ax  "$SYSTEM32_DIR"/*.acm
 
 ############################################
 # 🧹 REMOVE BULK WINDOWS CONTENT
@@ -289,14 +288,40 @@ echo "🧹 Removing Windows bulk"
 WINDOWS_DIR="$WINEPREFIX/drive_c/windows"
 
 rm -rf \
-"$WINDOWS_DIR/Installer" \
-"$WINDOWS_DIR/Microsoft.NET" \
-"$WINDOWS_DIR/mono" \
-"$WINDOWS_DIR/syswow64" \
-"$WINDOWS_DIR/logs" \
-"$WINDOWS_DIR/inf" \
-"$WINDOWS_DIR/Temp" \
-"$WINDOWS_DIR/system32/gecko"
+  "$WINDOWS_DIR/Installer" \
+  "$WINDOWS_DIR/Microsoft.NET" \
+  "$WINDOWS_DIR/mono" \
+  "$WINDOWS_DIR/syswow64" \
+  "$WINDOWS_DIR/logs" \
+  "$WINDOWS_DIR/inf" \
+  "$WINDOWS_DIR/Temp" \
+  "$WINDOWS_DIR/system32/gecko" \
+  "$WINDOWS_DIR/winsxs" \
+  "$WINDOWS_DIR/resources" \
+  "$WINDOWS_DIR/globalization"
+
+rm -f \
+  "$WINDOWS_DIR/notepad.exe" \
+  "$WINDOWS_DIR/regedit.exe" \
+  "$WINDOWS_DIR/explorer.exe" \
+  "$WINDOWS_DIR/hh.exe"
+
+############################################
+# 🪓 PRUNE DEV TOOLS FROM bin/
+############################################
+
+echo "🪓 Removing Wine development tools from bin/"
+rm -f \
+  "$STAGE_DIR/bin/widl" \
+  "$STAGE_DIR/bin/winebuild" \
+  "$STAGE_DIR/bin/winedump" \
+  "$STAGE_DIR/bin/winegcc" \
+  "$STAGE_DIR/bin/winecpp" \
+  "$STAGE_DIR/bin/wineg++" \
+  "$STAGE_DIR/bin/winemaker" \
+  "$STAGE_DIR/bin/wmc" \
+  "$STAGE_DIR/bin/wrc" \
+  "$STAGE_DIR/bin/function_grep.pl"
 
 ############################################
 # 🪓 STRIP BINARIES
@@ -310,6 +335,7 @@ find "$STAGE_DIR/bin" "$STAGE_DIR/lib" -type f -perm +111 -exec strip -x {} \; 2
 ############################################
 
 echo "📦 Packaging archive"
+rm -rf "$OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR" "$OUT_DIR"
 cp -R "$STAGE_DIR/"* "$OUTPUT_DIR/"
 

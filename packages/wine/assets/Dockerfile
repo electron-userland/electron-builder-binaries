@@ -56,11 +56,11 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /build
 
 # Script will be mounted or copied
-COPY build-in-docker.sh /build/build-in-docker.sh
+COPY build-wine.sh /build/build-wine.sh
 COPY generate-trace-exes.sh /build/generate-trace-exes.sh
-RUN chmod +x /build/build-in-docker.sh /build/generate-trace-exes.sh
+RUN chmod +x /build/build-wine.sh /build/generate-trace-exes.sh
 
 # Output directory
 VOLUME /output
 
-CMD ["/build/build-in-docker.sh"]
+CMD ["/build/build-wine.sh"]

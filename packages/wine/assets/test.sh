@@ -127,7 +127,6 @@ else
     assert_exec "$WINE_ROOT/bin/wineserver"              "wineserver binary is executable"
     assert_exec "$WINE_ROOT/bin/wineboot"                "wineboot binary is executable"
     assert_dir  "$WINE_ROOT/lib/wine/x86_64-unix"        "lib/wine/x86_64-unix DLLs"
-    assert_dir  "$WINE_ROOT/lib/wine/x86_64-windows"     "lib/wine/x86_64-windows DLLs"
 
     # Verify wine --version output (check stdout only, not stderr, to avoid matching paths)
     WINE_BIN="$WINE_ROOT/bin/wine"
@@ -148,61 +147,113 @@ else
 fi
 
 # =============================================================================
-# Phase 3: E2E — run a real Windows .exe through Wine
+# Phase 3: E2E — run real Windows .exe files through Wine
 # =============================================================================
+# All sub-tests use the pre-initialized wine-home shipped in the bundle.
+# electron-builder always uses the bundled prefix; lib/wine/x86_64-windows
+# is removed after prefix init so fresh-prefix creation is not supported.
 
-header "Phase 3: E2E (real .exe)"
-
+E2E_SKIP_REASON=""
 if [ -z "$WINE_ROOT" ]; then
-    skip "E2E tests skipped (no bundle)"
+    E2E_SKIP_REASON="no bundle"
 elif [ "$OS_NAME" = "linux" ] && ! command -v Xvfb >/dev/null 2>&1; then
-    skip "E2E test skipped on Linux (Xvfb not available for headless Wine)"
+    E2E_SKIP_REASON="Xvfb not available for headless Wine on Linux"
+fi
+
+if [ -n "$E2E_SKIP_REASON" ]; then
+    export WINEPREFIX=""   # silence shellcheck; not used
 else
-    # Download rcedit (small Windows CLI tool used by electron-builder)
-    RCEDIT_URL="https://github.com/electron-userland/electron-builder-binaries/releases/download/win-codesign%401.1.0/rcedit-windows-2_0_0.zip"
-    RCEDIT_ZIP="$WORK_DIR/rcedit.zip"
-    RCEDIT_DIR="$WORK_DIR/rcedit"
+    export WINEPREFIX="$WINE_ROOT/wine-home"
+    export WINEDEBUG=-all
+    export DISPLAY="${DISPLAY:-:99}"
+fi
 
-    echo "  📥 Downloading rcedit (Windows test binary)..."
-    if curl -fsSL --retry 3 --retry-delay 2 "$RCEDIT_URL" -o "$RCEDIT_ZIP" 2>/dev/null; then
+# Helper: run one Windows EXE and assert its output matches a pattern.
+# Usage: wine_assert_output LABEL EXE_PATH HELP_FLAG PATTERN
+wine_assert_output() {
+    local label="$1" exe="$2" flag="$3" pattern="$4"
+    if [ -n "$E2E_SKIP_REASON" ]; then
+        skip "$label (${E2E_SKIP_REASON})"; return
+    fi
+    local out
+    out=$("$WINE_ROOT/bin/wine" "$exe" "$flag" 2>&1 || true)
+    if echo "$out" | grep -qiE "$pattern"; then
+        pass "$label"
+    else
+        fail "$label — unexpected output: ${out:0:200}"
+    fi
+}
+
+# ── 3a: rcedit (win-codesign@1.2.1) ──────────────────────────────────────────
+header "Phase 3a: E2E (rcedit)"
+
+RCEDIT_URL="https://github.com/electron-userland/electron-builder-binaries/releases/download/win-codesign%401.2.1/rcedit-windows-2_0_0.zip"
+RCEDIT_DIR="$WORK_DIR/rcedit"
+
+if [ -n "$E2E_SKIP_REASON" ]; then
+    skip "rcedit (${E2E_SKIP_REASON})"
+else
+    echo "  📥 Downloading rcedit..."
+    if curl -fsSL --retry 3 --retry-delay 2 --max-time 300 "$RCEDIT_URL" -o "$WORK_DIR/rcedit.zip" 2>/dev/null; then
         mkdir -p "$RCEDIT_DIR"
-        unzip -q "$RCEDIT_ZIP" -d "$RCEDIT_DIR" 2>/dev/null || true
+        unzip -q "$WORK_DIR/rcedit.zip" -d "$RCEDIT_DIR" 2>/dev/null || true
         RCEDIT_EXE=$(find "$RCEDIT_DIR" -name "*.exe" | head -1)
-
         if [ -n "$RCEDIT_EXE" ]; then
-            pass "rcedit .exe downloaded and extracted"
-
-            # Initialize a minimal Wine prefix for the test
-            export WINEPREFIX="$WORK_DIR/wine-test-prefix"
-            export WINEARCH=win64
-            export WINEDEBUG=-all
-            export DISPLAY="${DISPLAY:-:99}"
-
-            mkdir -p "$WINEPREFIX"
-            echo "  🍷 Initializing test Wine prefix..."
-            "$WINE_ROOT/bin/wineboot" --init >/dev/null 2>&1 || true
-            sleep 1
-
-            echo "  ▶️  Running rcedit --help through Wine..."
-            WINE_OUT=$("$WINE_ROOT/bin/wine" "$RCEDIT_EXE" --help 2>&1 || true)
-            if echo "$WINE_OUT" | grep -qiE "usage|rcedit|option|help|version|error"; then
-                pass "rcedit.exe runs through wine64 and produces output"
-            else
-                fail "rcedit.exe produced unexpected output: ${WINE_OUT:0:200}"
-            fi
+            pass "rcedit.exe downloaded"
+            wine_assert_output "rcedit.exe --help" "$RCEDIT_EXE" "--help" \
+                "usage|rcedit|option|help|version|error"
         else
-            skip "E2E test skipped (could not find .exe in rcedit zip)"
+            skip "rcedit.exe not found in zip"
         fi
     else
-        skip "E2E test skipped (could not download rcedit — network unavailable?)"
+        skip "rcedit download failed (network unavailable?)"
+    fi
+fi
+
+# ── 3b: WiX tools (wix-4.0.0.5512.2) ────────────────────────────────────────
+header "Phase 3b: E2E (WiX — candle, light, WriteZipToSetup)"
+
+WIX_URL="https://github.com/electron-userland/electron-builder-binaries/releases/download/wix-4.0.0.5512.2/wix-4.0.0.5512.2.7z"
+WIX_DIR="$WORK_DIR/wix"
+
+if [ -n "$E2E_SKIP_REASON" ]; then
+    skip "WiX tools (${E2E_SKIP_REASON})"
+else
+    # Find a 7z binary (macOS runners ship 7-Zip; Linux may have p7zip)
+    SEVENZ=""
+    for _cmd in 7z 7za 7zz; do
+        command -v "$_cmd" >/dev/null 2>&1 && { SEVENZ="$_cmd"; break; }
+    done
+
+    if [ -z "$SEVENZ" ]; then
+        skip "WiX tools (7z not found — install p7zip or 7-Zip)"
+    else
+        echo "  📥 Downloading WiX bundle..."
+        if curl -fsSL --retry 3 --retry-delay 2 --max-time 300 "$WIX_URL" -o "$WORK_DIR/wix.7z" 2>/dev/null; then
+            mkdir -p "$WIX_DIR"
+            "$SEVENZ" x -o"$WIX_DIR" -y "$WORK_DIR/wix.7z" >/dev/null 2>&1 || true
+
+            for _exe_name in candle.exe light.exe WriteZipToSetup.exe; do
+                _exe_path=$(find "$WIX_DIR" -iname "$_exe_name" | head -1)
+                if [ -n "$_exe_path" ]; then
+                    pass "$_exe_name found in WiX bundle"
+                    wine_assert_output "$_exe_name /?" "$_exe_path" "/?" \
+                        "wix|candle|light|setup|linker|compiler|usage|option|version|error"
+                else
+                    skip "$_exe_name not found in WiX archive"
+                fi
+            done
+        else
+            skip "WiX download failed (network unavailable?)"
+        fi
     fi
 fi
 
 # =============================================================================
-# Phase 4: Confirm
+# Phase 4: Results
 # =============================================================================
 
-header "Phase 4: Confirm"
+header "Phase 4: Results"
 
 TOTAL=$((PASS + FAIL + SKIP))
 echo ""

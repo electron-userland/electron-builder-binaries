@@ -43,7 +43,7 @@ echo "$ARCHIVES" | while read NAME SHA; do
   OUT="$UNPACK_DIR/${NAME%.zip}"
 
   echo "⬇️  Fetching $NAME"
-  curl -L --retry 3 --retry-delay 2 --progress-bar "$URL" -o "$DEST"
+  curl -fsSL --retry 3 --retry-delay 2 --max-time 300 -o "$DEST" "$URL"
 
   echo "🔍 Verifying SHA-256"
   ACTUAL="$(shasum -a 256 "$DEST" | awk '{print $1}')"
@@ -71,7 +71,6 @@ echo "🔎 Scanning for Windows executables"
 echo "----------------------------------"
 
 find "$UNPACK_DIR" -type f -iname "*.exe" \
-  | sed 's|^.*/||' \
   | sort -u \
   | tee "$OUT_FILE"
 
