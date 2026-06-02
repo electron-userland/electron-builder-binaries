@@ -148,7 +148,18 @@ if [ "$OS_TARGET" = "darwin" ]; then
 fi
 
 run_quiet "make -j${NCPU}" "${MAKE_CMD[@]}" -j"$NCPU"
-run_quiet "make install" "${MAKE_CMD[@]}" install
+
+# make install must NOT run under arch -x86_64 on ARM64 Mac.
+# Homebrew's x86_64-w64-mingw32-strip is an ARM64 binary; under Rosetta it
+# fails with "Bad CPU type", silently skipping PE DLL installation for DLLs
+# that need winebuild --builtin processing (wintrust, setupapi, etc.).
+# Running install natively lets that ARM64 strip tool work while winebuild
+# (x86_64) is transparently handled by Rosetta.
+if $IS_DARWIN && [ "$HOST_ARCH" = 'arm64' ]; then
+    run_quiet "make install" /usr/bin/make install
+else
+    run_quiet "make install" "${MAKE_CMD[@]}" install
+fi
 
 cd "$ROOT_DIR"
 
