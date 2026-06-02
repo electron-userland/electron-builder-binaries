@@ -2,6 +2,8 @@ const path = require("path");
 const fs = require("fs");
 const { execSync } = require("child_process");
 
+const isDryRun = process.env.DRY_RUN || process.argv.includes("--dry-run");
+
 // changeset status expects relative __dirname even if we set absolute output path
 const changesetJsonPath = "changeset-status.json";
 
@@ -17,7 +19,7 @@ releases.forEach((release) => {
   const { name } = release;
   const artifactDestination = path.resolve(__dirname, "../artifacts", name);
   const stagingArtifactPath = path.resolve(stagingDir, name);
-  if (!process.env.DRY_RUN) {
+  if (!isDryRun) {
     fs.rmSync(artifactDestination, { recursive: true, force: true });
     fs.renameSync(stagingArtifactPath, artifactDestination);
     console.log(`Moved ${stagingArtifactPath} to ${artifactDestination}...`);
@@ -25,11 +27,19 @@ releases.forEach((release) => {
     execSync(`git add --force -A ${artifactDestination}`);
     console.log(`Committed ${artifactDestination}...`);
   } else {
-    console.log(`DRY_RUN: Verified ${artifactDestination}...`);
+    if (fs.existsSync(stagingArtifactPath)) {
+      if (!fs.statSync(stagingArtifactPath).isDirectory()) {
+        console.error(`DRY_RUN ERROR: ${stagingArtifactPath} exists but is not a directory — artifact structure is wrong`);
+        process.exit(1);
+      }
+      console.log(`DRY_RUN: Verified ${stagingArtifactPath} exists as a directory.`);
+    } else {
+      console.log(`DRY_RUN: ${stagingArtifactPath} not present (no artifacts built for ${name}).`);
+    }
   }
 });
 
-if (!process.env.DRY_RUN) {
+if (!isDryRun) {
   // Remove the changeset status file
   fs.rmSync(stagingDir, { recursive: true, force: true });
   console.log(`Removed ${stagingDir}...`);

@@ -15,3 +15,6 @@ for FILEPATH in "$BUILD_OUT_DIR"/*; do
   rm -rf "$DESTINATION_DIR"
   cp -a "$FILEPATH" "$DESTINATION_DIR"
 done
+
+echo "=== artifacts-staging ==="
+find "$ARTIFACTS_DIR" | sort

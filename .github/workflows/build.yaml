@@ -2,7 +2,7 @@ name: Build artifacts
 
 on:
   push:
-    branches: master
+    branches: [master]
   pull_request:
   workflow_dispatch:
   workflow_call:
@@ -38,11 +38,14 @@ jobs:
           pnpm i --frozen-lockfile
 
       - name: Validate release script imports
-        run: node scripts/changeset-publish.js --dry-run
+        run: pnpm run ci:version:dry-run
+
+      - name: Validate staging artifact structure
+        run: pnpm ci:validate-staging
 
       - name: Detect packages to release
         id: set
-        run: sh ./scripts/detect-packages.sh
+        run: pnpm run ci:detect-changes
 
       - name: Show detected packages
         run: |
