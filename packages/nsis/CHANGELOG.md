@@ -1,5 +1,11 @@
 # nsis
 
+## 2.0.0
+
+### Major Changes
+
+- [#176](https://github.com/electron-userland/electron-builder-binaries/pull/176) [`7f22e69`](https://github.com/electron-userland/electron-builder-binaries/commit/7f22e6993d7a06d76094cafb22a355343c4c356e) Thanks [@mmaietta](https://github.com/mmaietta)! - feat(nsis): compiling windows `makensis` (with LOG and STRLENGTH enabled) from source
+
 ## 1.2.1
 
 ### Patch Changes
