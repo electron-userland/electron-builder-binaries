@@ -229,7 +229,7 @@ for mod in asyncio concurrent curses dbm email html http idlelib \
     test_dmgbuild
 done
 
-for ext in _asyncio _bz2 _codecs_{cn,hk,iso2022,jp,kr,tw} _crypt \
+for ext in _asyncio _bz2 _crypt \
     _curses{,_panel} _{dbm,gdbm} _lzma _multiprocessing _posixshmem \
     _queue _sqlite3 _tkinter audioop nis ossaudiodev readline \
     spwd syslog termios xxlimited; do
@@ -517,6 +517,38 @@ if failures:
 
 print("✓ All dmgbuild patches verified in bundled core.py")
 PATCH_VERIFY
+
+# Test 6b: CJK codec and licensing.py patch availability
+run_arch "$DIR_TO_ARCHIVE/python/bin/python3" - <<'CJK_TEST'
+import sys, inspect
+import dmgbuild.licensing as licensing
+
+# CJK codecs must be present (kept in bundle)
+for codec, text in [("shift_jis", "テスト"), ("ksx1001", "테스트"), ("gb2312", "测试"), ("big5", "測試")]:
+    try:
+        text.encode(codec)
+    except LookupError as e:
+        print(f"❌ Missing CJK codec: {e}", file=sys.stderr)
+        sys.exit(1)
+print("  ✓ CJK codecs (shift_jis, ksx1001, gb2312, big5) available")
+
+# licensing.py patches must be present
+src = inspect.getsource(licensing)
+failures = []
+if 'language_info.get("multibyte_encoding"' in src:
+    failures.append("multibyte key-name fix not applied: still uses 'multibyte_encoding'")
+if '"multibyte", False)' not in src and "'multibyte', False)" not in src:
+    failures.append("multibyte key-name fix not applied: 'multibyte' key not found")
+if src.count("except LookupError") < 2:
+    failures.append("UTF-8 fallback patches not applied: expected at least 2 'except LookupError' blocks")
+
+if failures:
+    for f in failures:
+        print(f"❌ {f}", file=sys.stderr)
+    sys.exit(1)
+
+print("  ✓ licensing.py patches verified")
+CJK_TEST
 
 # Test 7: Size formula correctness
 run_arch "$DIR_TO_ARCHIVE/python/bin/python3" - <<'SIZE_TEST'
