@@ -236,22 +236,49 @@ echo "🗑️  Removing lib/wine/x86_64-windows (prefix is pre-initialized)"
 rm -rf "$STAGE_DIR/lib/wine/${PLATFORM_ARCH}-windows"
 
 ############################################
-# 🧹 PRUNE system32 NON-ESSENTIALS
+# 🧹 PRUNE system32 — whitelist-based
 ############################################
 
-echo "🧹 Pruning system32 non-essentials"
+echo "🧹 Pruning system32 to whitelist"
 SYSTEM32_DIR="$WINEPREFIX/drive_c/windows/system32"
 
-# Wine debugger: 14 MB, not needed for code signing
-rm -f "$SYSTEM32_DIR/winedbg.exe"
-# Control panel applets, type libraries, ActiveX/OCX controls — none needed
-rm -f "$SYSTEM32_DIR"/*.cpl "$SYSTEM32_DIR"/*.tlb "$SYSTEM32_DIR"/*.ocx
-# UI-only utilities
-rm -f \
-  "$SYSTEM32_DIR/oleview.exe" \
-  "$SYSTEM32_DIR/winefile.exe" \
-  "$SYSTEM32_DIR/taskmgr.exe" \
-  "$SYSTEM32_DIR/winecfg.exe"
+# DLLs sufficient for electron-builder tools (rcedit + WiX candle/light).
+# Derived from: CI baseline (32 DLLs that make install produced on x86_64)
+# plus rcedit loaddll trace. Removing everything else saves ~500 MB.
+SYSTEM32_KEEP_DLLS="
+  advapi32.dll bcrypt.dll combase.dll comctl32.dll comdlg32.dll coml2.dll
+  crypt32.dll cryptbase.dll cryptui.dll gdi32.dll imm32.dll kernel32.dll
+  kernelbase.dll mpr.dll msvcrt.dll ncrypt.dll ntdll.dll ole32.dll
+  oleaut32.dll rpcrt4.dll sechost.dll shcore.dll shell32.dll shlwapi.dll
+  ucrtbase.dll urlmon.dll user32.dll version.dll win32u.dll wininet.dll
+  ws2_32.dll xmllite.dll
+"
+for _dll in "$SYSTEM32_DIR"/*.dll; do
+    [ -f "$_dll" ] || continue
+    _name=$(basename "$_dll")
+    case " $SYSTEM32_KEEP_DLLS " in
+        *" $_name "*) ;;
+        *) rm -f "$_dll" ;;
+    esac
+done
+
+# EXEs: keep only wine's internal service processes; drop all user-visible tools
+SYSTEM32_KEEP_EXES="
+  conhost.exe plugplay.exe rpcss.exe services.exe start.exe
+  svchost.exe wineboot.exe winedevice.exe
+"
+for _exe in "$SYSTEM32_DIR"/*.exe; do
+    [ -f "$_exe" ] || continue
+    _name=$(basename "$_exe")
+    case " $SYSTEM32_KEEP_EXES " in
+        *" $_name "*) ;;
+        *) rm -f "$_exe" ;;
+    esac
+done
+
+# Non-essential file types
+rm -f "$SYSTEM32_DIR"/*.cpl "$SYSTEM32_DIR"/*.tlb "$SYSTEM32_DIR"/*.ocx \
+      "$SYSTEM32_DIR"/*.drv "$SYSTEM32_DIR"/*.ax  "$SYSTEM32_DIR"/*.acm
 
 ############################################
 # 🧹 REMOVE BULK WINDOWS CONTENT
@@ -308,6 +335,7 @@ find "$STAGE_DIR/bin" "$STAGE_DIR/lib" -type f -perm +111 -exec strip -x {} \; 2
 ############################################
 
 echo "📦 Packaging archive"
+rm -rf "$OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR" "$OUT_DIR"
 cp -R "$STAGE_DIR/"* "$OUTPUT_DIR/"
 

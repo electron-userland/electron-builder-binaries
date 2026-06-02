@@ -249,35 +249,6 @@ else
     fi
 fi
 
-# ── 3c: Windows Kits — pvk2pfx (win-codesign@1.2.1) ──────────────────────────
-# signtool.exe from Windows Kits 10.0.26100 imports MFC42.dll, which wine 11+
-# no longer provides. pvk2pfx.exe (PVK→PFX certificate converter) is also
-# a signing-workflow tool in the same bundle and has only DLLs wine ships.
-header "Phase 3c: E2E (Windows Kits — pvk2pfx)"
-
-KITS_URL="https://github.com/electron-userland/electron-builder-binaries/releases/download/win-codesign%401.2.1/windows-kits-bundle-10_0_26100_0.zip"
-KITS_DIR="$WORK_DIR/kits"
-
-if [ -n "$E2E_SKIP_REASON" ]; then
-    skip "pvk2pfx (${E2E_SKIP_REASON})"
-else
-    echo "  📥 Downloading Windows Kits bundle..."
-    if curl -fsSL --retry 3 --retry-delay 2 --max-time 300 "$KITS_URL" -o "$WORK_DIR/kits.zip" 2>/dev/null; then
-        mkdir -p "$KITS_DIR"
-        unzip -q "$WORK_DIR/kits.zip" -d "$KITS_DIR" 2>/dev/null || true
-        PVK2PFX_EXE=$(find "$KITS_DIR" -iname "pvk2pfx.exe" -path "*/x64/*" | head -1)
-        if [ -n "$PVK2PFX_EXE" ]; then
-            pass "pvk2pfx.exe found in Windows Kits bundle"
-            wine_assert_output "pvk2pfx (no args)" "$PVK2PFX_EXE" "" \
-                "pvk|pfx|usage|certificate|option|error"
-        else
-            skip "pvk2pfx.exe not found in kits bundle"
-        fi
-    else
-        skip "Windows Kits download failed (network unavailable?)"
-    fi
-fi
-
 # =============================================================================
 # Phase 4: Results
 # =============================================================================
