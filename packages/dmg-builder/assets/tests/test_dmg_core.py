@@ -304,10 +304,23 @@ class TestPatchScript(unittest.TestCase):
             fh.write(content)
         return path
 
+    def _make_fake_licensing(self, content):
+        path = os.path.join(self._tmp, "licensing.py")
+        with open(path, "w") as fh:
+            fh.write(content)
+        return path
+
     def test_patches_applied_correctly(self):
         fake_core = self._make_fake_core(
             'total_size = str(max(total_size / 1000, 1024)) + "K"\n'
             'subprocess.call(["/usr/bin/ditto", f, f_in_image])\n'
+        )
+        # licensing.py must live next to core.py for auto-discovery
+        fake_licensing = self._make_fake_licensing(
+            'multibyte_encoding = language_info.get("multibyte_encoding", False)\n'
+            '            licenseDataFormat = "TEXT"\n'
+            '            license_data = license_data.encode(language_encoding)\n'
+            '        buttons = [b.encode(language_encoding) for b in buttons]\n'
         )
         result = subprocess.run(
             [sys.executable, self._patch_script_path(), fake_core],
@@ -315,12 +328,20 @@ class TestPatchScript(unittest.TestCase):
             text=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
+
         with open(fake_core) as fh:
-            patched = fh.read()
-        self.assertIn('total_size * 1.2 / 1024', patched)
-        self.assertIn('subprocess.check_call(["/usr/bin/ditto"', patched)
-        self.assertNotIn("total_size / 1000", patched)
-        self.assertNotIn('subprocess.call(["/usr/bin/ditto"', patched)
+            patched_core = fh.read()
+        self.assertIn('total_size * 1.2 / 1024', patched_core)
+        self.assertIn('subprocess.check_call(["/usr/bin/ditto"', patched_core)
+        self.assertNotIn("total_size / 1000", patched_core)
+        self.assertNotIn('subprocess.call(["/usr/bin/ditto"', patched_core)
+
+        with open(fake_licensing) as fh:
+            patched_licensing = fh.read()
+        self.assertNotIn('"multibyte_encoding"', patched_licensing)
+        self.assertIn('"multibyte", False)', patched_licensing)
+        self.assertGreaterEqual(patched_licensing.count("except LookupError"), 2)
+        self.assertIn('decode("utf-8", errors="ignore")', patched_licensing)
 
     def test_script_fails_when_pattern_missing(self):
         """Patch script must exit non-zero when expected patterns are absent."""
@@ -378,6 +399,120 @@ class TestDMGSizeAdequacy(unittest.TestCase):
         margin = volume_bytes - app_size
         self.assertGreater(margin, 300 * 1024 * 1024,
                            f"Margin {margin // (1024*1024)} MB is too small")
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: CJK codec availability
+# ---------------------------------------------------------------------------
+
+class TestCJKCodecAvailability(unittest.TestCase):
+    """The bundle must include CJK codec extension modules so that dmgbuild's
+    licensing.py can encode Japanese, Korean, and Chinese license text."""
+
+    def test_shift_jis_codec_available(self):
+        """shift_jis must be available for Japanese license encoding."""
+        try:
+            "テスト".encode("shift_jis")
+        except LookupError as e:
+            self.fail(f"shift_jis codec unavailable: {e}")
+
+    def test_ksx1001_codec_available(self):
+        """ksx1001 must be available for Korean license encoding."""
+        try:
+            "테스트".encode("ksx1001")
+        except LookupError as e:
+            self.fail(f"ksx1001 codec unavailable: {e}")
+
+    def test_gb2312_codec_available(self):
+        """gb2312 must be available for Simplified Chinese license encoding."""
+        try:
+            "测试".encode("gb2312")
+        except LookupError as e:
+            self.fail(f"gb2312 codec unavailable: {e}")
+
+    def test_big5_codec_available(self):
+        """big5 must be available for Traditional Chinese license encoding."""
+        try:
+            "測試".encode("big5")
+        except LookupError as e:
+            self.fail(f"big5 codec unavailable: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: licensing.py patches
+# ---------------------------------------------------------------------------
+
+class TestLicensingPatches(unittest.TestCase):
+    """Verify that patch-dmgbuild.py applied all three patches to licensing.py."""
+
+    @classmethod
+    def setUpClass(cls):
+        import dmgbuild.licensing as licensing
+        import inspect
+        cls._licensing_src = inspect.getsource(licensing)
+        cls._licensing = licensing
+
+    def test_multibyte_key_fixed(self):
+        """language_info_map uses 'multibyte', not 'multibyte_encoding' — the
+        LPic field must read the correct key."""
+        self.assertNotIn(
+            'language_info.get("multibyte_encoding"',
+            self._licensing_src,
+            "multibyte key-name fix not applied: 'multibyte_encoding' still present",
+        )
+        self.assertTrue(
+            '"multibyte", False)' in self._licensing_src
+            or "'multibyte', False)" in self._licensing_src,
+            "multibyte key-name fix not applied: 'multibyte' key not found in source",
+        )
+
+    def test_utf8_fallback_license_body_present(self):
+        """UTF-8 fallback patch for license body encoding must be present."""
+        self.assertGreaterEqual(
+            self._licensing_src.count("except LookupError"),
+            2,
+            "Expected at least 2 'except LookupError' blocks in licensing.py (body + buttons)",
+        )
+
+    def test_utf8_fallback_buttons_present(self):
+        """UTF-8 fallback for button encoding must be present in source."""
+        # We specifically check that the fallback appears near the buttons encode
+        self.assertIn(
+            'encode("utf-8")',
+            self._licensing_src,
+            "UTF-8 fallback encode not found in licensing.py",
+        )
+
+    def _make_temp_license_file(self, content: str, suffix: str = ".txt") -> str:
+        import tempfile
+        fd, path = tempfile.mkstemp(suffix=suffix)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        return path
+
+    def test_build_license_japanese(self):
+        """build_license must succeed for ja_JP — no LookupError for shift_jis."""
+        tmp = self._make_temp_license_file("こんにちは\nテスト ライセンス文書")
+        try:
+            result = self._licensing.build_license({"licenses": {"ja_JP": tmp}})
+            self.assertIn("STR#", result)
+            self.assertIn("LPic", result)
+        except LookupError as e:
+            self.fail(f"build_license raised LookupError for ja_JP: {e}")
+        finally:
+            os.unlink(tmp)
+
+    def test_build_license_korean(self):
+        """build_license must succeed for ko_KR — no LookupError for ksx1001."""
+        tmp = self._make_temp_license_file("안녕하세요\n테스트 라이센스 문서")
+        try:
+            result = self._licensing.build_license({"licenses": {"ko_KR": tmp}})
+            self.assertIn("STR#", result)
+            self.assertIn("LPic", result)
+        except LookupError as e:
+            self.fail(f"build_license raised LookupError for ko_KR: {e}")
+        finally:
+            os.unlink(tmp)
 
 
 if __name__ == "__main__":
