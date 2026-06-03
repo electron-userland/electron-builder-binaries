@@ -137,7 +137,7 @@ jobs:
             bundle: 7zip-darwin-arm64
             platform: darwin
 
-          - runner: macos-13            # macOS 13 Ventura — Intel x86_64
+          - runner: macos-15-intel            # macOS 15 - Intel x86_64
             bundle: 7zip-darwin-x86_64
             platform: darwin
 
