@@ -193,6 +193,24 @@ if $IS_DARWIN; then
     done
 fi
 
+# Patch RPATH for Linux ELF binaries so wine can dlopen its own bundled libs
+# from lib/ without needing LD_LIBRARY_PATH in the runtime environment.
+# $ORIGIN is resolved by the Linux runtime linker relative to the binary's location,
+# so $ORIGIN/../lib points to the sibling lib/ directory inside the toolset bundle.
+if ! $IS_DARWIN; then
+    if ! command -v patchelf >/dev/null 2>&1; then
+        echo "❌ patchelf not found — install it (e.g. apt-get install -y patchelf)"
+        exit 1
+    fi
+    for binary in wine wineserver wineboot; do
+        binary_path="$STAGE_DIR/bin/$binary"
+        if [ -f "$binary_path" ]; then
+            patchelf --set-rpath '$ORIGIN/../lib' "$binary_path"
+            echo "🔧 Patched RPATH on $(basename "$binary_path")"
+        fi
+    done
+fi
+
 ############################################
 # 🍇 INITIALIZE WINE PREFIX
 ############################################

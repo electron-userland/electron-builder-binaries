@@ -16,7 +16,7 @@ on:
 
 # ─── Build ────────────────────────────────────────────────────────────────────
 # Assembles all 8 platform bundles inside a single Docker container on one Linux
-# runner, then uploads each bundle as a separate artifact for the test matrix.
+# runner, then uploads them all in one artifact for the test matrix to pick from.
 
 jobs:
   build:
@@ -42,72 +42,17 @@ jobs:
           cat packages/7zip/out/7zip/*.sha256
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-      - name: Upload 7zip-linux-x64
+      - name: Upload all bundles
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
         with:
-          name: 7zip-linux-x64
-          path: packages/7zip/out/7zip/7zip-linux-x64.*
-          if-no-files-found: error
-          retention-days: 1
-
-      - name: Upload 7zip-linux-arm64
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
-        with:
-          name: 7zip-linux-arm64
-          path: packages/7zip/out/7zip/7zip-linux-arm64.*
-          if-no-files-found: error
-          retention-days: 1
-
-      - name: Upload 7zip-linux-ia32
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
-        with:
-          name: 7zip-linux-ia32
-          path: packages/7zip/out/7zip/7zip-linux-ia32.*
-          if-no-files-found: error
-          retention-days: 1
-
-      - name: Upload 7zip-darwin-arm64
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
-        with:
-          name: 7zip-darwin-arm64
-          path: packages/7zip/out/7zip/7zip-darwin-arm64.*
-          if-no-files-found: error
-          retention-days: 1
-
-      - name: Upload 7zip-darwin-x86_64
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
-        with:
-          name: 7zip-darwin-x86_64
-          path: packages/7zip/out/7zip/7zip-darwin-x86_64.*
-          if-no-files-found: error
-          retention-days: 1
-
-      - name: Upload 7zip-win-x64
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
-        with:
-          name: 7zip-win-x64
-          path: packages/7zip/out/7zip/7zip-win-x64.*
-          if-no-files-found: error
-          retention-days: 1
-
-      - name: Upload 7zip-win-arm64
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
-        with:
-          name: 7zip-win-arm64
-          path: packages/7zip/out/7zip/7zip-win-arm64.*
-          if-no-files-found: error
-          retention-days: 1
-
-      - name: Upload 7zip-win-ia32
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
-        with:
-          name: 7zip-win-ia32
-          path: packages/7zip/out/7zip/7zip-win-ia32.*
+          name: 7zip-bundles
+          path: packages/7zip/out/7zip/7zip-*.*
           if-no-files-found: error
           retention-days: 1
 
 # ─── Test matrix ──────────────────────────────────────────────────────────────
-# Each runner downloads its own bundle artifact and runs test.sh.
+# Each runner downloads the shared 7zip-bundles artifact, extracts its own
+# tar.gz, and runs test.sh.
 # linux-ia32 is structural-only: 32-bit ELF can't execute on the x64 host.
 # win-ia32 runs on the x64 Windows runner via WOW64 — full functional test.
 
@@ -160,17 +105,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
-      - name: Download ${{ matrix.bundle }}
+      - name: Download bundles
         uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
         with:
-          name: ${{ matrix.bundle }}
-          path: bundle
+          name: 7zip-bundles
+          path: bundles
 
       - name: Extract bundle
         shell: bash
         run: |
           mkdir -p extracted
-          tar -xzf "bundle/${{ matrix.bundle }}.tar.gz" -C extracted --strip-components=1
+          tar -xzf "bundles/${{ matrix.bundle }}.tar.gz" -C extracted --strip-components=1
 
       - name: Run test suite
         shell: bash
@@ -179,3 +124,32 @@ jobs:
             --bundle-dir extracted \
             --platform ${{ matrix.platform }} \
             ${{ matrix.extra_flags || '' }}
+
+# ─── Consolidate ──────────────────────────────────────────────────────────────
+# Repackages the flat 7zip-bundles artifact into a 7zip/ subdirectory so that
+# compress-artifacts.sh produces artifacts-staging/7zip/ (not flat files),
+# which is required by changeset-version.js.
+
+  consolidate:
+    name: Create staging artifact
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with:
+          name: 7zip-bundles
+          path: packages/7zip/out/7zip
+
+      - name: Delete intermediate artifact
+        uses: geekyeggo/delete-artifact@f275313e70c08f6120db482d7a6b98377786765b
+        with:
+          name: 7zip-bundles
+
+      - name: Upload consolidated staging artifact
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        with:
+          name: 7zip
+          path: packages/7zip/out/**
+          if-no-files-found: error
+          retention-days: 1
