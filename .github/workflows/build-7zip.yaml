@@ -1,0 +1,181 @@
+name: Build 7-Zip bundles
+
+on:
+  workflow_dispatch:
+    inputs:
+      seven_zip_version:
+        description: "7-Zip version to package (e.g. 24.09)"
+        required: false
+        default: "24.09"
+  workflow_call:
+    inputs:
+      seven_zip_version:
+        type: string
+        required: false
+        default: "24.09"
+
+# ─── Build ────────────────────────────────────────────────────────────────────
+# Assembles all 8 platform bundles inside a single Docker container on one Linux
+# runner, then uploads each bundle as a separate artifact for the test matrix.
+
+jobs:
+  build:
+    name: Build all platforms (Docker)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Build all platform bundles
+        env:
+          SEVEN_ZIP_VERSION: ${{ inputs.seven_zip_version || '24.09' }}
+        run: |
+          bash ./packages/7zip/build.sh \
+            --target build \
+            --print-downloads-checksum
+
+      - name: Print output bundle checksums
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Output bundle SHA-256s:"
+          cat packages/7zip/out/7zip/*.sha256
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      - name: Upload 7zip-linux-x64
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        with:
+          name: 7zip-linux-x64
+          path: packages/7zip/out/7zip/7zip-linux-x64.*
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload 7zip-linux-arm64
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        with:
+          name: 7zip-linux-arm64
+          path: packages/7zip/out/7zip/7zip-linux-arm64.*
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload 7zip-linux-ia32
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        with:
+          name: 7zip-linux-ia32
+          path: packages/7zip/out/7zip/7zip-linux-ia32.*
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload 7zip-darwin-arm64
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        with:
+          name: 7zip-darwin-arm64
+          path: packages/7zip/out/7zip/7zip-darwin-arm64.*
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload 7zip-darwin-x86_64
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        with:
+          name: 7zip-darwin-x86_64
+          path: packages/7zip/out/7zip/7zip-darwin-x86_64.*
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload 7zip-win-x64
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        with:
+          name: 7zip-win-x64
+          path: packages/7zip/out/7zip/7zip-win-x64.*
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload 7zip-win-arm64
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        with:
+          name: 7zip-win-arm64
+          path: packages/7zip/out/7zip/7zip-win-arm64.*
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload 7zip-win-ia32
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        with:
+          name: 7zip-win-ia32
+          path: packages/7zip/out/7zip/7zip-win-ia32.*
+          if-no-files-found: error
+          retention-days: 1
+
+# ─── Test matrix ──────────────────────────────────────────────────────────────
+# Each runner downloads its own bundle artifact and runs test.sh.
+# linux-ia32 is structural-only: 32-bit ELF can't execute on the x64 host.
+# win-ia32 runs on the x64 Windows runner via WOW64 — full functional test.
+
+  test:
+    name: Test ${{ matrix.bundle }} on ${{ matrix.runner }}
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ── Linux ────────────────────────────────────────────────
+          - runner: ubuntu-latest
+            bundle: 7zip-linux-x64
+            platform: linux
+
+          - runner: ubuntu-24.04-arm
+            bundle: 7zip-linux-arm64
+            platform: linux
+
+          - runner: ubuntu-latest
+            bundle: 7zip-linux-ia32
+            platform: linux
+            extra_flags: "--structural-only"
+
+          # ── macOS ────────────────────────────────────────────────
+          - runner: macos-26            # macOS 26 Tahoe — Apple Silicon arm64
+            bundle: 7zip-darwin-arm64
+            platform: darwin
+
+          - runner: macos-15-intel            # macOS 15 - Intel x86_64
+            bundle: 7zip-darwin-x86_64
+            platform: darwin
+
+          # ── Windows ──────────────────────────────────────────────
+          - runner: windows-2025        # x64
+            bundle: 7zip-win-x64
+            platform: win
+
+          - runner: windows-2025        # x64; ia32 exe runs via WOW64
+            bundle: 7zip-win-ia32
+            platform: win
+
+          - runner: windows-11-arm      # ARM64
+            bundle: 7zip-win-arm64
+            platform: win
+
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Download ${{ matrix.bundle }}
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with:
+          name: ${{ matrix.bundle }}
+          path: bundle
+
+      - name: Extract bundle
+        shell: bash
+        run: |
+          mkdir -p extracted
+          tar -xzf "bundle/${{ matrix.bundle }}.tar.gz" -C extracted --strip-components=1
+
+      - name: Run test suite
+        shell: bash
+        run: |
+          bash packages/7zip/assets/test.sh \
+            --bundle-dir extracted \
+            --platform ${{ matrix.platform }} \
+            ${{ matrix.extra_flags || '' }}
