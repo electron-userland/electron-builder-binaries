@@ -1,5 +1,11 @@
 # wine
 
+## 1.0.1
+
+### Patch Changes
+
+- [#197](https://github.com/electron-userland/electron-builder-binaries/pull/197) [`f1089f6`](https://github.com/electron-userland/electron-builder-binaries/commit/f1089f6483aa1128e2ede4d79e091b1c5204b781) Thanks [@mmaietta](https://github.com/mmaietta)! - fix(wine): Added `patchelf --set-rpath '$ORIGIN/../lib'` block for Linux ELF binaries to make toolset fully self-contained
+
 ## 1.0.0
 
 ### Major Changes

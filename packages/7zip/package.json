@@ -1,5 +1,5 @@
 {
     "name": "7zip",
-    "version": "0.0.0",
+    "version": "1.0.0",
     "description": "Pre-packaged 7-Zip (7za) standalone CLI binaries for all platforms, distributed as per-platform tar.gz archives for use by electron-builder."
 }
