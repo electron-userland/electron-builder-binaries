@@ -9,7 +9,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot      = "C:\s\Squirrel.Windows"
 $artifactDir   = Join-Path $PSScriptRoot "out\squirrel.windows"
 $outputDir     = Join-Path $repoRoot "build\artifacts"
-$archivePath   = Join-Path $artifactDir "squirrel.windows-$SquirrelVersion-patched.tar.gz"
+$archivePath   = Join-Path $artifactDir "squirrel.windows-$SquirrelVersion-patched.zip"
 if (-not $PatchPath) {
     $PatchPath = Join-Path $PSScriptRoot "patches"
 }
@@ -143,7 +143,7 @@ if (Test-Path $archivePath) {
 
 Set-Location $PSScriptRoot
 Write-Host "`n📦 Compressing to: $archivePath"
-& 7z a -ttar -so "$outputDir\*" | & 7z a -tgzip -mx=9 -si $archivePath | Out-Null
+& 7z a -tzip $archivePath "$outputDir\*" | Out-Null
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Compression failed (exit $LASTEXITCODE)"
     exit $LASTEXITCODE
