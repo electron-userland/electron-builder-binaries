@@ -6,12 +6,16 @@ on:
     
 jobs:
   build:
-    runs-on: windows-2019
+    runs-on: windows-2022
     env:
       DOTNET_NOLOGO: true
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
       DOTNET_CLI_TELEMETRY_OPTOUT: true
       NUGET_XMLDOC_MODE: skip
+      # Squirrel.Windows 2.0.1 uses GitVersionTask which emits ##[set-env] commands.
+      # That syntax was disabled in runners after Oct 2020; this re-enables it for
+      # this isolated build job so the version-stamping step doesn't fail the run.
+      ACTIONS_ALLOW_UNSECURE_COMMANDS: true
     steps:
       - name: Enable Git long paths
         run: git config --system core.longpaths true
@@ -19,7 +23,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: { submodules: true }
       - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@4fbf5680f8493fb5ec8a01d9448b5a7efa830f25
+        uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57
       - name: Build Squirrel.Windows
         run: .\packages\squirrel.windows\build.ps1
         shell: pwsh
