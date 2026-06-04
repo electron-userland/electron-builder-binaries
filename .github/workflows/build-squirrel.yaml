@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: { submodules: true }
       - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@4fbf5680f8493fb5ec8a01d9448b5a7efa830f25
+        uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57
       - name: Build Squirrel.Windows
         run: .\packages\squirrel.windows\build.ps1
         shell: pwsh
