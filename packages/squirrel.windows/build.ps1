@@ -113,12 +113,21 @@ foreach ($f in @("7z.exe", "7z.dll")) {
 # x64 arch-specific copies (mirrors what electron-winstaller's npm postinstall script does)
 Copy-Item "$7zDir\7z.exe" (Join-Path $vendorDir "7z-x64.exe") -Force
 Copy-Item "$7zDir\7z.dll" (Join-Path $vendorDir "7z-x64.dll") -Force
-Write-Host "  7z x64 binaries bundled."
+# Bundle 7-Zip license files alongside the binaries
+$7zLicenseSrc = @("License.txt", "license.txt") | ForEach-Object { Join-Path $7zDir $_ } | Where-Object { Test-Path $_ } | Select-Object -First 1
+if ($7zLicenseSrc) {
+    Copy-Item $7zLicenseSrc (Join-Path $vendorDir "7z-LICENSE.txt") -Force
+    Write-Host "  7z x64 binaries and license bundled."
+} else {
+    Write-Warning "7-Zip License.txt not found at $7zDir — skipping."
+    Write-Host "  7z x64 binaries bundled (no license file found)."
+}
 
-# --- LICENSE
-$licenseSrc = Join-Path $repoRoot "LICENSE"
-if (-not (Test-Path $licenseSrc)) {
-    Write-Error "LICENSE not found in cloned repo at $licenseSrc"
+# --- LICENSE (Squirrel.Windows)
+# The Squirrel.Windows repo uses COPYING (not LICENSE) as its license file name.
+$licenseSrc = @("COPYING", "LICENSE", "LICENSE.md") | ForEach-Object { Join-Path $repoRoot $_ } | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $licenseSrc) {
+    Write-Error "LICENSE/COPYING not found in cloned repo at $repoRoot"
     exit 1
 }
 Copy-Item $licenseSrc (Join-Path $vendorDir "LICENSE") -Force
