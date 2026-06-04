@@ -94,7 +94,8 @@ Write-Host "`n✅ Squirrel executables copied."
 # that resolves the real binary relative to its own install path; when copied to an
 # arbitrary temp directory it fails with "Cannot find file at ..\lib\NuGet.CommandLine\...".
 Write-Host "`n📦 Bundling nuget.exe..."
-$realNuget = Join-Path $env:ChocolateyInstall "lib\NuGet.CommandLine\tools\nuget.exe"
+$chocoInstall = if ($env:ChocolateyInstall) { $env:ChocolateyInstall } else { Join-Path $env:ProgramData "chocolatey" }
+$realNuget = Join-Path $chocoInstall "lib\NuGet.CommandLine\tools\nuget.exe"
 if (-not (Test-Path $realNuget)) {
     Write-Error "NuGet.CommandLine standalone exe not found at '$realNuget'. Install with: choco install nuget.commandline"
     exit 1
