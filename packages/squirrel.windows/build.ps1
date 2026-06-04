@@ -89,13 +89,18 @@ foreach ($src in $copyMap.Keys) {
 Write-Host "`n✅ Squirrel executables copied."
 
 # --- nuget.exe
-# The build already ran `nuget restore` and `nuget pack`, so nuget.exe is guaranteed
-# to be in PATH. Capture it here so it ships inside the vendor bundle and does not
-# need to be downloaded at runtime on end-user machines.
+# Bundle the standalone portable nuget.exe from the NuGet.CommandLine Chocolatey package,
+# NOT the shim at (Get-Command nuget.exe).Source. The Chocolatey shim is a thin wrapper
+# that resolves the real binary relative to its own install path; when copied to an
+# arbitrary temp directory it fails with "Cannot find file at ..\lib\NuGet.CommandLine\...".
 Write-Host "`n📦 Bundling nuget.exe..."
-$nugetSrc = (Get-Command nuget.exe -ErrorAction Stop).Source
-Copy-Item $nugetSrc (Join-Path $vendorDir "nuget.exe") -Force
-Write-Host "  Source: $nugetSrc"
+$realNuget = Join-Path $env:ChocolateyInstall "lib\NuGet.CommandLine\tools\nuget.exe"
+if (-not (Test-Path $realNuget)) {
+    Write-Error "NuGet.CommandLine standalone exe not found at '$realNuget'. Install with: choco install nuget.commandline"
+    exit 1
+}
+Copy-Item $realNuget (Join-Path $vendorDir "nuget.exe") -Force
+Write-Host "  Source: $realNuget"
 
 # --- 7-Zip binaries
 # Ship both a pre-selected 7z.exe/dll (x64, the host arch on GitHub Actions windows runners)
