@@ -12,6 +12,10 @@ jobs:
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
       DOTNET_CLI_TELEMETRY_OPTOUT: true
       NUGET_XMLDOC_MODE: skip
+      # Squirrel.Windows 2.0.1 uses GitVersionTask which emits ##[set-env] commands.
+      # That syntax was disabled in runners after Oct 2020; this re-enables it for
+      # this isolated build job so the version-stamping step doesn't fail the run.
+      ACTIONS_ALLOW_UNSECURE_COMMANDS: true
     steps:
       - name: Enable Git long paths
         run: git config --system core.longpaths true
