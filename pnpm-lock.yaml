@@ -42,6 +42,8 @@ importers:
         specifier: ^5.0.0
         version: 5.9.3
 
+  packages/7zip: {}
+
   packages/appimage: {}
 
   packages/dmg-builder: {}
