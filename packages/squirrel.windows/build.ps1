@@ -34,9 +34,18 @@ if ($PatchPath -and (Test-Path $PatchPath) -and (Get-Item $PatchPath).PSIsContai
 
 # --- Run the official build
 Write-Host "`n🏗️ Running build steps..."
+
 nuget restore .\Squirrel.sln
-msbuild -Restore .\Squirrel.sln -p:Configuration=Release -v:m -m -nr:false -bl:.\build\logs\build.binlog
+if ($LASTEXITCODE -ne 0) { Write-Error "nuget restore failed (exit $LASTEXITCODE)"; exit $LASTEXITCODE }
+
+# PlatformToolset=v143 retargets the C++ projects (Setup, StubExecutable, WriteZipToSetup)
+# to the VS 2022 toolchain. windows-2022 runners ship v143 but not the v141 (VS 2017)
+# toolset that Squirrel.Windows 2.0.1's vcxproj files request by default.
+msbuild -Restore .\Squirrel.sln -p:Configuration=Release -p:PlatformToolset=v143 -v:m -m -nr:false -bl:.\build\logs\build.binlog
+if ($LASTEXITCODE -ne 0) { Write-Error "msbuild failed (exit $LASTEXITCODE)"; exit $LASTEXITCODE }
+
 nuget pack .\src\Squirrel.nuspec -OutputDirectory .\build\artifacts
+if ($LASTEXITCODE -ne 0) { Write-Error "nuget pack failed (exit $LASTEXITCODE)"; exit $LASTEXITCODE }
 
 # --- Layout electron-winstaller vendor folder
 $vendorDir = Join-Path $outputDir "electron-winstaller\vendor"
