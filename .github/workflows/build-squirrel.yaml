@@ -6,7 +6,7 @@ on:
     
 jobs:
   build:
-    runs-on: windows-2019
+    runs-on: windows-2022
     env:
       DOTNET_NOLOGO: true
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
