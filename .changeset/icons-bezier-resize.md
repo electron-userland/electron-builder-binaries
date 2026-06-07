@@ -1,5 +1,5 @@
 ---
-"icons": patch
+"icons": minor
 ---
 
-fix(icons): replace BILINEAR with BEZIER resampling and pre-resize ICO to 256×256 via resvg-wasm
+fix(icons): replace png2icons with wasm-vips Lanczos3 resampling for high-quality icon conversion
