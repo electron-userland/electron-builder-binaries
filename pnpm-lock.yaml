@@ -55,9 +55,9 @@ importers:
       '@resvg/resvg-wasm':
         specifier: ^2.6.2
         version: 2.6.2
-      png2icons:
-        specifier: ^2.0.1
-        version: 2.0.1
+      wasm-vips:
+        specifier: ^0.0.17
+        version: 0.0.17
 
   packages/linux-tools-mac: {}
 
@@ -72,6 +72,126 @@ importers:
   packages/win-codesign: {}
 
   packages/wine: {}
+
+  packages/wine/build/wine-11.0-darwin-x86_64/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2:
+    devDependencies:
+      '@actions/attest':
+        specifier: ^3.2.0
+        version: 3.2.0(@octokit/core@7.0.6)
+      '@changesets/changelog-github':
+        specifier: ^0.7.0
+        version: 0.7.0(encoding@0.1.13)
+      '@changesets/cli':
+        specifier: ^2.30.0
+        version: 2.31.0(@types/node@18.19.130)
+      '@octokit/rest':
+        specifier: 22.0.1
+        version: 22.0.1
+      '@types/node':
+        specifier: ^18.0.0
+        version: 18.19.130
+      esbuild:
+        specifier: ^0.25.0
+        version: 0.25.0
+      mime-types:
+        specifier: ^3.0.2
+        version: 3.0.2
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
+  packages/wine/build/wine-11.0-darwin-x86_64/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/7zip: {}
+
+  packages/wine/build/wine-11.0-darwin-x86_64/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/appimage: {}
+
+  packages/wine/build/wine-11.0-darwin-x86_64/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/dmg-builder: {}
+
+  packages/wine/build/wine-11.0-darwin-x86_64/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/fpm: {}
+
+  packages/wine/build/wine-11.0-darwin-x86_64/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/icons:
+    dependencies:
+      '@resvg/resvg-wasm':
+        specifier: ^2.6.2
+        version: 2.6.2
+      wasm-vips:
+        specifier: ^0.0.17
+        version: 0.0.17
+
+  packages/wine/build/wine-11.0-darwin-x86_64/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/linux-tools-mac: {}
+
+  packages/wine/build/wine-11.0-darwin-x86_64/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/nsis: {}
+
+  packages/wine/build/wine-11.0-darwin-x86_64/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/ran: {}
+
+  packages/wine/build/wine-11.0-darwin-x86_64/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/snap-template: {}
+
+  packages/wine/build/wine-11.0-darwin-x86_64/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/squirrel.windows: {}
+
+  packages/wine/build/wine-11.0-darwin-x86_64/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/win-codesign: {}
+
+  packages/wine/build/wine-11.0-darwin-x86_64/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/wine: {}
+
+  packages/wine/build/wine-11.0-darwin-x86_64/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/wix: {}
+
+  packages/wine/build/wine-stage/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2:
+    devDependencies:
+      '@actions/attest':
+        specifier: ^3.2.0
+        version: 3.2.0(@octokit/core@7.0.6)
+      '@changesets/changelog-github':
+        specifier: ^0.7.0
+        version: 0.7.0(encoding@0.1.13)
+      '@changesets/cli':
+        specifier: ^2.30.0
+        version: 2.31.0(@types/node@18.19.130)
+      '@octokit/rest':
+        specifier: 22.0.1
+        version: 22.0.1
+      '@types/node':
+        specifier: ^18.0.0
+        version: 18.19.130
+      esbuild:
+        specifier: ^0.25.0
+        version: 0.25.0
+      mime-types:
+        specifier: ^3.0.2
+        version: 3.0.2
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
+  packages/wine/build/wine-stage/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/7zip: {}
+
+  packages/wine/build/wine-stage/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/appimage: {}
+
+  packages/wine/build/wine-stage/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/dmg-builder: {}
+
+  packages/wine/build/wine-stage/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/fpm: {}
+
+  packages/wine/build/wine-stage/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/icons:
+    dependencies:
+      '@resvg/resvg-wasm':
+        specifier: ^2.6.2
+        version: 2.6.2
+      wasm-vips:
+        specifier: ^0.0.17
+        version: 0.0.17
+
+  packages/wine/build/wine-stage/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/linux-tools-mac: {}
+
+  packages/wine/build/wine-stage/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/nsis: {}
+
+  packages/wine/build/wine-stage/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/ran: {}
+
+  packages/wine/build/wine-stage/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/snap-template: {}
+
+  packages/wine/build/wine-stage/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/squirrel.windows: {}
+
+  packages/wine/build/wine-stage/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/win-codesign: {}
+
+  packages/wine/build/wine-stage/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/wine: {}
+
+  packages/wine/build/wine-stage/wine-home/dosdevices/z:/Users/mikemaietta/Development/electron-builder-binaries-2/packages/wix: {}
 
   packages/wix: {}
 
@@ -848,10 +968,6 @@ packages:
     resolution: {integrity: sha512-uB80kBFb/tfd68bVleG9T5GGsGPjJrLAUpR5PZIrhBnIaRTQRjqdJSsIKkOP6OAIFbj7GOrcudc5pNjZ+geV2g==}
     engines: {node: '>=6'}
 
-  png2icons@2.0.1:
-    resolution: {integrity: sha512-GDEQJr8OG4e6JMp7mABtXFSEpgJa1CCpbQiAR+EjhkHJHnUL9zPPtbOrjsMD8gUbikgv3j7x404b0YJsV3aVFA==}
-    hasBin: true
-
   prettier@2.8.8:
     resolution: {integrity: sha512-tdN8qQGvNjw4CHbY+XXk0JgCXn9QiF21a55rBe5LJAU+kDyC4WQn4+awm2Xfk2lQMk5fKup9XgzTZtGkjBdP9Q==}
     engines: {node: '>=10.13.0'}
@@ -1004,6 +1120,10 @@ packages:
   universalify@0.1.2:
     resolution: {integrity: sha512-rBJeI5CXAlmy1pV+617WB9J63U6XcazHHF2f2dbJix4XzpUF0RS3Zbj0FGIOCAva5P/d/GBOYaACQ1w+0azUkg==}
     engines: {node: '>= 4.0.0'}
+
+  wasm-vips@0.0.17:
+    resolution: {integrity: sha512-nhkqUNJDUymImoXGrVfImC4wzIFTb9KfBpAngb7dcEQNPP1gVTx4+WL3VVVDSXQpMsyeacsQDOx0+DM33Rpurg==}
+    engines: {node: '>=16.4.0'}
 
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
@@ -1878,8 +1998,6 @@ snapshots:
 
   pify@4.0.1: {}
 
-  png2icons@2.0.1: {}
-
   prettier@2.8.8: {}
 
   proc-log@5.0.0: {}
@@ -2009,6 +2127,8 @@ snapshots:
   universal-user-agent@7.0.3: {}
 
   universalify@0.1.2: {}
+
+  wasm-vips@0.0.17: {}
 
   webidl-conversions@3.0.1: {}
 
