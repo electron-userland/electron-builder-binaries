@@ -69,7 +69,7 @@ async function main(): Promise<void> {
 
   switch (format) {
     case 'icns':
-      createIcns(pngBuffer, outDir)
+      await createIcns(pngBuffer, outDir)
       break
     case 'ico':
       await createIco(pngBuffer, outDir)

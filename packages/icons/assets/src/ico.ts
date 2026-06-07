@@ -1,17 +1,42 @@
 import { writeFileSync } from 'fs'
 import { join } from 'path'
-import * as png2icons from 'png2icons'
-import { resizePng } from './svg'
+import { resizeWithLanczos } from './vips'
 
-// ICO directory entries store width/height as a single byte (0 = 256), so 256×256
-// is the maximum frame size. Pre-resizing to exactly 256×256 via resvg-wasm
-// (high-quality resampling) gives png2icons a clean source for generating the
-// smaller sizes (16, 32, 48, …), matching the Go icon-converter's Lanczos approach.
-const ICO_MAX_SIZE = 256
+const ICO_SIZES = [16, 24, 32, 48, 64, 128, 256]
+
+// Pack pre-sized PNG frames into a Vista+ ICO container.
+// PNG frames are embedded directly (valid from Windows Vista onward);
+// byte value 0 in the directory width/height field encodes 256.
+function packIco(frames: Array<{ size: number; png: Buffer }>): Buffer {
+  const count = frames.length
+  let offset = 6 + count * 16
+
+  const header = Buffer.allocUnsafe(6)
+  header.writeUInt16LE(0, 0)
+  header.writeUInt16LE(1, 2)
+  header.writeUInt16LE(count, 4)
+
+  const dir = frames.map(({ size, png }) => {
+    const entry = Buffer.allocUnsafe(16)
+    const w = size === 256 ? 0 : size
+    entry.writeUInt8(w, 0)
+    entry.writeUInt8(w, 1)
+    entry.writeUInt8(0, 2)        // color count (0 = true-color)
+    entry.writeUInt8(0, 3)        // reserved
+    entry.writeUInt16LE(1, 4)     // planes
+    entry.writeUInt16LE(32, 6)    // bits per pixel
+    entry.writeUInt32LE(png.length, 8)
+    entry.writeUInt32LE(offset, 12)
+    offset += png.length
+    return entry
+  })
+
+  return Buffer.concat([header, ...dir, ...frames.map(f => f.png)])
+}
 
 export async function createIco(inputBuffer: Buffer, outputDir: string): Promise<void> {
-  const resized = await resizePng(inputBuffer, ICO_MAX_SIZE)
-  const icoBuffer = png2icons.createICO(resized, png2icons.BEZIER, 0, false)
-  if (!icoBuffer) throw new Error('png2icons failed to create ICO — ensure input is a valid PNG (256×256 or larger recommended)')
-  writeFileSync(join(outputDir, 'icon.ico'), icoBuffer)
+  const frames = await Promise.all(
+    ICO_SIZES.map(async size => ({ size, png: await resizeWithLanczos(inputBuffer, size) }))
+  )
+  writeFileSync(join(outputDir, 'icon.ico'), packIco(frames))
 }

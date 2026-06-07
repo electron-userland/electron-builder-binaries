@@ -79,6 +79,16 @@ do_build() {
     echo "  ✓ resvg.wasm copied ($(du -h "$BUNDLE_DIR/resvg.wasm" | cut -f1))"
 
     echo ""
+    echo "─── Copy vips.wasm ─────────────────────────────────────────────"
+    local vips_wasm_path="$PACKAGE_DIR/node_modules/wasm-vips/lib/vips.wasm"
+    if [ ! -f "$vips_wasm_path" ]; then
+        echo "ERROR: Could not locate wasm-vips/lib/vips.wasm — is the package installed?"
+        exit 1
+    fi
+    cp "$vips_wasm_path" "$BUNDLE_DIR/vips.wasm"
+    echo "  ✓ vips.wasm copied ($(du -h "$BUNDLE_DIR/vips.wasm" | cut -f1))"
+
+    echo ""
     echo "─── Create tar.gz archive ──────────────────────────────────────"
     local archive_name="icons-bundle.tar.gz"
     (
