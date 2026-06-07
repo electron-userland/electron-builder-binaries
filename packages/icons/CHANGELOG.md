@@ -1,5 +1,11 @@
 # icons
 
+## 1.1.0
+
+### Minor Changes
+
+- [#204](https://github.com/electron-userland/electron-builder-binaries/pull/204) [`b96a825`](https://github.com/electron-userland/electron-builder-binaries/commit/b96a825027325023d955f96a3f1d8eb9b5ea112e) Thanks [@mmaietta](https://github.com/mmaietta)! - fix(icons): replace png2icons with wasm-vips Lanczos3 resampling for high-quality icon conversion
+
 ## 1.0.1
 
 ### Patch Changes
