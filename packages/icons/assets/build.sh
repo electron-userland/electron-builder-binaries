@@ -79,14 +79,21 @@ do_build() {
     echo "  ✓ resvg.wasm copied ($(du -h "$BUNDLE_DIR/resvg.wasm" | cut -f1))"
 
     echo ""
-    echo "─── Copy vips.wasm ─────────────────────────────────────────────"
+    echo "─── Copy vips.wasm + vips-node.js ─────────────────────────────"
     local vips_wasm_path="$PACKAGE_DIR/node_modules/wasm-vips/lib/vips.wasm"
+    local vips_node_js_path="$PACKAGE_DIR/node_modules/wasm-vips/lib/vips-node.js"
     if [ ! -f "$vips_wasm_path" ]; then
         echo "ERROR: Could not locate wasm-vips/lib/vips.wasm — is the package installed?"
         exit 1
     fi
+    if [ ! -f "$vips_node_js_path" ]; then
+        echo "ERROR: Could not locate wasm-vips/lib/vips-node.js — is the package installed?"
+        exit 1
+    fi
     cp "$vips_wasm_path" "$BUNDLE_DIR/vips.wasm"
+    cp "$vips_node_js_path" "$BUNDLE_DIR/vips-node.js"
     echo "  ✓ vips.wasm copied ($(du -h "$BUNDLE_DIR/vips.wasm" | cut -f1))"
+    echo "  ✓ vips-node.js copied ($(du -h "$BUNDLE_DIR/vips-node.js" | cut -f1))"
 
     echo ""
     echo "─── Create tar.gz archive ──────────────────────────────────────"
