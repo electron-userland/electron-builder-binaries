@@ -25,3 +25,12 @@ export async function svgToPng(svgData: Buffer, targetWidth: number): Promise<Bu
   const rendered = resvg.render()
   return Buffer.from(rendered.asPng())
 }
+
+// Resize a PNG buffer to targetWidth×targetWidth using resvg-wasm.
+// Wraps the PNG in an SVG <image> element — the same high-quality resampling
+// path that createLinuxSet uses — so no additional dependencies are needed.
+export async function resizePng(pngBuffer: Buffer, targetWidth: number): Promise<Buffer> {
+  const b64 = pngBuffer.toString('base64')
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${targetWidth}" height="${targetWidth}"><image href="data:image/png;base64,${b64}" width="${targetWidth}" height="${targetWidth}"/></svg>`
+  return svgToPng(Buffer.from(svg), targetWidth)
+}

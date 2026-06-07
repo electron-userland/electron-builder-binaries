@@ -72,7 +72,7 @@ async function main(): Promise<void> {
       createIcns(pngBuffer, outDir)
       break
     case 'ico':
-      createIco(pngBuffer, outDir)
+      await createIco(pngBuffer, outDir)
       break
     case 'set':
       await createLinuxSet(pngBuffer, outDir)
