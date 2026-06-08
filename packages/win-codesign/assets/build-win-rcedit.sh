@@ -1,16 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CWD="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUTPUT_DIR="$CWD/out/win-codesign"
-
-RCEDIT_VERSION="${RCEDIT_VERSION:-2.0.0}"
-# SHA256 of the pre-built EXEs from electron/rcedit v${RCEDIT_VERSION}.
-# Re-pin when bumping RCEDIT_VERSION:
-#   curl -fsSL <url-x64> | sha256sum
-#   curl -fsSL <url-x86> | sha256sum
-RCEDIT_X64_SHA256="${RCEDIT_X64_SHA256:-3e7801db1a5edbec91b49a24a094aad776cb4515488ea5a4ca2289c400eade2a}"
-RCEDIT_X86_SHA256="${RCEDIT_X86_SHA256:-38fb5e935d7cb58d7a98b4ed8f876c83f5db032bcd0329b0a4de4e4a1de876b6}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 verify_sha256() {
     local file="$1" expected="$2" actual
@@ -23,7 +14,6 @@ verify_sha256() {
     fi
     if [ "$actual" = "$expected" ]; then
         echo "  ✓ Checksum verified"
-        return 0
     else
         echo "❌ Checksum mismatch for $(basename "$file")" >&2
         echo "   expected: $expected" >&2
@@ -32,12 +22,58 @@ verify_sha256() {
     fi
 }
 
-mkdir -p "$OUTPUT_DIR/rcedit"
+# ── CLI ───────────────────────────────────────────────────────────────────────
 
-echo "📦 Creating rcedit bundle..."
+usage() {
+    cat >&2 << EOF
+Usage: $0 [options]
+  --version     rcedit release version (default: \$RCEDIT_VERSION or '2.0.0')
+  --x64-sha256  Expected SHA-256 of rcedit-x64.exe
+                (default: \$RCEDIT_X64_SHA256 or pinned value for 2.0.0)
+  --x86-sha256  Expected SHA-256 of rcedit-x86.exe
+                (default: \$RCEDIT_X86_SHA256 or pinned value for 2.0.0)
+  --output-dir  Output directory for the bundle ZIP
+                (default: <package-root>/out/win-codesign)
+  -h|--help     Show this help
+
+Re-pin checksums when bumping --version:
+  curl -fsSL <url-x64> | sha256sum
+  curl -fsSL <url-x86> | sha256sum
+EOF
+    exit 1
+}
+
+# SHA256 of the pre-built EXEs from electron/rcedit v2.0.0.
+RCEDIT_VERSION="${RCEDIT_VERSION:-2.0.0}"
+RCEDIT_X64_SHA256="${RCEDIT_X64_SHA256:-3e7801db1a5edbec91b49a24a094aad776cb4515488ea5a4ca2289c400eade2a}"
+RCEDIT_X86_SHA256="${RCEDIT_X86_SHA256:-38fb5e935d7cb58d7a98b4ed8f876c83f5db032bcd0329b0a4de4e4a1de876b6}"
+OUTPUT_DIR="$SCRIPT_DIR/out/win-codesign"
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --version)    RCEDIT_VERSION="$2";    shift 2 ;;
+        --x64-sha256) RCEDIT_X64_SHA256="$2"; shift 2 ;;
+        --x86-sha256) RCEDIT_X86_SHA256="$2"; shift 2 ;;
+        --output-dir) OUTPUT_DIR="$2";        shift 2 ;;
+        -h|--help)    usage ;;
+        *)            echo "❌ Unknown argument: $1" >&2; usage ;;
+    esac
+done
 
 RCEDIT_BUNDLE_DIR="$OUTPUT_DIR/rcedit"
 RCEDIT_ZIP="$OUTPUT_DIR/rcedit-windows-${RCEDIT_VERSION//./_}.zip"
+
+# ── Cleanup on early exit ─────────────────────────────────────────────────────
+cleanup() {
+    local code=$?
+    [ $code -ne 0 ] && rm -rf "$RCEDIT_BUNDLE_DIR"
+    return 0
+}
+trap cleanup EXIT
+
+# ── Main ─────────────────────────────────────────────────────────────────────
+
+echo "📦 Creating rcedit bundle..."
 
 rm -rf "$RCEDIT_BUNDLE_DIR"
 mkdir -p "$RCEDIT_BUNDLE_DIR"

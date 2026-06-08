@@ -2,18 +2,6 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUTPUT_DIR="$SCRIPT_DIR/out/win-codesign"
-
-# ── Configuration ─────────────────────────────────────────────────────────────
-SDK_BASE="${WINDOWS_KIT_PATH:-C:/Program Files (x86)/Windows Kits/10/bin}"
-ATS_NUGET_VERSION="${ATS_NUGET_VERSION:-1.0.62}"
-# Re-pin when bumping ATS_NUGET_VERSION:
-#   curl -fsSL <nupkg-url> | sha256sum
-ATS_NUGET_SHA256="${ATS_NUGET_SHA256:-}"
-
-BUNDLE_DIR="$OUTPUT_DIR/windows-kits-bundle"
-ATS_NUPKG="$OUTPUT_DIR/ats-client.nupkg"
-ATS_EXTRACT="$OUTPUT_DIR/ats-client"
 
 # ── Helpers (sourceable for testing) ─────────────────────────────────────────
 
@@ -65,7 +53,6 @@ copy_arch_files() {
 }
 
 # Print list and exit 1 if MISSING_FILES is non-empty.
-# Args: label (e.g. "Windows SDK file(s)")
 report_missing() {
     local label="${1:-file(s)}"
     if [ "${#MISSING_FILES[@]}" -gt 0 ]; then
@@ -77,6 +64,45 @@ report_missing() {
         exit 1
     fi
 }
+
+# ── CLI ───────────────────────────────────────────────────────────────────────
+
+usage() {
+    cat >&2 << EOF
+Usage: $0 [options]
+  --sdk-path      Windows Kits bin/ directory
+                  (default: \$WINDOWS_KIT_PATH or 'C:/Program Files (x86)/Windows Kits/10/bin')
+  --ats-version   Microsoft.Trusted.Signing.Client NuGet version
+                  (default: \$ATS_NUGET_VERSION or '1.0.62')
+  --ats-sha256    Expected SHA-256 of the .nupkg; omit to skip verification
+                  (default: \$ATS_NUGET_SHA256)
+  --output-dir    Output directory for the bundle ZIP
+                  (default: <package-root>/out/win-codesign)
+  -h|--help       Show this help
+EOF
+    exit 1
+}
+
+# Defaults — CLI flags take precedence over env vars, env vars over built-in defaults
+SDK_BASE="${WINDOWS_KIT_PATH:-C:/Program Files (x86)/Windows Kits/10/bin}"
+ATS_NUGET_VERSION="${ATS_NUGET_VERSION:-1.0.62}"
+ATS_NUGET_SHA256="${ATS_NUGET_SHA256:-}"
+OUTPUT_DIR="$SCRIPT_DIR/out/win-codesign"
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --sdk-path)    SDK_BASE="$2";          shift 2 ;;
+        --ats-version) ATS_NUGET_VERSION="$2"; shift 2 ;;
+        --ats-sha256)  ATS_NUGET_SHA256="$2";  shift 2 ;;
+        --output-dir)  OUTPUT_DIR="$2";        shift 2 ;;
+        -h|--help)     usage ;;
+        *)             echo "❌ Unknown argument: $1" >&2; usage ;;
+    esac
+done
+
+BUNDLE_DIR="$OUTPUT_DIR/windows-kits-bundle"
+ATS_NUPKG="$OUTPUT_DIR/ats-client.nupkg"
+ATS_EXTRACT="$OUTPUT_DIR/ats-client"
 
 # When sourced for testing, stop here so helpers are importable without side effects.
 [[ "${BASH_SOURCE[0]}" == "${0}" ]] || return 0

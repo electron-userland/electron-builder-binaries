@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Unit + e2e tests for build-win-kits.sh helpers and full script flow.
+# Unit + e2e tests for build-win-kits.sh helpers, named-arg parsing, and full script flow.
 # Run: bash packages/win-codesign/test/build-win-kits-test.sh
 set -uo pipefail
 
@@ -274,6 +274,50 @@ else
     echo "  ❌ e2e: expected ZIP not found"
     echo "  Script output:"
     echo "$E2E_OUTPUT" | sed 's/^/    /'
+    FAIL=$(( FAIL + 1 ))
+fi
+
+# ── e2e: named-arg CLI interface ─────────────────────────────────────────────
+
+echo ""
+echo "▶ e2e: named-arg CLI"
+
+# --help exits 1 and prints usage
+HELP_EXIT=0
+HELP_OUT=$(bash "$SCRIPT" --help 2>&1) || HELP_EXIT=$?
+assert_eq "--help exits 1" "1" "$HELP_EXIT"
+assert_eq "--help prints Usage:" "1" "$(echo "$HELP_OUT" | grep -c 'Usage:')"
+
+# Unknown flag exits 1
+UNKNOWN_EXIT=0
+bash "$SCRIPT" --unknown-flag 2>/dev/null || UNKNOWN_EXIT=$?
+assert_eq "unknown flag exits 1" "1" "$UNKNOWN_EXIT"
+
+# --sdk-path overrides WINDOWS_KIT_PATH env var — the env-path must not appear in output
+SDK_PATH_OUT=$(( WINDOWS_KIT_PATH="/env-only-path" bash "$SCRIPT" --sdk-path "/cli-override-path" ) 2>&1) || true
+assert_eq "--sdk-path overrides env WINDOWS_KIT_PATH" "0" "$(echo "$SDK_PATH_OUT" | grep -c '/env-only-path')"
+
+# e2e: --output-dir redirects ZIP to a custom location
+E2E_CUSTOM_OUT="$TMPDIR_ROOT/custom-out"
+mkdir -p "$E2E_CUSTOM_OUT"
+
+E2E_CUSTOM_EXIT=0
+(
+    MOCK_NUPKG_PATH="$MOCK_NUPKG" \
+    PATH="$FAKE_BIN:$PATH" \
+    WINDOWS_KIT_PATH="$MOCK_SDK" \
+    ATS_NUGET_VERSION="0.0.0" \
+    bash "$SCRIPT" --output-dir "$E2E_CUSTOM_OUT" 2>&1
+) || E2E_CUSTOM_EXIT=$?
+assert_eq "e2e: --output-dir: script exits 0" "0" "$E2E_CUSTOM_EXIT"
+
+CUSTOM_ZIP=$(find "$E2E_CUSTOM_OUT" -name "windows-kits-bundle-*.zip" 2>/dev/null | head -1)
+if [ -n "$CUSTOM_ZIP" ]; then
+    echo "  ✅ e2e: --output-dir: ZIP written to custom location ($CUSTOM_ZIP)"
+    PASS=$(( PASS + 1 ))
+    rm -f "$CUSTOM_ZIP"
+else
+    echo "  ❌ e2e: --output-dir: ZIP not found in $E2E_CUSTOM_OUT"
     FAIL=$(( FAIL + 1 ))
 fi
 

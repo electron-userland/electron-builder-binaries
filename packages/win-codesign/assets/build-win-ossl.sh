@@ -1,14 +1,51 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# ── CLI ───────────────────────────────────────────────────────────────────────
+
+usage() {
+    cat >&2 << EOF
+Usage: $0 [options]
+  --arch              Target architecture: x64, arm64
+                      (default: \$PLATFORM_ARCH or 'x64')
+  --osslsigncode-ver  osslsigncode version tag to clone and build
+                      (default: \$OSSLSIGNCODE_VER or '2.9')
+  --cmake-version     CMake version (informational; resolved via MSYS2 packages)
+                      (default: \$CMAKE_VERSION or '3.28.3')
+  --output-dir        Output directory for the ZIP artifact
+                      (default: <package-root>/out/win-codesign)
+  -h|--help           Show this help
+EOF
+    exit 1
+}
+
+BUILD_ARCH="${PLATFORM_ARCH:-x64}"
 OSSLSIGNCODE_VER="${OSSLSIGNCODE_VER:-2.9}"
 CMAKE_VERSION="${CMAKE_VERSION:-3.28.3}"
-BUILD_ARCH="${PLATFORM_ARCH:-x64}" # x64 or arm64
+OUTPUT_DIR="$SCRIPT_DIR/out/win-codesign"
 
-CWD="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUTPUT_DIR="$CWD/out/win-codesign"
-BUILD_DIR="$CWD/.build/osslsigncode-windows-${BUILD_ARCH}"
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --arch)             BUILD_ARCH="$2";       shift 2 ;;
+        --osslsigncode-ver) OSSLSIGNCODE_VER="$2"; shift 2 ;;
+        --cmake-version)    CMAKE_VERSION="$2";    shift 2 ;;
+        --output-dir)       OUTPUT_DIR="$2";       shift 2 ;;
+        -h|--help)          usage ;;
+        *)                  echo "❌ Unknown argument: $1" >&2; usage ;;
+    esac
+done
+
+BUILD_DIR="$SCRIPT_DIR/.build/osslsigncode-windows-${BUILD_ARCH}"
+
+# ── Cleanup on exit ───────────────────────────────────────────────────────────
+cleanup() {
+    rm -rf "$BUILD_DIR"
+}
+trap cleanup EXIT
+
+# ── Main ─────────────────────────────────────────────────────────────────────
 
 echo "=================================================="
 echo "Building osslsigncode for Windows"
@@ -17,16 +54,13 @@ echo "  Version:      ${OSSLSIGNCODE_VER}"
 echo "  Output:       ${OUTPUT_DIR}"
 echo "=================================================="
 
-# Clean up and prepare directories
 rm -rf "$BUILD_DIR" "$OUTPUT_DIR"
 mkdir -p "$BUILD_DIR" "$OUTPUT_DIR"
 
-# Check if we're on Windows (GitHub Actions windows-2025 runner)
-# OSTYPE can be: msys, cygwin, or win32 depending on the shell
+# Require MSYS2/MinGW/Cygwin — this script must run on Windows
 if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
     echo "✓ Detected Windows environment (OSTYPE=$OSTYPE)"
-    
-    # Determine the correct package prefix based on architecture
+
     if [[ "$BUILD_ARCH" == "arm64" ]]; then
         PACMAN_PREFIX="mingw-w64-clang-aarch64"
         PATH_PREFIX="/clangarm64"
@@ -34,62 +68,49 @@ if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; t
         PACMAN_PREFIX="mingw-w64-x86_64"
         PATH_PREFIX="/mingw64"
     fi
-    
+
     echo "📦 Installing packages for ${BUILD_ARCH}..."
-    # Install MSYS2 packages if not already installed
     pacman -S --noconfirm --needed \
-        ${PACMAN_PREFIX}-gcc \
-        ${PACMAN_PREFIX}-cmake \
-        ${PACMAN_PREFIX}-openssl \
-        ${PACMAN_PREFIX}-curl \
-        ${PACMAN_PREFIX}-libgsf \
-        ${PACMAN_PREFIX}-zlib \
-        ${PACMAN_PREFIX}-pkgconf \
+        "${PACMAN_PREFIX}-gcc" \
+        "${PACMAN_PREFIX}-cmake" \
+        "${PACMAN_PREFIX}-openssl" \
+        "${PACMAN_PREFIX}-curl" \
+        "${PACMAN_PREFIX}-libgsf" \
+        "${PACMAN_PREFIX}-zlib" \
+        "${PACMAN_PREFIX}-pkgconf" \
         git \
         make \
         zip \
         unzip
-    
-    # Ensure the correct MinGW is in PATH
+
     export PATH="${PATH_PREFIX}/bin:$PATH"
     echo "PATH: $PATH"
-    
 else
-    echo "❌ This script must run on Windows with MSYS2/MinGW/cygwin environment."
+    echo "❌ Error: This script must run on Windows with an MSYS2/MinGW/Cygwin environment."
     exit 1
 fi
 
-# Clone osslsigncode
 echo "📥 Cloning osslsigncode ${OSSLSIGNCODE_VER}..."
-cd "$BUILD_DIR"
 git clone --depth 1 --branch "${OSSLSIGNCODE_VER}" \
-    https://github.com/mtrojnar/osslsigncode.git
+    https://github.com/mtrojnar/osslsigncode.git \
+    "$BUILD_DIR/osslsigncode"
 
-# Build osslsigncode
 echo "🔨 Building osslsigncode..."
-cd osslsigncode
-mkdir -p build
-cd build
-
-# Use Unix Makefiles generator for MSYS2 (works across all MSYS2 environments)
-cmake .. \
+cmake -S "$BUILD_DIR/osslsigncode" -B "$BUILD_DIR/osslsigncode/build" \
     -G "Unix Makefiles" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$OUTPUT_DIR/install"
 
-make -j$(nproc)
+make -C "$BUILD_DIR/osslsigncode/build" -j"$(nproc)"
 
 echo "✅ Build completed successfully!"
 
-# Create portable bundle
 echo "📦 Creating portable bundle..."
 BUNDLE_DIR="$OUTPUT_DIR/bundle-${BUILD_ARCH}"
 mkdir -p "$BUNDLE_DIR/bin" "$BUNDLE_DIR/lib"
 
-# Copy the main executable
-cp osslsigncode.exe "$BUNDLE_DIR/bin/"
+cp "$BUILD_DIR/osslsigncode/build/osslsigncode.exe" "$BUNDLE_DIR/bin/"
 
-# Copy required DLLs
 echo "🔍 Detecting required DLLs..."
 if [[ "$BUILD_ARCH" == "arm64" ]]; then
     GREP_PATTERN="clangarm64"
@@ -109,13 +130,13 @@ for dll in $REQUIRED_DLLS; do
     fi
 done
 
-# Create version file
 "$BUNDLE_DIR/bin/osslsigncode.exe" --version > "$BUNDLE_DIR/VERSION.txt" 2>&1 || true
-echo "platform: Windows" >> "$BUNDLE_DIR/VERSION.txt"
-echo "architecture: ${BUILD_ARCH}" >> "$BUNDLE_DIR/VERSION.txt"
-echo "created_at: $(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$BUNDLE_DIR/VERSION.txt"
+{
+    echo "platform: Windows"
+    echo "architecture: ${BUILD_ARCH}"
+    echo "created_at: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+} >> "$BUNDLE_DIR/VERSION.txt"
 
-# Create launcher script (optional, for convenience)
 cat > "$BUNDLE_DIR/osslsigncode.bat" <<'EOF'
 @echo off
 setlocal
@@ -124,19 +145,15 @@ set "SCRIPT_DIR=%~dp0"
 endlocal
 EOF
 
-# Create ZIP archive
 echo "📦 Creating ZIP archive..."
-FILE="$CWD/out/win-codesign/win-codesign-windows-${BUILD_ARCH}.zip"
-rm -f "$FILE"
+ARCHIVE="$OUTPUT_DIR/win-codesign-windows-${BUILD_ARCH}.zip"
+rm -f "$ARCHIVE"
 cd "$BUNDLE_DIR"
-zip -r -9 $FILE .
+zip -r -9 "$ARCHIVE" .
 
 echo ""
 echo "✅ Build completed successfully!"
-echo "📦 Bundle: $FILE"
+echo "📦 Bundle: $ARCHIVE"
 echo ""
 echo "Bundle contents:"
 ls -lh "$BUNDLE_DIR/bin"
-
-# Clean up build directory
-rm -rf "$BUILD_DIR"

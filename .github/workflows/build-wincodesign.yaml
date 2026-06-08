@@ -2,6 +2,15 @@ name: Build Windows Code Sign
 
 on:
   workflow_dispatch:
+    inputs:
+      osslsigncode_ver:
+        description: "osslsigncode version tag to build"
+        default: "2.11"
+        required: false
+      rcedit_version:
+        description: "rcedit release version"
+        default: "2.0.0"
+        required: false
   workflow_call:
 
 jobs:
@@ -22,9 +31,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
-      - name: Install dependencies & build (${{ matrix.arch }})
+      - name: Build win-codesign Linux (${{ matrix.arch }})
         run: |
-          PLATFORM_ARCH=${{ matrix.arch }} bash ./packages/win-codesign/build.sh
+          bash ./packages/win-codesign/build.sh \
+            --arch ${{ matrix.arch }} \
+            --osslsigncode-ver ${{ inputs.osslsigncode_ver || '2.11' }}
 
       - name: Upload win-codesign Linux artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
@@ -70,9 +81,12 @@ jobs:
             pkgconf:p
             nodejs:p
 
-      - name: Build osslsigncode (${{ matrix.arch }})
+      - name: Build win-codesign Windows (${{ matrix.arch }})
         run: |
-          PLATFORM_ARCH=${{ matrix.arch }} bash ./packages/win-codesign/build.sh
+          bash ./packages/win-codesign/build.sh \
+            --arch ${{ matrix.arch }} \
+            --osslsigncode-ver ${{ inputs.osslsigncode_ver || '2.11' }} \
+            --rcedit-version ${{ inputs.rcedit_version || '2.0.0' }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
@@ -97,14 +111,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
-      - name: Install grealpath
-        run: brew install coreutils
-
-      - name: Build for macOS
+      - name: Build win-codesign macOS (${{ matrix.arch }})
         shell: bash
         run: |
-          PLATFORM_ARCH=${{ matrix.arch }} bash packages/win-codesign/build.sh
-      
+          bash packages/win-codesign/build.sh \
+            --arch ${{ matrix.arch }} \
+            --osslsigncode-ver ${{ inputs.osslsigncode_ver || '2.11' }}
+
       - name: Upload win-codesign macOS artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
         with:
