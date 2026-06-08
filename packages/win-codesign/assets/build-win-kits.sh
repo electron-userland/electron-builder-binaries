@@ -73,7 +73,7 @@ Usage: $0 [options]
   --sdk-path      Windows Kits bin/ directory
                   (default: \$WINDOWS_KIT_PATH or 'C:/Program Files (x86)/Windows Kits/10/bin')
   --ats-version   Microsoft.Trusted.Signing.Client NuGet version
-                  (default: \$ATS_NUGET_VERSION or '1.0.62')
+                  (default: \$ATS_NUGET_VERSION or '1.0.95')
   --ats-sha256    Expected SHA-256 of the .nupkg; omit to skip verification
                   (default: \$ATS_NUGET_SHA256)
   --output-dir    Output directory for the bundle ZIP
@@ -85,7 +85,7 @@ EOF
 
 # Defaults — CLI flags take precedence over env vars, env vars over built-in defaults
 SDK_BASE="${WINDOWS_KIT_PATH:-C:/Program Files (x86)/Windows Kits/10/bin}"
-ATS_NUGET_VERSION="${ATS_NUGET_VERSION:-1.0.62}"
+ATS_NUGET_VERSION="${ATS_NUGET_VERSION:-1.0.95}"
 ATS_NUGET_SHA256="${ATS_NUGET_SHA256:-}"
 OUTPUT_DIR="$SCRIPT_DIR/out/win-codesign"
 
