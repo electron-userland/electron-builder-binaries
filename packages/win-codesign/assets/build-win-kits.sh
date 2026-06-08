@@ -187,17 +187,32 @@ if [ -n "${ATS_NUGET_SHA256}" ]; then
 fi
 
 mkdir -p "$ATS_EXTRACT"
-unzip -q "$ATS_NUPKG" "bin/*" -d "$ATS_EXTRACT"
+unzip -q "$ATS_NUPKG" -d "$ATS_EXTRACT"
 rm -f "$ATS_NUPKG"
 
+# v1.0.95+ ships bin/x64 and bin/x86 only (no bin/arm64).
+# For arm64 bundles we copy the x64 binaries — Wine on arm64 Windows runs x64 DLLs.
 ATS_DLLS=(
     "Azure.CodeSigning.Dlib.dll"
-    "msft_authentication_extension_v2.dll"
 )
 MISSING_FILES=()
 
 echo "Copying ATS DLLs..."
-copy_arch_files "$ATS_EXTRACT/bin" "$BUNDLE_DIR" "${ATS_DLLS[@]}"
+for arch in "${ARCHITECTURES[@]}"; do
+    ats_src_arch="$arch"
+    [[ "$arch" == "arm64" ]] && ats_src_arch="x64"
+    mkdir -p "$BUNDLE_DIR/$arch"
+    for dll in "${ATS_DLLS[@]}"; do
+        src="$ATS_EXTRACT/bin/$ats_src_arch/$dll"
+        if [ -f "$src" ]; then
+            cp "$src" "$BUNDLE_DIR/$arch/$dll"
+            echo "  ✅ $arch/$dll"
+        else
+            echo "  ⚠️  Not found: $src"
+            MISSING_FILES+=("$src")
+        fi
+    done
+done
 report_missing "ATS DLL(s)"
 
 rm -rf "$ATS_EXTRACT"

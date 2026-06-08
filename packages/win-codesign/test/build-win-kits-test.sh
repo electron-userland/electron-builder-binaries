@@ -183,7 +183,7 @@ SDK_FILES=(
     "Microsoft.Windows.Build.Appx.OpcServices.dll.manifest" "opcservices.dll"
     "signtool.exe" "signtool.exe.manifest" "pvk2pfx.exe"
 )
-ATS_DLLS=("Azure.CodeSigning.Dlib.dll" "msft_authentication_extension_v2.dll")
+ATS_DLLS=("Azure.CodeSigning.Dlib.dll")
 
 # Populate mock SDK
 for arch in "${ARCHS[@]}"; do
@@ -193,8 +193,10 @@ for arch in "${ARCHS[@]}"; do
     done
 done
 
-# Build mock nupkg (a zip with bin/ARCH/dll structure)
-for arch in "${ARCHS[@]}"; do
+# Build mock nupkg mirroring real package: only x64 and x86 (no arm64 bin).
+# The script maps arm64 → x64 source when copying ATS DLLs.
+NUPKG_ARCHS=("x86" "x64")
+for arch in "${NUPKG_ARCHS[@]}"; do
     mkdir -p "$MOCK_NUPKG_DIR/bin/$arch"
     for dll in "${ATS_DLLS[@]}"; do
         echo "mock-$dll" > "$MOCK_NUPKG_DIR/bin/$arch/$dll"
