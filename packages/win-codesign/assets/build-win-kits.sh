@@ -74,8 +74,10 @@ Usage: $0 [options]
                   (default: \$WINDOWS_KIT_PATH or 'C:/Program Files (x86)/Windows Kits/10/bin')
   --ats-version   Microsoft.Trusted.Signing.Client NuGet version
                   (default: \$ATS_NUGET_VERSION or '1.0.95')
-  --ats-sha256    Expected SHA-256 of the .nupkg; omit to skip verification
-                  (default: \$ATS_NUGET_SHA256)
+  --ats-sha256    Expected SHA-256 of the .nupkg. Defaults to the pinned hash of the
+                  default --ats-version; override when changing --ats-version, or pass
+                  an empty string to skip verification (not recommended)
+                  (default: \$ATS_NUGET_SHA256 or the pinned 1.0.95 hash)
   --output-dir    Output directory for the bundle ZIP
                   (default: <package-root>/out/win-codesign)
   -h|--help       Show this help
@@ -86,7 +88,8 @@ EOF
 # Defaults — CLI flags take precedence over env vars, env vars over built-in defaults
 SDK_BASE="${WINDOWS_KIT_PATH:-C:/Program Files (x86)/Windows Kits/10/bin}"
 ATS_NUGET_VERSION="${ATS_NUGET_VERSION:-1.0.95}"
-ATS_NUGET_SHA256="${ATS_NUGET_SHA256:-}"
+# Pinned SHA-256 of microsoft.trusted.signing.client.1.0.95.nupkg
+ATS_NUGET_SHA256="${ATS_NUGET_SHA256:-3bfcf1e0a3cb42af1692f0a8ed45c15de070c2de86f28a59b2795d904d8a920f}"
 OUTPUT_DIR="$SCRIPT_DIR/out/win-codesign"
 
 while [[ $# -gt 0 ]]; do
@@ -190,30 +193,39 @@ mkdir -p "$ATS_EXTRACT"
 unzip -q "$ATS_NUPKG" -d "$ATS_EXTRACT"
 rm -f "$ATS_NUPKG"
 
-# v1.0.95+ ships bin/x64 and bin/x86 only (no bin/arm64).
-# For arm64 bundles we copy the x64 binaries — Wine on arm64 Windows runs x64 DLLs.
-ATS_DLLS=(
-    "Azure.CodeSigning.Dlib.dll"
-)
+# Azure.CodeSigning.Dlib.dll is a framework-dependent .NET 8 shim — its entire
+# dependency closure (Azure.CodeSigning*.dll, Azure.Core/Identity, MSAL, Ijwhost,
+# runtimeconfig.json, VC++/MFC runtimes) ships beside it in bin/<arch> and must be
+# copied wholesale or signtool /dlib fails to load it at runtime.
+#
+# v1.0.95+ ships bin/x64 and bin/x86 only (no bin/arm64). arm64 is intentionally
+# skipped: the payload is x64-only, and placing x64 runtime DLLs (msvcp140 etc.)
+# next to the native arm64 signtool.exe would shadow its own DLL resolution and
+# break it. Azure signing on arm64 hosts uses the x64 directory instead (x64
+# signtool runs under Windows-on-ARM emulation / x64 Wine).
+ATS_ARCHS=("x86" "x64")
+ATS_REQUIRED=("Azure.CodeSigning.Dlib.dll")
 MISSING_FILES=()
 
-echo "Copying ATS DLLs..."
-for arch in "${ARCHITECTURES[@]}"; do
-    ats_src_arch="$arch"
-    [[ "$arch" == "arm64" ]] && ats_src_arch="x64"
+echo "Copying ATS payload (full bin/<arch> dependency closure)..."
+for arch in "${ATS_ARCHS[@]}"; do
+    src_dir="$ATS_EXTRACT/bin/$arch"
+    if [ ! -d "$src_dir" ]; then
+        echo "  ⚠️  Not found: $src_dir"
+        MISSING_FILES+=("$src_dir")
+        continue
+    fi
     mkdir -p "$BUNDLE_DIR/$arch"
-    for dll in "${ATS_DLLS[@]}"; do
-        src="$ATS_EXTRACT/bin/$ats_src_arch/$dll"
-        if [ -f "$src" ]; then
-            cp "$src" "$BUNDLE_DIR/$arch/$dll"
-            echo "  ✅ $arch/$dll"
-        else
-            echo "  ⚠️  Not found: $src"
-            MISSING_FILES+=("$src")
+    cp -R "$src_dir/." "$BUNDLE_DIR/$arch/"
+    echo "  ✅ $arch: $(ls -1 "$src_dir" | wc -l | tr -d ' ') file(s)"
+    for f in "${ATS_REQUIRED[@]}"; do
+        if [ ! -f "$BUNDLE_DIR/$arch/$f" ]; then
+            echo "  ⚠️  Not found: $src_dir/$f"
+            MISSING_FILES+=("$src_dir/$f")
         fi
     done
 done
-report_missing "ATS DLL(s)"
+report_missing "ATS file(s)"
 
 rm -rf "$ATS_EXTRACT"
 

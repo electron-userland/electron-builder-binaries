@@ -183,7 +183,15 @@ SDK_FILES=(
     "Microsoft.Windows.Build.Appx.OpcServices.dll.manifest" "opcservices.dll"
     "signtool.exe" "signtool.exe.manifest" "pvk2pfx.exe"
 )
-ATS_DLLS=("Azure.CodeSigning.Dlib.dll")
+# The dlib plus a sample of its dependency closure — the script must copy the
+# whole bin/<arch> directory, not just the dlib.
+ATS_FILES=(
+    "Azure.CodeSigning.Dlib.dll"
+    "Azure.CodeSigning.dll"
+    "Ijwhost.dll"
+    "Azure.CodeSigning.Dlib.runtimeconfig.json"
+    "msvcp140.dll"
+)
 
 # Populate mock SDK
 for arch in "${ARCHS[@]}"; do
@@ -194,15 +202,24 @@ for arch in "${ARCHS[@]}"; do
 done
 
 # Build mock nupkg mirroring real package: only x64 and x86 (no arm64 bin).
-# The script maps arm64 → x64 source when copying ATS DLLs.
+# arm64 bundles intentionally get NO ATS payload (x64 DLLs would break the
+# native arm64 signtool's DLL resolution).
 NUPKG_ARCHS=("x86" "x64")
 for arch in "${NUPKG_ARCHS[@]}"; do
     mkdir -p "$MOCK_NUPKG_DIR/bin/$arch"
-    for dll in "${ATS_DLLS[@]}"; do
+    for dll in "${ATS_FILES[@]}"; do
         echo "mock-$dll" > "$MOCK_NUPKG_DIR/bin/$arch/$dll"
     done
 done
 (cd "$MOCK_NUPKG_DIR" && zip -r -q "$MOCK_NUPKG" .)
+
+# The script pins a default ATS_NUGET_SHA256; the mock nupkg has a different
+# hash, so e2e runs must pass the mock's real hash (also exercises verification).
+if command -v sha256sum >/dev/null 2>&1; then
+    MOCK_NUPKG_SHA256=$(sha256sum "$MOCK_NUPKG" | awk '{print $1}')
+else
+    MOCK_NUPKG_SHA256=$(shasum -a 256 "$MOCK_NUPKG" | awk '{print $1}')
+fi
 
 # Fake curl: ignores all flags, copies pre-built nupkg to --output path
 cat > "$FAKE_BIN/curl" << 'FAKE_CURL'
@@ -224,6 +241,7 @@ E2E_OUTPUT=$(
     PATH="$FAKE_BIN:$PATH" \
     WINDOWS_KIT_PATH="$MOCK_SDK" \
     ATS_NUGET_VERSION="0.0.0" \
+    ATS_NUGET_SHA256="$MOCK_NUPKG_SHA256" \
     bash "$SCRIPT" 2>&1
 ) || E2E_EXIT=$?
 
@@ -245,8 +263,21 @@ if [ -n "$PRODUCED_ZIP" ]; then
 
     # Verify expected files are inside the ZIP
     ZIP_LIST=$(unzip -l "$PRODUCED_ZIP" 2>/dev/null)
+
+    # signtool.exe in every arch dir
     for arch in "${ARCHS[@]}"; do
-        for f in "signtool.exe" "Azure.CodeSigning.Dlib.dll"; do
+        if echo "$ZIP_LIST" | grep -q "$arch/signtool.exe"; then
+            echo "  ✅ e2e: ZIP contains $arch/signtool.exe"
+            PASS=$(( PASS + 1 ))
+        else
+            echo "  ❌ e2e: ZIP missing $arch/signtool.exe"
+            FAIL=$(( FAIL + 1 ))
+        fi
+    done
+
+    # Full ATS dependency closure in x86 and x64 (not just the dlib)
+    for arch in "${NUPKG_ARCHS[@]}"; do
+        for f in "${ATS_FILES[@]}"; do
             if echo "$ZIP_LIST" | grep -q "$arch/$f"; then
                 echo "  ✅ e2e: ZIP contains $arch/$f"
                 PASS=$(( PASS + 1 ))
@@ -255,6 +286,17 @@ if [ -n "$PRODUCED_ZIP" ]; then
                 FAIL=$(( FAIL + 1 ))
             fi
         done
+    done
+
+    # arm64 must NOT carry the x64 ATS payload (would shadow native signtool DLLs)
+    for f in "Azure.CodeSigning.Dlib.dll" "msvcp140.dll"; do
+        if echo "$ZIP_LIST" | grep -q "arm64/$f"; then
+            echo "  ❌ e2e: ZIP unexpectedly contains arm64/$f"
+            FAIL=$(( FAIL + 1 ))
+        else
+            echo "  ✅ e2e: ZIP excludes arm64/$f"
+            PASS=$(( PASS + 1 ))
+        fi
     done
 
     if echo "$ZIP_LIST" | grep -q "VERSION.txt"; then
@@ -309,6 +351,7 @@ E2E_CUSTOM_EXIT=0
     PATH="$FAKE_BIN:$PATH" \
     WINDOWS_KIT_PATH="$MOCK_SDK" \
     ATS_NUGET_VERSION="0.0.0" \
+    ATS_NUGET_SHA256="$MOCK_NUPKG_SHA256" \
     bash "$SCRIPT" --output-dir "$E2E_CUSTOM_OUT" 2>&1
 ) || E2E_CUSTOM_EXIT=$?
 assert_eq "e2e: --output-dir: script exits 0" "0" "$E2E_CUSTOM_EXIT"
@@ -331,6 +374,18 @@ echo "▶ e2e: error paths"
 E2E_ERR=0
 ( WINDOWS_KIT_PATH="/nonexistent/path" bash "$SCRIPT" ) >/dev/null 2>&1 || E2E_ERR=$?
 assert_eq "exits 1 when SDK directory missing" "1" "$E2E_ERR"
+
+# Wrong nupkg checksum must fail closed (the script pins a default SHA-256)
+E2E_SHA_ERR=0
+(
+    MOCK_NUPKG_PATH="$MOCK_NUPKG" \
+    PATH="$FAKE_BIN:$PATH" \
+    WINDOWS_KIT_PATH="$MOCK_SDK" \
+    ATS_NUGET_VERSION="0.0.0" \
+    ATS_NUGET_SHA256="0000000000000000000000000000000000000000000000000000000000000000" \
+    bash "$SCRIPT"
+) >/dev/null 2>&1 || E2E_SHA_ERR=$?
+assert_eq "exits 1 when nupkg checksum mismatches" "1" "$E2E_SHA_ERR"
 
 # ── Results ───────────────────────────────────────────────────────────────────
 
