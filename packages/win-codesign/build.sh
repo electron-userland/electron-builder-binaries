@@ -13,8 +13,8 @@ Usage: $0 [options]
   --rcedit-version    rcedit release version (default: \$RCEDIT_VERSION or '2.0.0')
   --os-target         Override OS detection: linux, darwin, windows
                       (default: auto-detected via uname)
-  --target            Windows subscript to run: ossl, kits, rcedit
-                      (repeatable; default: all three)
+  --target            Windows subscript to run: ossl, kits, ats, rcedit
+                      (repeatable; default: all four)
   -h|--help           Show this help
 EOF
     exit 1
@@ -60,9 +60,9 @@ elif [ "$OS_TARGET" = "darwin" ]; then
 else
     echo "Assuming Windows target."
 
-    # Default to all three when no --target flags were given
+    # Default to all four when no --target flags were given
     if [[ ${#TARGETS[@]} -eq 0 ]]; then
-        TARGETS=(ossl kits rcedit)
+        TARGETS=(ossl kits ats rcedit)
     fi
 
     # must be first — install prefix wipes the output dir
@@ -74,6 +74,10 @@ else
 
     if [[ " ${TARGETS[*]} " == *" kits "* ]]; then
         bash "$CWD/assets/build-win-kits.sh"
+    fi
+
+    if [[ " ${TARGETS[*]} " == *" ats "* ]]; then
+        bash "$CWD/assets/build-win-ats.sh"
     fi
 
     if [[ " ${TARGETS[*]} " == *" rcedit "* ]]; then

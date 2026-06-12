@@ -126,12 +126,13 @@ jobs:
             pkgconf:p
             nodejs:p
 
-      - name: Build Windows kits + rcedit (x64 only)
+      - name: Build Windows kits + ats + rcedit (x64 only)
         run: |
           bash ./packages/win-codesign/build.sh \
             --arch x64 \
             --rcedit-version ${{ inputs.rcedit_version || '2.0.0' }} \
             --target kits \
+            --target ats \
             --target rcedit
 
       - name: Upload artifact

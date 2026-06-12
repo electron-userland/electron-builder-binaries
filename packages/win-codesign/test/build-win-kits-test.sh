@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Unit + e2e tests for build-win-kits.sh helpers, named-arg parsing, and full script flow.
+# Unit + e2e tests for build-win-kits.sh helpers and full script flow.
 # Run: bash packages/win-codesign/test/build-win-kits-test.sh
 set -uo pipefail
 
@@ -41,17 +41,6 @@ assert_file_exists() {
     fi
 }
 
-assert_file_missing() {
-    local desc="$1" path="$2"
-    if [ ! -f "$path" ]; then
-        echo "  ✅ $desc"
-        PASS=$(( PASS + 1 ))
-    else
-        echo "  ❌ $desc (unexpectedly present: $path)"
-        FAIL=$(( FAIL + 1 ))
-    fi
-}
-
 # ── Setup ─────────────────────────────────────────────────────────────────────
 
 TMPDIR_ROOT=$(mktemp -d)
@@ -60,25 +49,6 @@ trap 'rm -rf "$TMPDIR_ROOT"' EXIT
 # Source helpers only (main body is gated by BASH_SOURCE guard)
 # shellcheck source=../assets/build-win-kits.sh
 source "$SCRIPT"
-
-# ── verify_sha256 ─────────────────────────────────────────────────────────────
-
-echo ""
-echo "▶ verify_sha256"
-
-TMP_FILE="$TMPDIR_ROOT/test-hash.txt"
-echo -n "hello" > "$TMP_FILE"
-
-# Compute the expected hash portably
-if command -v sha256sum >/dev/null 2>&1; then
-    HELLO_SHA256=$(sha256sum "$TMP_FILE" | awk '{print $1}')
-else
-    HELLO_SHA256=$(shasum -a 256 "$TMP_FILE" | awk '{print $1}')
-fi
-
-assert_exit "passes when hash matches"    0 verify_sha256 "$TMP_FILE" "$HELLO_SHA256"
-assert_exit "fails when hash is wrong"    1 verify_sha256 "$TMP_FILE" "0000000000000000000000000000000000000000000000000000000000000000"
-assert_exit "fails when file is missing"  1 verify_sha256 "$TMPDIR_ROOT/nonexistent.txt" "$HELLO_SHA256"
 
 # ── copy_arch_files ───────────────────────────────────────────────────────────
 
@@ -149,26 +119,19 @@ assert_eq "exits 1 when list is non-empty" "1" "$exit_code"
 output=$( ( MISSING_FILES=("x.dll"); report_missing "SDK file(s)" ) 2>&1 ) || true
 assert_eq "output contains the missing file name" "1" "$(echo "$output" | grep -c 'x.dll')"
 
-# ── e2e: full script with mocked SDK and NuGet package ───────────────────────
+# ── e2e: full script with mocked SDK ─────────────────────────────────────────
 #
-# This test exercises the complete script end-to-end without network access or
-# a real Windows SDK by:
-#   1. Building a directory tree that mirrors the Windows SDK layout.
-#   2. Creating a minimal .nupkg (zip) with the expected ATS DLL paths inside.
-#   3. Injecting a fake `curl` via PATH that copies the pre-built nupkg.
-#   4. Running the script with WINDOWS_KIT_PATH pointing at the mock SDK.
+# This test exercises the complete script end-to-end without a real Windows SDK
+# by building a directory tree that mirrors the Windows SDK layout.
 
 echo ""
-echo "▶ e2e: full script with mocked SDK and NuGet"
+echo "▶ e2e: full script with mocked SDK"
 
 E2E_DIR="$TMPDIR_ROOT/e2e"
 MOCK_SDK="$E2E_DIR/sdk"
-MOCK_NUPKG_DIR="$E2E_DIR/nupkg-src"
-MOCK_NUPKG="$E2E_DIR/mock.nupkg"
-FAKE_BIN="$E2E_DIR/fake-bin"
 E2E_OUT="$E2E_DIR/out"
 
-mkdir -p "$FAKE_BIN" "$E2E_OUT"
+mkdir -p "$E2E_OUT"
 
 SDK_VER="10.0.99999.0"
 ARCHS=("x86" "x64" "arm64")
@@ -183,15 +146,6 @@ SDK_FILES=(
     "Microsoft.Windows.Build.Appx.OpcServices.dll.manifest" "opcservices.dll"
     "signtool.exe" "signtool.exe.manifest" "pvk2pfx.exe"
 )
-# The dlib plus a sample of its dependency closure — the script must copy the
-# whole bin/<arch> directory, not just the dlib.
-ATS_FILES=(
-    "Azure.CodeSigning.Dlib.dll"
-    "Azure.CodeSigning.dll"
-    "Ijwhost.dll"
-    "Azure.CodeSigning.Dlib.runtimeconfig.json"
-    "msvcp140.dll"
-)
 
 # Populate mock SDK
 for arch in "${ARCHS[@]}"; do
@@ -201,67 +155,22 @@ for arch in "${ARCHS[@]}"; do
     done
 done
 
-# Build mock nupkg mirroring real package: only x64 and x86 (no arm64 bin).
-# arm64 bundles intentionally get NO ATS payload (x64 DLLs would break the
-# native arm64 signtool's DLL resolution).
-NUPKG_ARCHS=("x86" "x64")
-for arch in "${NUPKG_ARCHS[@]}"; do
-    mkdir -p "$MOCK_NUPKG_DIR/bin/$arch"
-    for dll in "${ATS_FILES[@]}"; do
-        echo "mock-$dll" > "$MOCK_NUPKG_DIR/bin/$arch/$dll"
-    done
-done
-(cd "$MOCK_NUPKG_DIR" && zip -r -q "$MOCK_NUPKG" .)
-
-# The script pins a default ATS_NUGET_SHA256; the mock nupkg has a different
-# hash, so e2e runs must pass the mock's real hash (also exercises verification).
-if command -v sha256sum >/dev/null 2>&1; then
-    MOCK_NUPKG_SHA256=$(sha256sum "$MOCK_NUPKG" | awk '{print $1}')
-else
-    MOCK_NUPKG_SHA256=$(shasum -a 256 "$MOCK_NUPKG" | awk '{print $1}')
-fi
-
-# Fake curl: ignores all flags, copies pre-built nupkg to --output path
-cat > "$FAKE_BIN/curl" << 'FAKE_CURL'
-#!/usr/bin/env bash
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --output|-o) OUTPUT="$2"; shift 2 ;;
-        *) shift ;;
-    esac
-done
-cp "$MOCK_NUPKG_PATH" "$OUTPUT"
-FAKE_CURL
-chmod +x "$FAKE_BIN/curl"
-
-# Point the script at the mock environment and run it
+# Run the script
 E2E_EXIT=0
 E2E_OUTPUT=$(
-    MOCK_NUPKG_PATH="$MOCK_NUPKG" \
-    PATH="$FAKE_BIN:$PATH" \
     WINDOWS_KIT_PATH="$MOCK_SDK" \
-    ATS_NUGET_VERSION="0.0.0" \
-    ATS_NUGET_SHA256="$MOCK_NUPKG_SHA256" \
-    bash "$SCRIPT" 2>&1
+    bash "$SCRIPT" --output-dir "$E2E_OUT" 2>&1
 ) || E2E_EXIT=$?
 
 assert_eq "e2e: script exits 0" "0" "$E2E_EXIT"
 
-# Find the produced ZIP (name contains SDK version with dots replaced by underscores)
 ZIP_VERSION="${SDK_VER//./_}"
 PRODUCED_ZIP=$(find "$E2E_OUT" -name "windows-kits-bundle-${ZIP_VERSION}.zip" 2>/dev/null | head -1)
-
-if [ -z "$PRODUCED_ZIP" ]; then
-    # Script writes to its own out/ dir; locate it relative to SCRIPT_DIR
-    SCRIPT_PARENT="$(cd "$(dirname "$SCRIPT")/.." && pwd)"
-    PRODUCED_ZIP=$(find "$SCRIPT_PARENT/out" -name "windows-kits-bundle-${ZIP_VERSION}.zip" 2>/dev/null | head -1)
-fi
 
 if [ -n "$PRODUCED_ZIP" ]; then
     echo "  ✅ e2e: output ZIP created ($PRODUCED_ZIP)"
     PASS=$(( PASS + 1 ))
 
-    # Verify expected files are inside the ZIP
     ZIP_LIST=$(unzip -l "$PRODUCED_ZIP" 2>/dev/null)
 
     # signtool.exe in every arch dir
@@ -275,30 +184,6 @@ if [ -n "$PRODUCED_ZIP" ]; then
         fi
     done
 
-    # Full ATS dependency closure in x86 and x64 (not just the dlib)
-    for arch in "${NUPKG_ARCHS[@]}"; do
-        for f in "${ATS_FILES[@]}"; do
-            if echo "$ZIP_LIST" | grep -q "$arch/$f"; then
-                echo "  ✅ e2e: ZIP contains $arch/$f"
-                PASS=$(( PASS + 1 ))
-            else
-                echo "  ❌ e2e: ZIP missing $arch/$f"
-                FAIL=$(( FAIL + 1 ))
-            fi
-        done
-    done
-
-    # arm64 must NOT carry the x64 ATS payload (would shadow native signtool DLLs)
-    for f in "Azure.CodeSigning.Dlib.dll" "msvcp140.dll"; do
-        if echo "$ZIP_LIST" | grep -q "arm64/$f"; then
-            echo "  ❌ e2e: ZIP unexpectedly contains arm64/$f"
-            FAIL=$(( FAIL + 1 ))
-        else
-            echo "  ✅ e2e: ZIP excludes arm64/$f"
-            PASS=$(( PASS + 1 ))
-        fi
-    done
-
     if echo "$ZIP_LIST" | grep -q "VERSION.txt"; then
         echo "  ✅ e2e: ZIP contains VERSION.txt"
         PASS=$(( PASS + 1 ))
@@ -307,13 +192,16 @@ if [ -n "$PRODUCED_ZIP" ]; then
         FAIL=$(( FAIL + 1 ))
     fi
 
-    # Verify temp dirs were cleaned up
-    SCRIPT_PARENT="$(cd "$(dirname "$SCRIPT")/.." && pwd)"
-    assert_file_missing "e2e: ATS nupkg cleaned up" "$SCRIPT_PARENT/out/win-codesign/ats-client.nupkg"
+    # ATS files must NOT be in the kits bundle
+    if echo "$ZIP_LIST" | grep -q "Azure.CodeSigning.Dlib.dll"; then
+        echo "  ❌ e2e: kits ZIP unexpectedly contains ATS payload"
+        FAIL=$(( FAIL + 1 ))
+    else
+        echo "  ✅ e2e: kits ZIP contains no ATS payload"
+        PASS=$(( PASS + 1 ))
+    fi
 
-    # Clean up produced output
     rm -f "$PRODUCED_ZIP"
-    rm -rf "$SCRIPT_PARENT/out/win-codesign/windows-kits-bundle"
 else
     echo "  ❌ e2e: expected ZIP not found"
     echo "  Script output:"
@@ -321,7 +209,7 @@ else
     FAIL=$(( FAIL + 1 ))
 fi
 
-# ── e2e: named-arg CLI interface ─────────────────────────────────────────────
+# ── e2e: named-arg CLI ────────────────────────────────────────────────────────
 
 echo ""
 echo "▶ e2e: named-arg CLI"
@@ -337,36 +225,11 @@ UNKNOWN_EXIT=0
 bash "$SCRIPT" --unknown-flag 2>/dev/null || UNKNOWN_EXIT=$?
 assert_eq "unknown flag exits 1" "1" "$UNKNOWN_EXIT"
 
-# --sdk-path overrides WINDOWS_KIT_PATH env var — the env-path must not appear in output
+# --sdk-path overrides WINDOWS_KIT_PATH env var
 SDK_PATH_OUT=$(( WINDOWS_KIT_PATH="/env-only-path" bash "$SCRIPT" --sdk-path "/cli-override-path" ) 2>&1) || true
 assert_eq "--sdk-path overrides env WINDOWS_KIT_PATH" "0" "$(echo "$SDK_PATH_OUT" | grep -c '/env-only-path')"
 
-# e2e: --output-dir redirects ZIP to a custom location
-E2E_CUSTOM_OUT="$TMPDIR_ROOT/custom-out"
-mkdir -p "$E2E_CUSTOM_OUT"
-
-E2E_CUSTOM_EXIT=0
-(
-    MOCK_NUPKG_PATH="$MOCK_NUPKG" \
-    PATH="$FAKE_BIN:$PATH" \
-    WINDOWS_KIT_PATH="$MOCK_SDK" \
-    ATS_NUGET_VERSION="0.0.0" \
-    ATS_NUGET_SHA256="$MOCK_NUPKG_SHA256" \
-    bash "$SCRIPT" --output-dir "$E2E_CUSTOM_OUT" 2>&1
-) || E2E_CUSTOM_EXIT=$?
-assert_eq "e2e: --output-dir: script exits 0" "0" "$E2E_CUSTOM_EXIT"
-
-CUSTOM_ZIP=$(find "$E2E_CUSTOM_OUT" -name "windows-kits-bundle-*.zip" 2>/dev/null | head -1)
-if [ -n "$CUSTOM_ZIP" ]; then
-    echo "  ✅ e2e: --output-dir: ZIP written to custom location ($CUSTOM_ZIP)"
-    PASS=$(( PASS + 1 ))
-    rm -f "$CUSTOM_ZIP"
-else
-    echo "  ❌ e2e: --output-dir: ZIP not found in $E2E_CUSTOM_OUT"
-    FAIL=$(( FAIL + 1 ))
-fi
-
-# ── e2e: missing SDK directory ────────────────────────────────────────────────
+# ── e2e: error paths ──────────────────────────────────────────────────────────
 
 echo ""
 echo "▶ e2e: error paths"
@@ -374,18 +237,6 @@ echo "▶ e2e: error paths"
 E2E_ERR=0
 ( WINDOWS_KIT_PATH="/nonexistent/path" bash "$SCRIPT" ) >/dev/null 2>&1 || E2E_ERR=$?
 assert_eq "exits 1 when SDK directory missing" "1" "$E2E_ERR"
-
-# Wrong nupkg checksum must fail closed (the script pins a default SHA-256)
-E2E_SHA_ERR=0
-(
-    MOCK_NUPKG_PATH="$MOCK_NUPKG" \
-    PATH="$FAKE_BIN:$PATH" \
-    WINDOWS_KIT_PATH="$MOCK_SDK" \
-    ATS_NUGET_VERSION="0.0.0" \
-    ATS_NUGET_SHA256="0000000000000000000000000000000000000000000000000000000000000000" \
-    bash "$SCRIPT"
-) >/dev/null 2>&1 || E2E_SHA_ERR=$?
-assert_eq "exits 1 when nupkg checksum mismatches" "1" "$E2E_SHA_ERR"
 
 # ── Results ───────────────────────────────────────────────────────────────────
 
