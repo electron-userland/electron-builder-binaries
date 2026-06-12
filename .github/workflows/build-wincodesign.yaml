@@ -86,12 +86,58 @@ jobs:
           bash ./packages/win-codesign/build.sh \
             --arch ${{ matrix.arch }} \
             --osslsigncode-ver ${{ inputs.osslsigncode_ver || '2.11' }} \
-            --rcedit-version ${{ inputs.rcedit_version || '2.0.0' }}
+            --target ossl
 
       - name: Upload artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
         with:
           name: win-codesign-windows-${{ matrix.arch }}
+          path: ./packages/win-codesign/out/**/*.zip
+          if-no-files-found: error
+          retention-days: 1
+
+  windows-kits-rcedit:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@fb197b72ce45fb24f17bf3f807a388985654d1f2 # v2.29.0
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            make
+            zip
+            unzip
+          pacboy: >-
+            gcc:p
+            cmake:p
+            openssl:p
+            curl:p
+            libgsf:p
+            zlib:p
+            pkgconf:p
+            nodejs:p
+
+      - name: Build Windows kits + rcedit (x64 only)
+        run: |
+          bash ./packages/win-codesign/build.sh \
+            --arch x64 \
+            --rcedit-version ${{ inputs.rcedit_version || '2.0.0' }} \
+            --target kits \
+            --target rcedit
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        with:
+          name: win-codesign-windows-kits-rcedit
           path: ./packages/win-codesign/out/**/*.zip
           if-no-files-found: error
           retention-days: 1
