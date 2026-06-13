@@ -143,6 +143,30 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  windows-dotnet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Install Wine and Xvfb
+        run: sudo apt-get install -y wine64 xvfb
+
+      - name: Build dotnet runtime bundle
+        run: bash ./packages/win-codesign/assets/build-win-dotnet.sh
+
+      - name: Run dotnet test suite (unit + Wine smoke test)
+        run: xvfb-run --auto-servernum bash ./packages/win-codesign/test/build-win-dotnet-test.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        with:
+          name: win-codesign-dotnet-runtime
+          path: ./packages/win-codesign/out/**/*.zip
+          if-no-files-found: error
+          retention-days: 1
+
   mac:
     runs-on: ${{ matrix.node }}
     timeout-minutes: 20

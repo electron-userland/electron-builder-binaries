@@ -34,8 +34,8 @@ while [[ $# -gt 0 ]]; do
         --os-target)        OS_TARGET="$2";        shift 2 ;;
         --target)
             case "$2" in
-                ossl|kits|ats|rcedit) TARGETS+=("$2") ;;
-                *) echo "❌ Unknown --target value: $2 (valid: ossl, kits, ats, rcedit)" >&2; usage ;;
+                ossl|kits|ats|dotnet|rcedit) TARGETS+=("$2") ;;
+                *) echo "❌ Unknown --target value: $2 (valid: ossl, kits, ats, dotnet, rcedit)" >&2; usage ;;
             esac
             shift 2 ;;
         -h|--help)          usage ;;
@@ -67,7 +67,7 @@ else
 
     # Default to all four when no --target flags were given
     if [[ ${#TARGETS[@]} -eq 0 ]]; then
-        TARGETS=(ossl kits ats rcedit)
+        TARGETS=(ossl kits ats dotnet rcedit)
     fi
 
     # must be first — install prefix wipes the output dir
@@ -83,6 +83,10 @@ else
 
     if [[ " ${TARGETS[*]} " == *" ats "* ]]; then
         bash "$CWD/assets/build-win-ats.sh"
+    fi
+
+    if [[ " ${TARGETS[*]} " == *" dotnet "* ]]; then
+        bash "$CWD/assets/build-win-dotnet.sh"
     fi
 
     if [[ " ${TARGETS[*]} " == *" rcedit "* ]]; then
