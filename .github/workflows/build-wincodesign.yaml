@@ -81,7 +81,7 @@ jobs:
             pkgconf:p
             nodejs:p
 
-      - name: Build win-codesign Windows (${{ matrix.arch }})
+      - name: Build osslsigncode for Windows (${{ matrix.arch }})
         run: |
           bash ./packages/win-codesign/build.sh \
             --arch ${{ matrix.arch }} \

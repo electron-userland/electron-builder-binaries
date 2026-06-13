@@ -32,7 +32,12 @@ while [[ $# -gt 0 ]]; do
         --osslsigncode-ver) OSSLSIGNCODE_VER="$2"; shift 2 ;;
         --rcedit-version)   RCEDIT_VERSION="$2";   shift 2 ;;
         --os-target)        OS_TARGET="$2";        shift 2 ;;
-        --target)           TARGETS+=("$2");       shift 2 ;;
+        --target)
+            case "$2" in
+                ossl|kits|ats|rcedit) TARGETS+=("$2") ;;
+                *) echo "❌ Unknown --target value: $2 (valid: ossl, kits, ats, rcedit)" >&2; usage ;;
+            esac
+            shift 2 ;;
         -h|--help)          usage ;;
         *)                  echo "❌ Unknown argument: $1" >&2; usage ;;
     esac

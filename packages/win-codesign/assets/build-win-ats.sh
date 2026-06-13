@@ -7,10 +7,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 verify_sha256() {
     local file="$1" expected="$2" actual
+    if [ ! -f "$file" ]; then
+        echo "❌ File not found: $file" >&2
+        return 1
+    fi
     if command -v sha256sum >/dev/null 2>&1; then
-        actual=$(sha256sum "$file" | awk '{print $1}')
+        actual=$(sha256sum "$file" | awk '{print $1}') || { echo "❌ sha256sum failed for $(basename "$file")" >&2; return 1; }
     elif command -v shasum >/dev/null 2>&1; then
-        actual=$(shasum -a 256 "$file" | awk '{print $1}')
+        actual=$(shasum -a 256 "$file" | awk '{print $1}') || { echo "❌ shasum failed for $(basename "$file")" >&2; return 1; }
     else
         echo "❌ No sha256 tool found (sha256sum or shasum required)" >&2
         return 1
