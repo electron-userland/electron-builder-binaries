@@ -243,15 +243,18 @@ else
 fi
 
 ############################################
-# 🗑️  REMOVE LIB/WINE PE DLLS (post-init)
+# 🔒 KEEP LIB/WINE PE DLLS (builtin loader requirement)
 ############################################
 
-# lib/wine/x86_64-windows/ seeds the prefix with PE DLLs during wineboot --init.
-# Now that wine-home is pre-initialized, this directory is not needed at runtime —
-# Wine loads DLLs from the prefix's system32, not from lib/wine.
-# Removing it saves ~770 MB extracted.
-echo "🗑️  Removing lib/wine/x86_64-windows (prefix is pre-initialized)"
-rm -rf "$STAGE_DIR/lib/wine/${PLATFORM_ARCH}-windows"
+# DO NOT remove lib/wine/${PLATFORM_ARCH}-windows/.
+# These are Wine's *builtin* PE DLLs. At runtime Wine loads builtin modules
+# (ntdll, kernel32, win32u, ...) as PE images from this dlldir and pairs each
+# with its unix counterpart in lib/wine/${PLATFORM_ARCH}-unix/. The copies that
+# wineboot --init writes into the prefix's system32 are placeholders, NOT the
+# code Wine executes — so a pre-initialized prefix is not a substitute.
+# Removing this directory makes every process fail to bootstrap with
+# STATUS_DLL_NOT_FOUND (c0000135): "failed to load .../x86_64-unix/ntdll.dll".
+echo "🔒 Keeping lib/wine/${PLATFORM_ARCH}-windows (required builtin PE DLLs)"
 
 ############################################
 # 🧹 PRUNE system32 — whitelist-based
