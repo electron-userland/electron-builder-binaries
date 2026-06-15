@@ -156,8 +156,6 @@ fi
 E2E_SKIP_REASON=""
 if [ -z "$WINE_ROOT" ]; then
     E2E_SKIP_REASON="no bundle"
-elif [ "$OS_NAME" = "linux" ] && ! command -v Xvfb >/dev/null 2>&1; then
-    E2E_SKIP_REASON="Xvfb not available for headless Wine on Linux"
 fi
 
 if [ -n "$E2E_SKIP_REASON" ]; then
@@ -165,8 +163,25 @@ if [ -n "$E2E_SKIP_REASON" ]; then
 else
     export WINEPREFIX="$WINE_ROOT/wine-home"
     export WINEDEBUG=-all
-    export DISPLAY="${DISPLAY:-:99}"
+    # Run headless: disable the macOS winemac driver so user32 uses the null
+    # display driver (Linux is already headless via --without-x). Without this
+    # the first GUI PE blocks on the macOS WindowServer indefinitely.
+    export WINEDLLOVERRIDES="winemac.drv="
+    unset DISPLAY
 fi
+
+# Run a command with a hard time cap (portable — macOS has no GNU timeout).
+# Kills it after $1 seconds so a Wine hang fails fast instead of stalling CI.
+bound() {
+    local secs="$1"; shift
+    "$@" &
+    local pid=$!
+    ( sleep "$secs"; kill -9 "$pid" 2>/dev/null ) >/dev/null 2>&1 &
+    local guard=$! rc=0
+    wait "$pid" 2>/dev/null || rc=$?
+    kill "$guard" 2>/dev/null || true
+    return "$rc"
+}
 
 # Helper: run one Windows EXE and assert its output matches a pattern.
 # Usage: wine_assert_output LABEL EXE_PATH HELP_FLAG PATTERN
@@ -176,7 +191,7 @@ wine_assert_output() {
         skip "$label (${E2E_SKIP_REASON})"; return
     fi
     local out
-    out=$("$WINE_ROOT/bin/wine" "$exe" "$flag" 2>&1 || true)
+    out=$(bound 120 "$WINE_ROOT/bin/wine" "$exe" "$flag" 2>&1 || true)
     if echo "$out" | grep -qiE "$pattern"; then
         pass "$label"
     else

@@ -220,7 +220,9 @@ export WINEPREFIX="$STAGE_DIR/wine-home"
 export WINEARCH=win64
 export WINEDEBUG=-all
 if $IS_DARWIN; then
-    export DISPLAY=:99
+    # Headless: use the null display driver instead of winemac.drv so prefix
+    # init never blocks on the macOS WindowServer on CI runners.
+    export WINEDLLOVERRIDES="winemac.drv="
 fi
 
 if $IS_DARWIN; then
