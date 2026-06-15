@@ -19,7 +19,7 @@
     "@changesets/cli": "^2.30.0",
     "@octokit/rest": "22.0.1",
     "@types/node": "^18.0.0",
-    "esbuild": "^0.25.0",
+    "esbuild": "^0.28.1",
     "mime-types": "^3.0.2",
     "typescript": "^5.0.0"
   },
