@@ -5,15 +5,7 @@ import { createIcns } from './icns'
 import { createIco } from './ico'
 import { createLinuxSet } from './linux'
 import { extractLargestPngFromIcns } from './icns-input'
-
-function parseArgs(argv: string[]): Record<string, string> {
-  const args: Record<string, string> = {}
-  for (const arg of argv) {
-    const m = arg.match(/^--([^=]+)=(.*)$/)
-    if (m) args[m[1]] = m[2]
-  }
-  return args
-}
+import { parseArgs } from './args'
 
 const VALID_FORMATS = ['icns', 'ico', 'set'] as const
 type Format = typeof VALID_FORMATS[number]
@@ -30,7 +22,7 @@ async function main(): Promise<void> {
   const outDir = args['out']
 
   if (!input || !format || !outDir) {
-    console.error('Usage: node icon-tool.js --input=<path> --format=<icns|ico|set> --out=<dir>')
+    console.error('Usage: node icon-tool.js --input <path> --format <icns|ico|set> --out <dir>')
     process.exit(1)
   }
 
