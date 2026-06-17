@@ -1,6 +1,7 @@
 import { writeFileSync } from 'fs'
 import { join } from 'path'
 import { resizeWithLanczos } from './vips'
+import { readPngSize } from './png'
 
 const ICO_SIZES = [16, 24, 32, 48, 64, 128, 256]
 
@@ -35,8 +36,16 @@ function packIco(frames: Array<{ size: number; png: Buffer }>): Buffer {
 }
 
 export async function createIco(inputBuffer: Buffer, outputDir: string): Promise<void> {
+  // Never upscale: only emit sizes the source can supply. Fall back to the source's
+  // own size if it is smaller than the smallest standard ICO size.
+  const { width, height } = readPngSize(inputBuffer)
+  const sourceSize = Math.max(width, height)
+  const sizes = ICO_SIZES.filter(s => s <= sourceSize)
+  if (sizes.length === 0) {
+    sizes.push(sourceSize)
+  }
   const frames = await Promise.all(
-    ICO_SIZES.map(async size => ({ size, png: await resizeWithLanczos(inputBuffer, size) }))
+    sizes.map(async size => ({ size, png: await resizeWithLanczos(inputBuffer, size) }))
   )
   writeFileSync(join(outputDir, 'icon.ico'), packIco(frames))
 }

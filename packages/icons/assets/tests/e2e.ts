@@ -6,6 +6,7 @@ import { tmpdir } from 'os'
 import { parseIcns, parseIco, parsePngDimensions } from './validate'
 import { isMemoryAllocationError, retryOnAllocationFailure } from '../src/retry'
 import { parseArgs } from '../src/args'
+import { extractLargestPngFromIcns } from '../src/icns-input'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -72,6 +73,28 @@ const TEST_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" 
   <rect width="100" height="100" fill="#4682dc"/>
   <circle cx="50" cy="50" r="35" fill="#ffffff" opacity="0.8"/>
 </svg>`
+
+// Build a minimal ICNS container from raw OSType frames (no resizing/deps).
+function makeIcns(frames: Array<{ ostype: string; payload: Buffer }>): Buffer {
+  const chunks: Buffer[] = []
+  for (const { ostype, payload } of frames) {
+    const hdr = Buffer.alloc(8)
+    hdr.write(ostype, 0, 'ascii')
+    hdr.writeUInt32BE(8 + payload.length, 4)
+    chunks.push(hdr, payload)
+  }
+  const body = Buffer.concat(chunks)
+  const fileHeader = Buffer.alloc(8)
+  fileHeader.write('icns', 0, 'ascii')
+  fileHeader.writeUInt32BE(8 + body.length, 4)
+  return Buffer.concat([fileHeader, body])
+}
+
+// A fake JPEG2000 box payload (signature only) — enough to exercise encoding detection.
+const FAKE_JP2 = Buffer.concat([
+  Buffer.from([0x00, 0x00, 0x00, 0x0c, 0x6a, 0x50, 0x20, 0x20, 0x0d, 0x0a, 0x87, 0x0a]),
+  Buffer.alloc(16),
+])
 
 // ---------------------------------------------------------------------------
 // Test runner
@@ -333,6 +356,100 @@ tests.push({
     const args = parseArgs(['--input', '--format', 'ico'])
     assert(args.input === '', `expected empty input, got: ${args.input}`)
     assert(args.format === 'ico', `format: ${args.format}`)
+  },
+})
+
+// ---------------------------------------------------------------------------
+// Unit tests: ICNS frame extraction (icns-input.ts) — issue #9876
+// ---------------------------------------------------------------------------
+
+// Test 16: extracts a PNG stored in a NON-preferred OSType (the #9876 regression).
+// Before the fix, an icns whose only PNG was e.g. ic07/icp6 returned null.
+tests.push({
+  name: 'icns-extract: finds PNG in a non-preferred OSType (ic07)',
+  run() {
+    const icns = makeIcns([{ ostype: 'ic07', payload: makeSolidPng(128) }])
+    const { png, entries } = extractLargestPngFromIcns(icns)
+    assert(png !== null, 'expected a PNG to be extracted from an ic07-only icns')
+    assert(parsePngDimensions(png!).width === 128, 'extracted PNG should be 128px wide')
+    assert(entries.some(e => e.ostype === 'ic07' && e.encoding === 'png'), 'ic07 should be classified as png')
+  },
+})
+
+// Test 17: among multiple PNG frames, the largest is returned (not the first preferred).
+tests.push({
+  name: 'icns-extract: selects the largest PNG frame',
+  run() {
+    const icns = makeIcns([
+      { ostype: 'icp5', payload: makeSolidPng(32) },
+      { ostype: 'ic07', payload: makeSolidPng(128) },
+      { ostype: 'icp4', payload: makeSolidPng(16) },
+    ])
+    const { png } = extractLargestPngFromIcns(icns)
+    assert(png !== null && parsePngDimensions(png).width === 128, 'should select the 128px frame')
+  },
+})
+
+// Test 18: non-PNG frames are reported (not silently dropped) and yield png=null.
+tests.push({
+  name: 'icns-extract: reports non-PNG encodings and returns null',
+  run() {
+    const icns = makeIcns([{ ostype: 'ic08', payload: FAKE_JP2 }])
+    const { png, entries } = extractLargestPngFromIcns(icns)
+    assert(png === null, 'JP2-only icns should not yield a PNG')
+    assert(entries.some(e => e.ostype === 'ic08' && e.encoding === 'jp2'), 'ic08 should be classified as jp2')
+  },
+})
+
+// Test 19: invalid magic and truncated entries are handled without throwing.
+tests.push({
+  name: 'icns-extract: rejects bad magic and tolerates truncation',
+  run() {
+    const notIcns = extractLargestPngFromIcns(Buffer.from('not an icns file at all'))
+    assert(notIcns.png === null && notIcns.entries.length === 0, 'bad magic should yield empty result')
+
+    // Valid header + an entry whose declared length runs past EOF must not throw.
+    const truncated = Buffer.concat([
+      Buffer.from('icns'),
+      (() => { const b = Buffer.alloc(4); b.writeUInt32BE(9999, 0); return b })(),
+      Buffer.from('ic07'),
+      (() => { const b = Buffer.alloc(4); b.writeUInt32BE(9999, 0); return b })(),
+      Buffer.alloc(4),
+    ])
+    const res = extractLargestPngFromIcns(truncated)
+    assert(res.png === null, 'truncated entry should not produce a PNG')
+  },
+})
+
+// Test 20: end-to-end round-trip — a small PNG → ICNS (frames stored only in
+// non-preferred OSTypes icp4/icp5/icp6/ic07) → ICO. This is the exact path that
+// failed in #9876; it must now succeed.
+tests.push({
+  name: 'round-trip: 128px PNG → ICNS → ICO',
+  run(tmpDir, toolPath) {
+    const dir = join(tmpDir, 'roundtrip')
+    mkdirSync(dir)
+    const smallPng = join(dir, 'small.png')
+    writeFileSync(smallPng, makeSolidPng(128))
+
+    const icnsOut = join(dir, 'icns')
+    mkdirSync(icnsOut)
+    execSync(`node "${toolPath}" --input "${smallPng}" --format icns --out "${icnsOut}"`)
+    const icnsFile = join(icnsOut, 'icon.icns')
+    if (!existsSync(icnsFile)) throw new Error('icon.icns was not created from 128px source')
+    // The 128px source only yields non-preferred frames (icp4/icp5/icp6/ic07/ic11/ic12).
+    const types = parseIcns(readFileSync(icnsFile))
+    if (!types.includes('ic07')) throw new Error(`expected ic07 frame, found: ${types.join(', ')}`)
+
+    const icoOut = join(dir, 'ico')
+    mkdirSync(icoOut)
+    execSync(`node "${toolPath}" --input "${icnsFile}" --format ico --out "${icoOut}"`)
+    const icoFile = join(icoOut, 'icon.ico')
+    if (!existsSync(icoFile)) throw new Error('icon.ico was not created from the round-tripped ICNS')
+    const sizes = parseIco(readFileSync(icoFile))
+    if (sizes.length === 0) throw new Error('round-tripped ICO contains no images')
+    // No-upscale: a 128px source must not produce a 256px ICO frame.
+    if (sizes.some(s => s > 128)) throw new Error(`ICO upscaled beyond source: ${sizes.join(', ')}`)
   },
 })
 

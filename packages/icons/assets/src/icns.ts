@@ -1,6 +1,7 @@
 import { writeFileSync } from 'fs'
 import { join } from 'path'
 import { resizeWithLanczos } from './vips'
+import { readPngSize } from './png'
 
 // Standard macOS ICNS entries. HiDPI entries (ic11–ic14) carry the same pixel
 // data as their standard counterparts — same render dimensions, different logical
@@ -15,8 +16,8 @@ const ICNS_ENTRIES: Array<{ osType: string; size: number }> = [
   { osType: 'ic10', size: 1024 },
   { osType: 'ic11', size: 32 },    // 16@2x
   { osType: 'ic12', size: 64 },    // 32@2x
-  { osType: 'ic13', size: 512 },   // 256@2x
-  { osType: 'ic14', size: 1024 },  // 512@2x
+  { osType: 'ic13', size: 256 },   // 128@2x
+  { osType: 'ic14', size: 512 },   // 256@2x
 ]
 
 // Pack pre-sized PNG frames into an ICNS container.
@@ -35,10 +36,16 @@ function packIcns(frames: Array<{ osType: string; png: Buffer }>): Buffer {
 }
 
 export async function createIcns(inputBuffer: Buffer, outputDir: string): Promise<void> {
-  // Determine source size from the PNG IHDR chunk to avoid upscaling
-  const sourceSize = inputBuffer.readUInt32BE(16)
+  // Determine source size from the PNG IHDR chunk to avoid upscaling. readPngSize
+  // validates the signature/IHDR so a non-PNG input fails loudly instead of being
+  // mis-sized from arbitrary bytes at offset 16.
+  const { width, height } = readPngSize(inputBuffer)
+  const sourceSize = Math.max(width, height)
 
   const entries = ICNS_ENTRIES.filter(e => e.size <= sourceSize)
+  if (entries.length === 0) {
+    throw new Error(`Source image is too small to build an ICNS (need at least 16px, got ${sourceSize}px)`)
+  }
 
   // Generate each unique pixel size once, reuse for HiDPI duplicates
   const uniqueSizes = [...new Set(entries.map(e => e.size))]

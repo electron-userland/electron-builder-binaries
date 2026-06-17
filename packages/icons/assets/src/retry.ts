@@ -17,8 +17,19 @@
 // processes' retries (the AWS "full jitter" strategy).
 
 export function isMemoryAllocationError(err: unknown): boolean {
-  const message = err instanceof Error ? err.message : String(err)
-  return /could not allocate memory|out of memory|cannot allocate memory/i.test(message)
+  // Include the error name so RangeError-flavored OOMs are matched by their message.
+  const message = err instanceof Error ? `${err.name}: ${err.message}` : String(err)
+  const code = (err as NodeJS.ErrnoException | undefined)?.code
+  if (code === 'ENOMEM') {
+    return true
+  }
+  // Covers the various phrasings V8/Emscripten/Node use when allocation fails:
+  // "WebAssembly.Memory(): could not allocate memory", "Out of memory",
+  // "Cannot enlarge memory arrays", "memory access out of bounds",
+  // "Array buffer allocation failed", "Aborted(OOM)", bare ENOMEM/OOM.
+  return /could not allocate memory|out of memory|cannot allocate|cannot enlarge memory|enlarge memory arrays|memory access out of bounds|array buffer allocation failed|WebAssembly\.Memory|\bENOMEM\b|\bOOM\b/i.test(
+    message
+  )
 }
 
 export interface RetryOptions {
@@ -36,7 +47,6 @@ const defaultSleep = (ms: number): Promise<void> => new Promise(resolve => setTi
 // Non-allocation errors propagate immediately so real bugs are never masked.
 export async function retryOnAllocationFailure<T>(fn: () => Promise<T>, options: RetryOptions = {}): Promise<T> {
   const attempts = options.attempts ?? 12
-  if (attempts < 1) throw new Error(`retryOnAllocationFailure: attempts must be >= 1 (got ${attempts})`)
   const baseDelayMs = options.baseDelayMs ?? 200
   const maxDelayMs = options.maxDelayMs ?? 2500
   const sleep = options.sleep ?? defaultSleep
