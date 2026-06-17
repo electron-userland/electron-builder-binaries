@@ -4,6 +4,8 @@ import { deflateSync } from 'zlib'
 import { join, dirname } from 'path'
 import { tmpdir } from 'os'
 import { parseIcns, parseIco, parsePngDimensions } from './validate'
+import { isMemoryAllocationError, retryOnAllocationFailure } from '../src/retry'
+import { parseArgs } from '../src/args'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -75,7 +77,14 @@ const TEST_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" 
 // Test runner
 // ---------------------------------------------------------------------------
 
-type Test = { name: string; run: (tmpDir: string, toolPath: string, pngFixture: string, svgFixture: string) => void }
+type Test = {
+  name: string
+  run: (tmpDir: string, toolPath: string, pngFixture: string, svgFixture: string) => void | Promise<void>
+}
+
+function assert(condition: boolean, message: string): void {
+  if (!condition) throw new Error(message)
+}
 
 const tests: Test[] = []
 
@@ -85,7 +94,7 @@ tests.push({
   run(tmpDir, toolPath, pngFixture) {
     const out = join(tmpDir, 'png-icns')
     mkdirSync(out)
-    execSync(`node "${toolPath}" --input="${pngFixture}" --format=icns --out="${out}"`)
+    execSync(`node "${toolPath}" --input "${pngFixture}" --format icns --out "${out}"`)
     const file = join(out, 'icon.icns')
     if (!existsSync(file)) throw new Error('icon.icns was not created')
     const entries = parseIcns(readFileSync(file))
@@ -104,7 +113,7 @@ tests.push({
   run(tmpDir, toolPath, pngFixture) {
     const out = join(tmpDir, 'png-ico')
     mkdirSync(out)
-    execSync(`node "${toolPath}" --input="${pngFixture}" --format=ico --out="${out}"`)
+    execSync(`node "${toolPath}" --input "${pngFixture}" --format ico --out "${out}"`)
     const file = join(out, 'icon.ico')
     if (!existsSync(file)) throw new Error('icon.ico was not created')
     const sizes = parseIco(readFileSync(file))
@@ -122,7 +131,7 @@ tests.push({
   run(tmpDir, toolPath, pngFixture) {
     const out = join(tmpDir, 'png-set')
     mkdirSync(out)
-    execSync(`node "${toolPath}" --input="${pngFixture}" --format=set --out="${out}"`)
+    execSync(`node "${toolPath}" --input "${pngFixture}" --format set --out "${out}"`)
     const expectedSizes = [16, 24, 32, 48, 64, 128, 256, 512]
     for (const sz of expectedSizes) {
       const file = join(out, `${sz}x${sz}.png`)
@@ -141,7 +150,7 @@ tests.push({
   run(tmpDir, toolPath, _pngFixture, svgFixture) {
     const out = join(tmpDir, 'svg-icns')
     mkdirSync(out)
-    execSync(`node "${toolPath}" --input="${svgFixture}" --format=icns --out="${out}"`)
+    execSync(`node "${toolPath}" --input "${svgFixture}" --format icns --out "${out}"`)
     const file = join(out, 'icon.icns')
     if (!existsSync(file)) throw new Error('icon.icns from SVG was not created')
     const entries = parseIcns(readFileSync(file))
@@ -155,7 +164,7 @@ tests.push({
   run(tmpDir, toolPath, _pngFixture, svgFixture) {
     const out = join(tmpDir, 'svg-ico')
     mkdirSync(out)
-    execSync(`node "${toolPath}" --input="${svgFixture}" --format=ico --out="${out}"`)
+    execSync(`node "${toolPath}" --input "${svgFixture}" --format ico --out "${out}"`)
     const file = join(out, 'icon.ico')
     if (!existsSync(file)) throw new Error('icon.ico from SVG was not created')
     const sizes = parseIco(readFileSync(file))
@@ -169,13 +178,13 @@ tests.push({
   run(tmpDir, toolPath, pngFixture) {
     const step1 = join(tmpDir, 'icns-ico-step1')
     mkdirSync(step1)
-    execSync(`node "${toolPath}" --input="${pngFixture}" --format=icns --out="${step1}"`)
+    execSync(`node "${toolPath}" --input "${pngFixture}" --format icns --out "${step1}"`)
     const icnsFile = join(step1, 'icon.icns')
     if (!existsSync(icnsFile)) throw new Error('Step 1: icon.icns was not created')
 
     const step2 = join(tmpDir, 'icns-ico-step2')
     mkdirSync(step2)
-    execSync(`node "${toolPath}" --input="${icnsFile}" --format=ico --out="${step2}"`)
+    execSync(`node "${toolPath}" --input "${icnsFile}" --format ico --out "${step2}"`)
     const icoFile = join(step2, 'icon.ico')
     if (!existsSync(icoFile)) throw new Error('icon.ico from ICNS was not created')
     const sizes = parseIco(readFileSync(icoFile))
@@ -189,13 +198,13 @@ tests.push({
   run(tmpDir, toolPath, pngFixture) {
     const step1 = join(tmpDir, 'icns-set-step1')
     mkdirSync(step1)
-    execSync(`node "${toolPath}" --input="${pngFixture}" --format=icns --out="${step1}"`)
+    execSync(`node "${toolPath}" --input "${pngFixture}" --format icns --out "${step1}"`)
     const icnsFile = join(step1, 'icon.icns')
     if (!existsSync(icnsFile)) throw new Error('Step 1: icon.icns was not created')
 
     const step2 = join(tmpDir, 'icns-set-step2')
     mkdirSync(step2)
-    execSync(`node "${toolPath}" --input="${icnsFile}" --format=set --out="${step2}"`)
+    execSync(`node "${toolPath}" --input "${icnsFile}" --format set --out "${step2}"`)
     const expectedSizes = [16, 24, 32, 48, 64, 128, 256, 512]
     for (const sz of expectedSizes) {
       const file = join(step2, `${sz}x${sz}.png`)
@@ -209,10 +218,129 @@ tests.push({
 })
 
 // ---------------------------------------------------------------------------
+// Unit tests: WASM memory-allocation retry (retry.ts)
+// ---------------------------------------------------------------------------
+
+// Deterministic options: no real timers, fixed RNG → tests run instantly.
+const noWaitOpts = { sleep: async () => {}, random: () => 0 }
+
+// Test 8: retries a transient memory-allocation failure then succeeds
+tests.push({
+  name: 'retry: recovers from transient allocation failure',
+  async run() {
+    let calls = 0
+    const result = await retryOnAllocationFailure(async () => {
+      calls++
+      if (calls < 3) throw new Error('WebAssembly.Memory(): could not allocate memory')
+      return 'ok'
+    }, noWaitOpts)
+    assert(result === 'ok', `expected "ok", got "${result}"`)
+    assert(calls === 3, `expected 3 attempts, got ${calls}`)
+  },
+})
+
+// Test 9: gives up after the configured attempts, surfacing the last error
+tests.push({
+  name: 'retry: gives up after exhausting attempts',
+  async run() {
+    let calls = 0
+    let threw = false
+    try {
+      await retryOnAllocationFailure(async () => {
+        calls++
+        throw new Error('out of memory')
+      }, { ...noWaitOpts, attempts: 4 })
+    } catch (err) {
+      threw = true
+      assert(isMemoryAllocationError(err), 'expected a memory-allocation error to propagate')
+    }
+    assert(threw, 'expected retryOnAllocationFailure to throw after exhausting attempts')
+    assert(calls === 4, `expected 4 attempts, got ${calls}`)
+  },
+})
+
+// Test 10: does NOT retry non-allocation errors — they propagate immediately
+tests.push({
+  name: 'retry: rethrows non-allocation errors without retrying',
+  async run() {
+    let calls = 0
+    let threw = false
+    try {
+      await retryOnAllocationFailure(async () => {
+        calls++
+        throw new Error('some unrelated bug')
+      }, noWaitOpts)
+    } catch (err) {
+      threw = true
+      assert((err as Error).message === 'some unrelated bug', 'expected the original error to propagate')
+    }
+    assert(threw, 'expected the non-allocation error to be thrown')
+    assert(calls === 1, `expected exactly 1 attempt for a non-allocation error, got ${calls}`)
+  },
+})
+
+// Test 11: isMemoryAllocationError classifies messages correctly
+tests.push({
+  name: 'retry: isMemoryAllocationError classification',
+  run() {
+    assert(isMemoryAllocationError(new Error('WebAssembly.Memory(): could not allocate memory')), 'should match the observed CI error')
+    assert(isMemoryAllocationError(new Error('Out of memory')), 'should match "Out of memory"')
+    assert(!isMemoryAllocationError(new Error('ENOENT: no such file')), 'should not match unrelated errors')
+  },
+})
+
+// ---------------------------------------------------------------------------
+// Unit tests: CLI argument parsing (args.ts)
+// ---------------------------------------------------------------------------
+
+// Test 12: space-delimited form — `--key value`
+tests.push({
+  name: 'args: parses space-delimited flags',
+  run() {
+    const args = parseArgs(['--input', '/tmp/icon.png', '--format', 'ico', '--out', '/tmp/out'])
+    assert(args.input === '/tmp/icon.png', `input: ${args.input}`)
+    assert(args.format === 'ico', `format: ${args.format}`)
+    assert(args.out === '/tmp/out', `out: ${args.out}`)
+  },
+})
+
+// Test 13: concatenated form — `--key=value` (backward compatibility)
+tests.push({
+  name: 'args: parses concatenated flags',
+  run() {
+    const args = parseArgs(['--input=/tmp/icon.png', '--format=icns', '--out=/tmp/out'])
+    assert(args.input === '/tmp/icon.png', `input: ${args.input}`)
+    assert(args.format === 'icns', `format: ${args.format}`)
+    assert(args.out === '/tmp/out', `out: ${args.out}`)
+  },
+})
+
+// Test 14: mixed forms and values containing characters that used to need escaping
+tests.push({
+  name: 'args: handles mixed forms, spaces, and "=" in values',
+  run() {
+    const args = parseArgs(['--input', '/tmp/my icons/a=b.png', '--format=set', '--out', '/out dir'])
+    assert(args.input === '/tmp/my icons/a=b.png', `input: ${args.input}`)
+    assert(args.format === 'set', `format: ${args.format}`)
+    assert(args.out === '/out dir', `out: ${args.out}`)
+  },
+})
+
+// Test 15: a flag with no value (followed by another flag) yields an empty string
+tests.push({
+  name: 'args: missing value does not swallow the next flag',
+  run() {
+    const args = parseArgs(['--input', '--format', 'ico'])
+    assert(args.input === '', `expected empty input, got: ${args.input}`)
+    assert(args.format === 'ico', `format: ${args.format}`)
+  },
+})
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
-function run(): void {
+async function run(): Promise<void> {
   // icon-tool.js is a sibling of this compiled e2e.js in the out/ directory
   const toolPath = join(dirname(process.argv[1]), 'icon-tool.js')
   if (!existsSync(toolPath)) {
@@ -232,7 +360,7 @@ function run(): void {
   let failed = 0
   for (const t of tests) {
     try {
-      t.run(tmpDir, toolPath, pngFixture, svgFixture)
+      await t.run(tmpDir, toolPath, pngFixture, svgFixture)
       console.log(`  PASS  ${t.name}`)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -252,4 +380,7 @@ function run(): void {
   console.log(`All ${tests.length} tests passed.`)
 }
 
-run()
+run().catch((err: unknown) => {
+  console.error(err instanceof Error ? err.stack || err.message : String(err))
+  process.exit(1)
+})
