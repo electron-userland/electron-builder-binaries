@@ -15,7 +15,7 @@ source failed with "Could not extract a PNG frame from ICNS file".
   produced from small sources. ICNS magic and per-entry bounds are now validated.
 - **Diagnostics:** on extraction failure the CLI now lists the frames found and
   their detected encodings (png/jp2/argb/raw), and the tool emits optional debug
-  logging via the standard `DEBUG=electron-builder:icons` convention (no new
+  logging via the standard `DEBUG=icons` convention (no new
   runtime dependency). JPEG2000/ARGB/legacy-raw frames remain undecodable by the
   bundled wasm-vips build but now produce an actionable message instead of a
   generic one.
