@@ -1,5 +1,5 @@
 import { execSync } from 'child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { deflateSync } from 'zlib'
 import { join, dirname } from 'path'
 import { tmpdir } from 'os'
@@ -100,9 +100,11 @@ const FAKE_JP2 = Buffer.concat([
 // Test runner
 // ---------------------------------------------------------------------------
 
+// A test may return `{ skipped: reason }` to be reported as skipped (e.g. platform-specific tooling).
+type SkipResult = { skipped: string }
 type Test = {
   name: string
-  run: (tmpDir: string, toolPath: string, pngFixture: string, svgFixture: string) => void | Promise<void>
+  run: (tmpDir: string, toolPath: string, pngFixture: string, svgFixture: string) => void | SkipResult | Promise<void | SkipResult>
 }
 
 function assert(condition: boolean, message: string): void {
@@ -122,10 +124,53 @@ tests.push({
     if (!existsSync(file)) throw new Error('icon.icns was not created')
     const entries = parseIcns(readFileSync(file))
     if (entries.length === 0) throw new Error('ICNS file contains no entries')
-    // At minimum, modern entries ic07–ic14 should be present for a 1024×1024 input
-    const required = ['ic07', 'ic08', 'ic09', 'ic10']
+    // For a 1024×1024 source, every standard entry must be present. icp4 (16px) and icp5 (32px) guard
+    // against regression #9940, where the small non-@2x sizes were dropped and the icon rendered broken
+    // in Finder/Activity Monitor list views. ic11–ic14 are the HiDPI (@2x) counterparts.
+    const required = ['icp4', 'icp5', 'ic07', 'ic08', 'ic09', 'ic10', 'ic11', 'ic12', 'ic13', 'ic14']
     for (const e of required) {
       if (!entries.includes(e)) throw new Error(`ICNS is missing entry "${e}" (found: ${entries.join(', ')})`)
+    }
+  },
+})
+
+// Test 1b: PNG → ICNS validated with macOS `iconutil` (the exact repro from issue #9940).
+// iconutil is macOS-only, so this is skipped on Linux/Windows CI; the Build Icons workflow runs it
+// in a dedicated macOS job. It converts the generated .icns back to an .iconset and asserts every
+// standard size is present — most importantly the non-@2x icon_16x16.png / icon_32x32.png that #9940
+// reported missing (which broke the icon in Finder/Activity Monitor/Trash list views).
+tests.push({
+  name: 'PNG → ICNS → iconutil iconset (all macOS sizes present)',
+  run(tmpDir, toolPath, pngFixture) {
+    if (process.platform !== 'darwin') {
+      return { skipped: 'iconutil is macOS-only' }
+    }
+    const out = join(tmpDir, 'iconutil-icns')
+    mkdirSync(out)
+    execSync(`node "${toolPath}" --input "${pngFixture}" --format icns --out "${out}"`)
+    const icnsFile = join(out, 'icon.icns')
+    if (!existsSync(icnsFile)) throw new Error('icon.icns was not created')
+
+    const iconset = join(tmpDir, 'iconutil-check.iconset')
+    execSync(`iconutil --convert iconset "${icnsFile}" --output "${iconset}"`)
+    const produced = new Set(readdirSync(iconset))
+
+    // The 10 standard macOS iconset sizes. icon_16x16.png and icon_32x32.png are the ones #9940 dropped.
+    const requiredSizes = [
+      'icon_16x16.png',
+      'icon_16x16@2x.png',
+      'icon_32x32.png',
+      'icon_32x32@2x.png',
+      'icon_128x128.png',
+      'icon_128x128@2x.png',
+      'icon_256x256.png',
+      'icon_256x256@2x.png',
+      'icon_512x512.png',
+      'icon_512x512@2x.png',
+    ]
+    const missing = requiredSizes.filter(name => !produced.has(name))
+    if (missing.length > 0) {
+      throw new Error(`iconutil iconset is missing sizes: ${missing.join(', ')} (found: ${[...produced].sort().join(', ')})`)
     }
   },
 })
@@ -475,9 +520,15 @@ async function run(): Promise<void> {
   writeFileSync(svgFixture, Buffer.from(TEST_SVG))
 
   let failed = 0
+  let skipped = 0
   for (const t of tests) {
     try {
-      await t.run(tmpDir, toolPath, pngFixture, svgFixture)
+      const result = await t.run(tmpDir, toolPath, pngFixture, svgFixture)
+      if (result && typeof result === 'object' && 'skipped' in result) {
+        console.log(`  SKIP  ${t.name} (${result.skipped})`)
+        skipped++
+        continue
+      }
       console.log(`  PASS  ${t.name}`)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -494,7 +545,8 @@ async function run(): Promise<void> {
     console.error(`${failed} of ${tests.length} test(s) failed.`)
     process.exit(1)
   }
-  console.log(`All ${tests.length} tests passed.`)
+  const skipSuffix = skipped > 0 ? ` (${skipped} skipped)` : ''
+  console.log(`All ${tests.length - skipped} tests passed${skipSuffix}.`)
 }
 
 run().catch((err: unknown) => {
