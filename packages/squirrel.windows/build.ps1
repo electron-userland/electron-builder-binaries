@@ -89,19 +89,23 @@ foreach ($src in $copyMap.Keys) {
 Write-Host "`n✅ Squirrel executables copied."
 
 # --- nuget.exe
-# Bundle the standalone portable nuget.exe from the NuGet.CommandLine Chocolatey package,
-# NOT the shim at (Get-Command nuget.exe).Source. The Chocolatey shim is a thin wrapper
-# that resolves the real binary relative to its own install path; when copied to an
-# arbitrary temp directory it fails with "Cannot find file at ..\lib\NuGet.CommandLine\...".
-Write-Host "`n📦 Bundling nuget.exe..."
-$chocoInstall = if ($env:ChocolateyInstall) { $env:ChocolateyInstall } else { Join-Path $env:ProgramData "chocolatey" }
-$realNuget = Join-Path $chocoInstall "lib\NuGet.CommandLine\tools\nuget.exe"
-if (-not (Test-Path $realNuget)) {
-    Write-Error "NuGet.CommandLine standalone exe not found at '$realNuget'. Install with: choco install nuget.commandline"
+# Ship a pinned, checksum-verified standalone nuget.exe. The Chocolatey shim (bin\nuget.exe) resolves
+# the real binary relative to its own install path and breaks once relocated to an arbitrary temp dir,
+# so the standalone NuGet.CommandLine exe is required. Pinning the download — rather than copying
+# whatever version the runner happens to have installed — keeps the bundled binary reproducible and
+# in lockstep with the version electron-builder provisions at runtime.
+$nugetVersion = "6.14.0"
+$nugetSha256  = "92DBED160DDEE0F64B901E907439E021211B428E57C089ECC12FC38DCC4BD9A5"
+$nugetUrl     = "https://dist.nuget.org/win-x86-commandline/v$nugetVersion/nuget.exe"
+$nugetDest    = Join-Path $vendorDir "nuget.exe"
+Write-Host "`n📦 Downloading pinned nuget.exe v$nugetVersion..."
+Invoke-WebRequest -Uri $nugetUrl -OutFile $nugetDest -UseBasicParsing
+$actualSha = (Get-FileHash -Path $nugetDest -Algorithm SHA256).Hash
+if ($actualSha -ne $nugetSha256) {
+    Write-Error "nuget.exe checksum mismatch: expected $nugetSha256, got $actualSha"
     exit 1
 }
-Copy-Item $realNuget (Join-Path $vendorDir "nuget.exe") -Force
-Write-Host "  Source: $realNuget"
+Write-Host "  Source: $nugetUrl (sha256 verified)"
 
 # --- 7-Zip binaries
 # Ship both a pre-selected 7z.exe/dll (x64, the host arch on GitHub Actions windows runners)
