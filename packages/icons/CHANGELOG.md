@@ -1,5 +1,11 @@
 # icons
 
+## 1.2.2
+
+### Patch Changes
+
+- [#216](https://github.com/electron-userland/electron-builder-binaries/pull/216) [`3869267`](https://github.com/electron-userland/electron-builder-binaries/commit/386926742b532bfb79845d8e06034f97a480e5cc) Thanks [@mmaietta](https://github.com/mmaietta)! - chore(test): add `iconutil` to e2e test suite and migrate to macos GH runner
+
 ## 1.2.1
 
 ### Patch Changes

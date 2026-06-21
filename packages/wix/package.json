@@ -1,5 +1,5 @@
 {
     "name": "wix",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "WiX Toolset v3 binaries (candle, light, extensions) for building MSI installers"
 }
