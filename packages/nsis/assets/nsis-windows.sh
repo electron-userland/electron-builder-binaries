@@ -275,6 +275,15 @@ mkdir -p "$BUNDLE_DIR/windows"
 tar -xzf "$TEMP_DIR/install.tar.gz" -C "$BUNDLE_DIR/windows"
 rm -f "$TEMP_DIR/install.tar.gz"
 
+# Strip Bin/ tools that electron-builder's headless makensis pipeline never uses.
+# makensis.exe lives at windows/makensis.exe (not Bin/) and reads none of these.
+# RegTool-*.bin and makensisw.exe in particular are recurring AV false-positives.
+echo "🧹 Removing unused Bin/ tools (AV false-positive sources)..."
+rm -f "$BUNDLE_DIR/windows/Bin/RegTool-"*.bin \
+      "$BUNDLE_DIR/windows/Bin/makensisw.exe" \
+      "$BUNDLE_DIR/windows/Bin/zip2exe.exe" \
+      "$BUNDLE_DIR/windows/Bin/MakeLangId.exe"
+
 if [ ! -f "$BUNDLE_DIR/windows/makensis.exe" ]; then
     echo "❌ makensis.exe not found in Docker output"
     exit 1
