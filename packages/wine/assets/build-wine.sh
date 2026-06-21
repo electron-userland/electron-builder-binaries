@@ -119,11 +119,29 @@ fi
 
 CONFIGURE_FLAGS=(
   --prefix="$STAGE_DIR"
+  # 64-bit Wine that ALSO builds the i386 PE DLLs (new WoW64), matching the proven macos-wine-build
+  # reference (--enable-win64 + --enable-archs=i386,x86_64). electron-builder's tools are 32-bit
+  # (rcedit, WiX candle/light, makensis, WriteZipToSetup) and Wine Mono installs via a 32-bit msiexec,
+  # so without the i386 arch every 32-bit process dies with c0000135 (missing
+  # lib/wine/i386-windows/ntdll.dll). On Linux/Intel x86_64 the CPU runs 32-bit natively.
   --enable-win64
-  --without-x
-  --without-cups
-  --without-dbus
-  --without-freetype
+  --enable-archs=i386,x86_64
+  # Drop every external binding electron-builder's CLI tools (rcedit, candle/light, makensis,
+  # signtool, makeappx) never touch. This shrinks the build and — the real win — removes the
+  # matching host .so dependencies, so the bundle doesn't require GStreamer/Vulkan/X/PulseAudio/etc.
+  # on the end user's machine. Kept (not listed): mingw (PE compilation), gnutls (TLS for signtool
+  # timestamping), and the auto-detected libxml2 that backs candle's msxml3.
+  --without-x          --without-wayland
+  --without-opengl     --without-vulkan      --without-opencl
+  --without-gstreamer  --without-ffmpeg
+  --without-alsa       --without-oss         --without-pulse      --without-coreaudio
+  --without-cups       --without-dbus        --without-udev
+  --without-freetype   --without-fontconfig
+  --without-sane       --without-gphoto      --without-usb        --without-v4l2
+  --without-capi       --without-pcap        --without-pcsclite
+  --without-krb5       --without-gssapi      --without-netapi
+  --without-hwloc      --without-sdl
+  --without-inotify    --without-gettextpo
 )
 
 NCPU=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
@@ -166,7 +184,7 @@ fi
 
 cd "$ROOT_DIR"
 
-# Wine 9+ with --enable-win64 no longer installs a separate wine64 binary.
+# Wine 9+ (win64 / new WoW64) no longer installs a separate wine64 binary.
 # Add wine64 → wine symlink for electron-builder compatibility.
 if [ ! -e "$STAGE_DIR/bin/wine64" ] && [ -f "$STAGE_DIR/bin/wine" ]; then
     ln -s wine "$STAGE_DIR/bin/wine64"
@@ -280,6 +298,29 @@ fi
 rm -f "$MONO_DATADIR"/*.msi
 
 ############################################
+# 🧪 RETRACE (opt-in, container only) — regenerate the committed keep-list(s)
+############################################
+
+# Refresh wine-keep-dlls.txt by tracing the real tools under THIS freshly-built — still un-pruned —
+# Wine (full DLLs + Wine Mono present, so candle/light/makensis actually run). This downloads and
+# executes AV-flagged Windows tooling, so it is opt-in (RETRACE=1) and meant to run INSIDE the Linux
+# build container, never on a developer's machine. generate-trace-exes.sh rewrites the list next to
+# itself (where the prune below reads it); we also copy it to $OUT_DIR so it can be retrieved from the
+# mounted /output volume and committed:
+#   docker run --rm --platform linux/amd64 -e RETRACE=1 -e OUT_DIR=/output \
+#       -v "$PWD/refresh:/output" wine-builder-linux
+#   cp refresh/wine-keep-dlls.txt packages/wine/assets/   # then git add + commit
+if [ -n "${RETRACE:-}" ]; then
+    echo "🧪 RETRACE=1 — regenerating keep-list(s) by tracing tools under the new Wine..."
+    WINE_BIN="$STAGE_DIR/bin/wine" WINEPREFIX="$WINEPREFIX" \
+        bash "$SCRIPT_DIR/generate-trace-exes.sh" "$BUILD_DIR/trace-tools"
+    mkdir -p "$OUT_DIR"
+    cp "$SCRIPT_DIR/wine-keep-dlls.txt" "$OUT_DIR/" 2>/dev/null || true
+    cp "$SCRIPT_DIR/wine-mono-loaded.txt" "$OUT_DIR/" 2>/dev/null || true
+    echo "📄 Regenerated keep-list(s) + Mono evidence copied to $OUT_DIR — commit wine-keep-dlls.txt into packages/wine/assets/"
+fi
+
+############################################
 # 🧹 PRUNE PE DLLS — whitelist-based (system32 prefix + lib/wine builtin dlldirs)
 ############################################
 
@@ -353,6 +394,44 @@ done
 # Non-essential file types
 rm -f "$SYSTEM32_DIR"/*.cpl "$SYSTEM32_DIR"/*.tlb "$SYSTEM32_DIR"/*.ocx \
       "$SYSTEM32_DIR"/*.drv "$SYSTEM32_DIR"/*.ax  "$SYSTEM32_DIR"/*.acm
+
+############################################
+# 🧹 PRUNE WINE MONO — drop .NET stacks WiX candle/light never load
+############################################
+
+# candle/light are console XML compiler/linker tools; they never touch WPF, Windows Forms, ASP.NET,
+# WCF, Workflow, System.Data, etc. Mono loads referenced assemblies lazily (on first type use), so
+# these being referenced in wix.dll's metadata does NOT load them — deleting the bodies is safe and is
+# where ~all the Mono size lives (WPF + WinForms dominate). Delete by assembly NAME across BOTH the GAC
+# (lib/mono/gac/<name>/...) and the 4.x profile dirs (lib/mono/<profile>/<name>.dll, often a symlink
+# into the GAC) per the committed denylist; a keep-floor is never deleted. Verify with RETRACE=1
+# (wine-mono-loaded.txt) and test.sh's candle/light run.
+MONO_PRUNE_FILE="$SCRIPT_DIR/wine-mono-prune.txt"
+MONO_GAC_DIR="$(find "$WINEPREFIX/drive_c/windows/mono" -type d -name gac 2>/dev/null | head -1)"
+if [ -n "$MONO_GAC_DIR" ] && [ -s "$MONO_PRUNE_FILE" ]; then
+    MONO_LIB_DIR="$(dirname "$MONO_GAC_DIR")"   # .../lib/mono
+    # Mono bootstrap + candle/light startup floor — never deleted regardless of the denylist.
+    MONO_KEEP_FLOOR="mscorlib System System.Xml System.Core System.Configuration System.Xml.Linq System.Numerics System.Security System.IO.Compression WineMono.Security Mono.Cecil"
+    echo "🧹 Pruning Wine Mono assemblies ($(basename "$MONO_PRUNE_FILE"))"
+    _mono_before=$(du -sm "$MONO_LIB_DIR" 2>/dev/null | awk '{print $1}')
+    while IFS= read -r _glob; do
+        case "$_glob" in ''|\#*) continue ;; esac
+        # Never let a glob delete a floor assembly.
+        _skip=false
+        for _f in $MONO_KEEP_FLOOR; do
+            case "$_f" in $_glob) _skip=true; break ;; esac
+        done
+        if $_skip; then echo "  ! skip '$_glob' (matches keep-floor)"; continue; fi
+        # GAC bodies, then the profile-dir entries/symlinks (never under gac/ or Facades/).
+        find "$MONO_GAC_DIR" -maxdepth 1 -type d -name "$_glob" -exec rm -rf {} + 2>/dev/null || true
+        find "$MONO_LIB_DIR" -maxdepth 2 \( -type f -o -type l \) -name "${_glob}.dll" \
+            ! -path "*/gac/*" ! -path "*/Facades/*" -delete 2>/dev/null || true
+    done < "$MONO_PRUNE_FILE"
+    _mono_after=$(du -sm "$MONO_LIB_DIR" 2>/dev/null | awk '{print $1}')
+    echo "  Wine Mono lib/mono: ${_mono_before:-?} MB → ${_mono_after:-?} MB"
+else
+    echo "ℹ️  Skipping Wine Mono prune (no GAC found or no $(basename "$MONO_PRUNE_FILE"))"
+fi
 
 ############################################
 # 🧹 REMOVE BULK WINDOWS CONTENT

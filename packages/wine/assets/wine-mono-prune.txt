@@ -1,0 +1,68 @@
+# Wine Mono assemblies to DELETE — denylist (default is KEEP).
+#
+# WiX candle.exe / light.exe are console XML compiler/linker tools; they never load WPF, Windows
+# Forms, ASP.NET, WCF, Workflow, data providers, etc. Mono loads referenced assemblies LAZILY (on
+# first type use), so these being referenced in wix.dll's metadata does NOT load them — deleting the
+# bodies is safe and is where ~all the size lives (WPF + WinForms dominate).
+#
+# build-wine.sh deletes every assembly whose name matches a glob below, from BOTH the Wine Mono GAC
+# (lib/mono/gac/<name>/...) and the 4.x profile dir (lib/mono/<profile>/<name>.dll, often a symlink
+# into the GAC). A hardcoded keep-floor in build-wine.sh (mscorlib, System, System.Xml, System.Core,
+# System.Configuration, System.Xml.Linq, the Mono bootstrap set, Facades, etc/mono, native engine) is
+# NEVER deleted, even if a glob here would match it.
+#
+# Verify after editing: in the Linux container, RETRACE=1 captures the assemblies candle/light
+# actually load (wine-mono-loaded.txt) so you can confirm none are listed here, and test.sh runs
+# candle/light under the pruned bundle.
+#
+# Conservative on purpose: small or possibly-UI-touching assemblies (System.Drawing, Accessibility,
+# System.Runtime.Serialization) are intentionally NOT listed — they're cheap to keep and the payoff
+# is in the big stacks below.
+
+# WPF (the single biggest chunk)
+PresentationFramework*
+PresentationCore
+WindowsBase
+System.Xaml
+ReachFramework
+System.Printing
+System.Windows.Controls.Ribbon
+UIAutomation*
+System.Windows.Input.Manipulations
+WindowsFormsIntegration
+
+# Windows Forms (System.Drawing intentionally kept)
+System.Windows.Forms*
+
+# ASP.NET / web
+System.Web*
+
+# WCF
+System.ServiceModel*
+System.IdentityModel*
+
+# Workflow
+System.Workflow*
+System.Activities*
+System.WorkflowServices
+
+# Data providers (0 usages in wix.dll)
+System.Data*
+
+# Directory services / management / other large unused frameworks
+System.DirectoryServices*
+System.Management*
+System.Speech
+Microsoft.VisualBasic*
+System.EnterpriseServices
+System.Messaging
+System.Deployment
+
+# Mono extras: C# REPL, debugger, profiler, bundled game libs, test frameworks
+Mono.CSharp
+Mono.Debugger*
+Mono.Profiler*
+FNA*
+SDL3*
+monoDX
+nunit*
