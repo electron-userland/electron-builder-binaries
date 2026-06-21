@@ -1,8 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Name="WixBundleTest" Manufacturer="electron-builder" Version="1.0.0.0"
-           UpgradeCode="12345678-1234-1234-1234-000000000001" Scope="perUser">
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="WixBundleTest" Version="1.0.0.0"
+           Manufacturer="electron-builder" Language="1033"
+           UpgradeCode="12345678-1234-1234-1234-000000000001">
+    <Package InstallerVersion="200" Compressed="yes" InstallScope="perUser" />
     <MediaTemplate EmbedCab="yes" />
-    <Feature Id="ProductFeature" Title="Stub" />
-  </Package>
+    <Feature Id="ProductFeature" Title="Stub">
+      <ComponentGroupRef Id="ProductComponents" />
+    </Feature>
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER" />
+  </Product>
+  <Fragment>
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="INSTALLFOLDER" Name="WixBundleTest" />
+      </Directory>
+    </Directory>
+  </Fragment>
 </Wix>

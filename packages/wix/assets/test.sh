@@ -5,7 +5,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PACKAGE_DIR="$SCRIPT_DIR/.."
 OUT_DIR="$PACKAGE_DIR/out/wix"
 
-WIX_VERSION="4.0.6"
+WIX_VERSION="3.14.1"
 ARCHIVE="$OUT_DIR/wix-${WIX_VERSION}.tar.gz"
 TEST_DIR="$(mktemp -d)"
 XVFB_PID=""
@@ -24,10 +24,11 @@ echo "PASS: Archive exists ($(du -h "$ARCHIVE" | cut -f1))"
 # 2. Extract
 tar -xzf "$ARCHIVE" -C "$TEST_DIR"
 
-# 3. Verify core tool files are present
-for f in wix.exe wix.dll WixToolset.Core.dll WixToolset.Core.Native.dll \
-          WixToolset.Core.WindowsInstaller.dll WixToolset.Data.dll \
-          WixToolset.Extensibility.dll; do
+# 3. Verify core v3 tool files are present
+for f in candle.exe candle.exe.config light.exe light.exe.config \
+          smoke.exe dark.exe heat.exe lit.exe \
+          wix.dll wix.targets winterop.dll mergemod.dll \
+          WixUIExtension.dll WixUtilExtension.dll; do
   if [ ! -f "$TEST_DIR/$f" ]; then
     echo "FAIL: Missing expected file: $f"
     exit 1
@@ -35,9 +36,8 @@ for f in wix.exe wix.dll WixToolset.Core.dll WixToolset.Core.Native.dll \
   echo "PASS: $f present"
 done
 
-# 4. Verify native assets (wixnative.exe is required for CAB creation)
-for f in "runtimes/win-x64/native/wixnative.exe" \
-          "cubes/darice.cub" "cubes/mergemod.cub"; do
+# 4. Verify native assets (cubes for ICE validation, burn bootstrapper engine)
+for f in "darice.cub" "mergemod.cub" "x86/burn.exe"; do
   if [ ! -f "$TEST_DIR/$f" ]; then
     echo "FAIL: Missing expected native asset: $f"
     exit 1
@@ -52,14 +52,18 @@ if [ ! -f "$TEST_DIR/LICENSE.TXT" ]; then
 fi
 echo "PASS: LICENSE.TXT present"
 
-# 6. Verify v3 tools are NOT present (candle/light replaced by wix.exe)
-for f in candle.exe light.exe smoke.exe; do
-  if [ -f "$TEST_DIR/$f" ]; then
-    echo "FAIL: v3 tool $f should not be in the v4 bundle"
+# 6. Verify dev-only dirs were excluded, and confirm this is v3 (no v4 wix.exe)
+for d in sdk doc; do
+  if [ -d "$TEST_DIR/$d" ]; then
+    echo "FAIL: dev-only directory '$d' should not be in the bundle"
     exit 1
   fi
 done
-echo "PASS: v3 tools absent (candle/light replaced by wix.exe)"
+if [ -f "$TEST_DIR/wix.exe" ]; then
+  echo "FAIL: wix.exe present — this should be the v3 candle/light bundle, not v4"
+  exit 1
+fi
+echo "PASS: dev-only dirs excluded (sdk/, doc/); v3 bundle confirmed (no wix.exe)"
 
 echo ""
 echo "=== Functional test via Wine ==="
@@ -82,7 +86,7 @@ fi
 echo "Using wine binary: $(command -v "$WINE_BIN") ($("$WINE_BIN" --version 2>/dev/null || echo unknown))"
 
 # Wine prefix strategy:
-#   Docker  → reuse the pre-initialized global prefix from the image build (Mono installed)
+#   Docker  → reuse the pre-initialized global prefix from the image build (wine-mono installed)
 #   macOS   → fresh temp prefix per run
 if [ -f /.dockerenv ] && [ -d /root/.wine ]; then
   export WINEPREFIX=/root/.wine
@@ -103,13 +107,17 @@ fi
 
 cp "$SCRIPT_DIR/test.wxs" "$TEST_DIR/test.wxs"
 
-# Convert Unix absolute paths to Wine Windows paths (Z: = host root)
-unix_to_wine() { echo "Z:$(echo "$1" | tr '/' '\\')"; }
+# Resolve Windows-style paths for the Wine-hosted tools. winepath is the most
+# reliable; fall back to mapping the Unix root onto the Z: drive.
+to_winpath() {
+  winepath -w "$1" 2>/dev/null || echo "Z:$(echo "$1" | tr '/' '\\')"
+}
 
-WIN_WXS=$(unix_to_wine "$TEST_DIR/test.wxs")
-WIN_MSI=$(unix_to_wine "$TEST_DIR/test.msi")
+WIN_WXS=$(to_winpath "$TEST_DIR/test.wxs")
+WIN_WIXOBJ=$(to_winpath "$TEST_DIR/test.wixobj")
+WIN_MSI=$(to_winpath "$TEST_DIR/test.msi")
 
-# Sanity-check basic Wine before attempting .NET
+# Sanity-check basic Wine before attempting .NET (candle/light are managed apps).
 echo "Running wine sanity check..."
 if ! timeout 15 "$WINE_BIN" cmd.exe /c exit 2>/dev/null; then
   echo "SKIP: basic wine cmd.exe failed — likely running under CPU emulation (Rosetta/QEMU)"
@@ -120,28 +128,36 @@ if ! timeout 15 "$WINE_BIN" cmd.exe /c exit 2>/dev/null; then
 fi
 echo "PASS: wine sanity check"
 
-# Run wix.exe build — single step replaces the v3 candle+light pipeline.
-# wix.exe targets net6.0. Under Wine, the .NET 6 Windows runtime must be
-# installed in the Wine prefix (e.g. via: winetricks dotnet60).
-# If the runtime is absent, wix.exe exits non-zero and we skip gracefully.
-echo "Running wix.exe build..."
-WIX_EXIT=0
-timeout 60 "$WINE_BIN" "$TEST_DIR/wix.exe" build "$WIN_WXS" -o "$WIN_MSI" 2>/dev/null \
-  || WIX_EXIT=$?
+# candle.exe compiles .wxs → .wixobj. candle/light are .NET Framework apps and
+# need wine-mono in the prefix; if it's absent, candle exits non-zero and we
+# skip gracefully rather than failing the structural guarantee.
+echo "Running candle.exe..."
+CANDLE_EXIT=0
+timeout 60 "$WINE_BIN" "$TEST_DIR/candle.exe" -nologo "$WIN_WXS" -o "$WIN_WIXOBJ" 2>/dev/null \
+  || CANDLE_EXIT=$?
 
-if [ ! -f "$TEST_DIR/test.msi" ]; then
-  if [ "$WIX_EXIT" -eq 124 ]; then
-    echo "SKIP: wix.exe timed out (timeout 60s)"
+if [ ! -f "$TEST_DIR/test.wixobj" ]; then
+  if [ "$CANDLE_EXIT" -eq 124 ]; then
+    echo "SKIP: candle.exe timed out (timeout 60s)"
   else
-    echo "SKIP: wix.exe exited $WIX_EXIT without producing test.msi"
+    echo "SKIP: candle.exe exited $CANDLE_EXIT without producing test.wixobj"
   fi
-  echo "      The .NET 6 Windows runtime is not installed in this Wine prefix."
-  echo "      To enable full Wine testing: winetricks dotnet60 (or dotnet80)"
+  echo "      The .NET Framework runtime (wine-mono) is not available in this Wine prefix."
   echo ""
   echo "=== Structural checks passed; functional build test skipped ==="
   exit 0
 fi
-echo "PASS: wix.exe build compiled test.wxs → test.msi"
+echo "PASS: candle.exe compiled test.wxs → test.wixobj"
+
+# light.exe links .wixobj → .msi. -sval suppresses ICE validation, which would
+# otherwise require the Windows Installer service (unavailable under Wine).
+echo "Running light.exe..."
+timeout 60 "$WINE_BIN" "$TEST_DIR/light.exe" -nologo -sval "$WIN_WIXOBJ" -o "$WIN_MSI" 2>/dev/null || true
+if [ ! -f "$TEST_DIR/test.msi" ]; then
+  echo "FAIL: light.exe did not produce test.msi"
+  exit 1
+fi
+echo "PASS: light.exe linked test.wixobj → test.msi"
 
 # Verify MSI magic bytes (OLE compound document: D0 CF 11 E0)
 MAGIC=$(xxd -l 4 -p "$TEST_DIR/test.msi")

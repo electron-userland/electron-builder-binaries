@@ -4,20 +4,25 @@ set -euo pipefail
 # =============================================================================
 # WiX Toolset Bundle Builder
 # =============================================================================
-# Builds WiX v4 from source (wixtoolset/wix) and packages into a tar.gz.
-# Source compilation is always free under MS-RL (fee applies only to the
-# official pre-built binary releases). See OSMFEULA.txt in the source repo.
+# Downloads the official WiX v3 binaries (wixtoolset/wix3) and repackages them
+# into a tar.gz. WiX v3 ships the classic candle.exe + light.exe pipeline, which
+# runs under Wine/mono on macOS and Linux — this is what electron-builder needs
+# for cross-platform MSI and Squirrel.Windows builds. (WiX v4's single wix.exe
+# targets .NET 6 and does not run under mono.)
+#
+# The WiX v3 binaries are distributed under the MS-RL; LICENSE.TXT ships inside
+# the upstream zip and is preserved in the bundle for redistribution.
 #
 # Build order:
-#   1. build        - Compile WiX from source (Windows only — requires MSVC + .NET SDK)
+#   1. build        - Download + repackage the v3 binaries into the tar.gz
 #   2. test-mac     - Smoke test on macOS via native Wine
 #   3. test-linux   - Smoke test inside linux/amd64 Docker container via Wine
 #   4. test-all     - Run test-mac and test-linux
-#   5. all          - build + test-linux (CI default)
+#   5. all          - build + tests (CI default)
 #
 # Platform requirements:
-#   build:       windows-2025 GitHub Actions runner (Visual Studio + MSVC + .NET SDK)
-#   test-mac:    wine in PATH (brew install wine-stable)
+#   build:       any host with curl, unzip, rsync, tar (no compiler needed)
+#   test-mac:    wine in PATH (brew install --cask wine-stable)
 #   test-linux:  Docker
 # =============================================================================
 
@@ -25,9 +30,10 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 ASSETS_DIR="$SCRIPT_DIR/assets"
 OUT_DIR="$SCRIPT_DIR/out/wix"
 
-WIX_VERSION="4.0.6"
-WIX_TAG="v4.0.6"
-WIX_REPO="https://github.com/wixtoolset/wix.git"
+WIX_VERSION="3.14.1"
+WIX_TAG="wix3141rtm"
+WIX_ZIP_URL="https://github.com/wixtoolset/wix3/releases/download/${WIX_TAG}/wix314-binaries.zip"
+WIX_SHA256="6ac824e1642d6f7277d0ed7ea09411a508f6116ba6fae0aa5f2c7daa2ff43d31"
 ARCHIVE_NAME="wix-${WIX_VERSION}.tar.gz"
 
 DOCKER_IMAGE="wix-builder"
@@ -49,99 +55,57 @@ print_banner() {
     echo ""
 }
 
-build_bundle() {
-    echo "Building WiX ${WIX_VERSION} from source..."
-    echo ""
-
-    # This target requires Windows — Visual Studio C++ tools and .NET SDK must be present.
-    # On GitHub Actions, use the windows-2025 runner which has VS 2026 pre-installed.
-    if [[ "${RUNNER_OS:-}" != "Windows" ]] && [[ "${OS:-}" != "Windows_NT" ]]; then
-        echo "❌ --target build requires a Windows environment."
-        echo "   WiX v4 source compilation needs Visual Studio C++ tools (wixnative.exe)"
-        echo "   and the .NET SDK. Use the windows-2025 GitHub Actions runner."
-        echo ""
-        echo "   To test an existing artifact: --target test-mac or --target test-linux"
+# Portable SHA-256 verification (sha256sum on Linux, shasum -a 256 on macOS).
+verify_sha256() {
+    local file="$1" expected="$2" actual
+    if command -v sha256sum &>/dev/null; then
+        actual="$(sha256sum "$file" | cut -d' ' -f1)"
+    elif command -v shasum &>/dev/null; then
+        actual="$(shasum -a 256 "$file" | cut -d' ' -f1)"
+    else
+        echo "❌ no sha256 tool found (need sha256sum or shasum)"
         exit 1
     fi
+    if [ "$actual" != "$expected" ]; then
+        echo "❌ checksum mismatch for $(basename "$file")"
+        echo "   expected: $expected"
+        echo "   actual:   $actual"
+        exit 1
+    fi
+}
+
+build_bundle() {
+    echo "Downloading WiX ${WIX_VERSION} binaries..."
+    echo ""
 
     local SRC_DIR
     SRC_DIR="$(mktemp -d)"
 
-    mkdir -p "$OUT_DIR"
+    mkdir -p "$OUT_DIR" "$SRC_DIR/extract" "$SRC_DIR/bundle"
 
-    echo "  Cloning wixtoolset/wix ${WIX_TAG}..."
-    git clone --depth=1 --branch "$WIX_TAG" "$WIX_REPO" "$SRC_DIR/wix"
+    echo "  Fetching ${WIX_ZIP_URL}"
+    curl -fsSL --retry 3 "$WIX_ZIP_URL" -o "$SRC_DIR/wix.zip"
 
-    # WiX generates its global.json from this template during build_init.cmd.
-    # The template's "sdk" block only sets allowPrerelease:false with NO version
-    # pin, so .NET picks the highest installed SDK (10.x on the runner). .NET SDK
-    # 10 requires MSBuild 18, but the v143 C++ toolset WiX needs only ships with
-    # VS 2022 (MSBuild 17). Pin the SDK to 8.x so MSBuild 17 can load it. This
-    # preserves the template's msbuild-sdks pins (Traversal, NoTargets).
-    echo "  Pinning .NET SDK to 8.x in global.json template..."
-    local GLOBAL_JSON_PP="$SRC_DIR/wix/src/internal/SetBuildNumber/global.json.pp"
-    sed -i.bak 's/"allowPrerelease": false/"version": "8.0.100",\n    "rollForward": "latestFeature",\n    "allowPrerelease": false/' \
-        "$GLOBAL_JSON_PP"
+    echo "  Verifying SHA-256..."
+    verify_sha256 "$SRC_DIR/wix.zip" "$WIX_SHA256"
 
-    # Pre-create wixnative intermediate directories to avoid RC1109 on windows-2022:
-    # parallel MSBuild sometimes invokes RC.exe before the IntDir exists, which
-    # causes "fatal error RC1109: error creating ver.res" and silently drops the
-    # wix.*.nupkg without aborting build_all.cmd.
-    mkdir -p "$SRC_DIR/wix/build/wix/obj/wixnative/Release/x86"
-    mkdir -p "$SRC_DIR/wix/build/wix/obj/wixnative/Release/x64"
-    mkdir -p "$SRC_DIR/wix/build/wix/obj/wixnative/Release/ARM64"
+    echo "  Extracting..."
+    unzip -q "$SRC_DIR/wix.zip" -d "$SRC_DIR/extract"
 
-    echo "  Building from source (Release, tests disabled)..."
-    cd "$SRC_DIR/wix"
-    export RuntimeTestsEnabled=false
-    # .NET SDK 8.0.400+ promotes targeting net6.0 from a warning to a build error
-    # (NETSDK1138). WiX v4.0.6's wix.csproj targets net6.0; disable the EOL check.
-    export CheckEolTargetFramework=false
-    # Use build_all.cmd directly to avoid the signing step in build_official.cmd.
-    # On windows-2022, build_all.cmd's vswhere -version [17.0,18.0) finds VS 2022
-    # and initializes the v143 developer environment automatically.
-    # set +e so cmd.exe exit codes aren't silently swallowed by Git Bash under set -e.
-    set +e
-    cmd //c "src\\build_all.cmd" Release
-    local BUILD_RC=$?
-    set -e
-    if [ $BUILD_RC -ne 0 ]; then
-        echo "❌ build_all.cmd failed with exit code $BUILD_RC"
-        exit $BUILD_RC
-    fi
+    # Strip dev-only payloads: sdk/ (libs + headers) and doc/ (chm/xsd).
+    # Everything else is kept, including LICENSE.TXT (MS-RL, required for
+    # redistribution), the candle/light/* tools, the Wix*Extension.dll set,
+    # the ICE cubes, and x86/burn.exe.
+    echo "  Filtering runtime files (excluding sdk/ and doc/)..."
+    rsync -a --exclude='sdk/' --exclude='doc/' "$SRC_DIR/extract/" "$SRC_DIR/bundle/"
 
-    echo "  Locating nupkg artifact..."
-    local NUPKG
-    # grep -v on empty input exits 1, which with pipefail kills the script before
-    # the diagnostic below runs.  Use find's own filter and || true instead.
-    NUPKG="$(find "$SRC_DIR/wix/build/artifacts" -name "wix.*.nupkg" \
-        ! -name "*.symbols.nupkg" 2>/dev/null | head -1 || true)"
-    if [ -z "$NUPKG" ]; then
-        echo "❌ wix.*.nupkg not found in build/artifacts/ — listing contents:"
-        find "$SRC_DIR/wix/build/artifacts" -type f 2>/dev/null | head -30 || true
+    if [ ! -f "$SRC_DIR/bundle/LICENSE.TXT" ]; then
+        echo "❌ LICENSE.TXT missing from bundle — required by MS-RL for redistribution"
         exit 1
     fi
-    echo "  Found: $(basename "$NUPKG")"
-
-    echo "  Extracting bundle contents from nupkg..."
-    local EXTRACT_DIR="$SRC_DIR/extract"
-    mkdir -p "$EXTRACT_DIR"
-    # nupkg is a zip; extract everything — unzip's * doesn't cross /, so a
-    # pattern like "tools/net6.0/any/*" silently drops runtimes/ and cubes/.
-    # The archive is built from CONTENT_DIR so NuGet metadata is never included.
-    unzip -q "$NUPKG" -d "$EXTRACT_DIR"
-
-    local CONTENT_DIR="$EXTRACT_DIR/tools/net6.0/any"
-    if [ ! -d "$CONTENT_DIR" ]; then
-        echo "❌ Expected tools/net6.0/any/ inside nupkg"
-        exit 1
-    fi
-
-    # Include the license (required by MS-RL for redistribution)
-    cp "$SRC_DIR/wix/LICENSE.TXT" "$CONTENT_DIR/"
 
     echo "  Creating archive..."
-    (cd "$CONTENT_DIR" && tar -czf "$OUT_DIR/$ARCHIVE_NAME" .)
+    (cd "$SRC_DIR/bundle" && tar -czf "$OUT_DIR/$ARCHIVE_NAME" .)
 
     echo ""
     echo "  Done: $OUT_DIR/$ARCHIVE_NAME ($(du -h "$OUT_DIR/$ARCHIVE_NAME" | cut -f1))"
@@ -154,7 +118,7 @@ test_mac() {
     echo ""
 
     if ! command -v wine &>/dev/null; then
-        echo "❌ wine not found. Install via: brew install wine-stable"
+        echo "❌ wine not found. Install via: brew install --cask wine-stable"
         exit 1
     fi
 
@@ -194,16 +158,16 @@ Options:
   --help, -h            Show this help
 
 Targets:
-  build       Compile WiX v${WIX_VERSION} from source and produce the tar.gz artifact
-              Requires Windows (windows-2025 GitHub Actions runner)
-  test-mac    Smoke test on macOS using native Wine (brew install wine-stable)
+  build       Download WiX v${WIX_VERSION} binaries and produce the tar.gz artifact
+              (needs curl, unzip, rsync, tar — runs on any host, no compiler)
+  test-mac    Smoke test on macOS using native Wine (brew install --cask wine-stable)
   test-linux  Build linux/amd64 Docker image and smoke test via Wine
   test-all    Run test-mac and test-linux
-  all         build + test-linux (default, matches CI)
+  all         build + tests (default)
 
 Examples:
-  ./build.sh                       # Full pipeline (Windows CI)
-  ./build.sh --target build        # Compile artifact only (Windows required)
+  ./build.sh                       # Full pipeline
+  ./build.sh --target build        # Produce the artifact only
   ./build.sh --target test-mac     # Test existing artifact on macOS
   ./build.sh --target test-linux   # Test existing artifact in Docker
   ./build.sh --target test-all     # Run both test targets
