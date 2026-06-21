@@ -49,7 +49,6 @@ RUN apt-get update && apt-get install -y \
     libxxf86vm-dev \
     patchelf \
     unzip \
-    p7zip-full \
     xvfb \
     xz-utils \
     && rm -rf /var/lib/apt/lists/*
@@ -61,7 +60,6 @@ WORKDIR /build
 COPY build-wine.sh /build/build-wine.sh
 COPY generate-trace-exes.sh /build/generate-trace-exes.sh
 COPY wine-keep-dlls.txt /build/wine-keep-dlls.txt
-COPY wine-mono-prune.txt /build/wine-mono-prune.txt
 RUN chmod +x /build/build-wine.sh /build/generate-trace-exes.sh
 
 # Output directory

@@ -6,13 +6,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="${ROOT_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 BUILD_DIR=${BUILD_DIR:-$ROOT_DIR/build}
 
-# NOTE: update the checksums here as new versions are added — both the Wine source tarball (keyed by
-# Wine version) and its bundled Wine Mono msi (keyed by "wine-mono-<version>", the version Wine pins in
-# dlls/appwiz.cpl/addons.c). sha256 from the upstream wine-mono GitHub release, which winehq mirrors.
+# NOTE: update the checksum here as new Wine versions are added.
 get_checksum() {
     case "$1" in
         11.0) echo "c07a6857933c1fc60dff5448d79f39c92481c1e9db5aa628db9d0358446e0701" ;;
-        wine-mono-10.4.1) echo "071f4b2887e1c97a11d791ff3d65be9429eed6dec4c2708888bfd546ba358e23" ;;
         *) exit 1 ;;
     esac
 }
@@ -120,17 +117,16 @@ fi
 CONFIGURE_FLAGS=(
   --prefix="$STAGE_DIR"
   # 64-bit Wine that ALSO builds the i386 PE DLLs (new WoW64), matching the proven macos-wine-build
-  # reference (--enable-win64 + --enable-archs=i386,x86_64). electron-builder's tools are 32-bit
-  # (rcedit, WiX candle/light, makensis, WriteZipToSetup) and Wine Mono installs via a 32-bit msiexec,
-  # so without the i386 arch every 32-bit process dies with c0000135 (missing
-  # lib/wine/i386-windows/ntdll.dll). On Linux/Intel x86_64 the CPU runs 32-bit natively.
+  # reference (--enable-win64 + --enable-archs=i386,x86_64). The native Windows tools this bundle runs
+  # are 32-bit (Squirrel's WriteZipToSetup, the generated NSIS installer), so without the i386 arch
+  # every 32-bit process dies with c0000135 (missing lib/wine/i386-windows/ntdll.dll). On Linux/Intel
+  # x86_64 the CPU runs 32-bit natively.
   --enable-win64
   --enable-archs=i386,x86_64
-  # Drop every external binding electron-builder's CLI tools (rcedit, candle/light, makensis,
-  # signtool, makeappx) never touch. This shrinks the build and — the real win — removes the
-  # matching host .so dependencies, so the bundle doesn't require GStreamer/Vulkan/X/PulseAudio/etc.
-  # on the end user's machine. Kept (not listed): mingw (PE compilation), gnutls (TLS for signtool
-  # timestamping), and the auto-detected libxml2 that backs candle's msxml3.
+  # Drop every external binding these native tools never touch. This shrinks the build and — the real
+  # win — removes the matching host .so dependencies, so the bundle doesn't require
+  # GStreamer/Vulkan/X/PulseAudio/etc. on the end user's machine. Kept (not listed): mingw (PE
+  # compilation) and gnutls (TLS).
   --without-x          --without-wayland
   --without-opengl     --without-vulkan      --without-opencl
   --without-gstreamer  --without-ffmpeg
@@ -246,33 +242,11 @@ if $IS_DARWIN; then
     export WINEDLLOVERRIDES="winemac.drv="
 fi
 
-# WiX candle.exe/light.exe are 32-bit .NET assemblies that run on Wine Mono. A from-source Wine
-# does not bundle the Mono .msi and a headless `wineboot --init` won't fetch one, so place the exact
-# version THIS Wine expects — read from its own source, never hardcoded — into the Wine datadir,
-# where wineboot installs it into the prefix silently. Without it candle/light fail at runtime (and
-# generate-trace-exes.sh can't discover their .NET DLL deps when refreshing wine-keep-dlls.txt).
-MONO_VERSION="$(grep -oE 'MONO_VERSION "[0-9.]+"' "$SOURCE_DIR/dlls/appwiz.cpl/addons.c" | grep -oE '[0-9.]+' | head -1)"
-if [ -z "$MONO_VERSION" ]; then
-    echo "❌ could not read MONO_VERSION from $SOURCE_DIR/dlls/appwiz.cpl/addons.c — WiX (.NET) would be unavailable"
-    exit 1
-fi
-MONO_DATADIR="$STAGE_DIR/share/wine/mono"
-MONO_MSI="wine-mono-${MONO_VERSION}-x86.msi"
-echo "🍷 Provisioning Wine Mono ${MONO_VERSION} (.NET runtime for WiX candle/light)"
-mkdir -p "$MONO_DATADIR"
-curl -fsSL --retry 3 --retry-delay 2 --max-time 600 \
-    "https://dl.winehq.org/wine/wine-mono/${MONO_VERSION}/${MONO_MSI}" -o "$MONO_DATADIR/$MONO_MSI"
-# Verify against the pinned upstream sha256 — a bad/partial download or an unexpected artifact aborts.
-MONO_CHECKSUM="$(get_checksum "wine-mono-${MONO_VERSION}")" || {
-    echo "❌ no pinned checksum for wine-mono-${MONO_VERSION} — add it to get_checksum()"
-    exit 1
-}
-MONO_ACTUAL="$(shasum -a 256 "$MONO_DATADIR/$MONO_MSI" | awk '{print $1}')"
-if [ "$MONO_ACTUAL" != "$MONO_CHECKSUM" ]; then
-    echo "❌ Wine Mono checksum failed: expected $MONO_CHECKSUM, got $MONO_ACTUAL"
-    exit 1
-fi
-echo "✅ Verified Wine Mono ${MONO_VERSION}"
+# No .NET runtime is provisioned. electron-builder only runs NATIVE Windows tools under this bundle's
+# Wine — rcedit, Squirrel's WriteZipToSetup.exe, and the generated NSIS installer (for uninstaller
+# generation). The .NET-under-Wine paths (WiX candle/light for MSI, Windows PowerShell for Azure
+# Trusted Signing) need real .NET Framework (dotnet462), not Wine Mono, and are out of scope here;
+# Squirrel's own .NET tools (nuget/SyncReleases/Squirrel-Mono) run under the HOST's mono, not Wine.
 
 if $IS_DARWIN; then
     "$STAGE_DIR/bin/wineboot" --init
@@ -293,31 +267,25 @@ else
     fi
 fi
 
-# Wine Mono is now installed into the prefix (drive_c/windows/mono), so the datadir .msi is dead
-# weight (~85 MB) — the bundle ships the pre-initialized prefix, not a fresh-install path.
-rm -f "$MONO_DATADIR"/*.msi
-
 ############################################
-# 🧪 RETRACE (opt-in, container only) — regenerate the committed keep-list(s)
+# 🧪 RETRACE (opt-in, container only) — regenerate the committed keep-list
 ############################################
 
-# Refresh wine-keep-dlls.txt by tracing the real tools under THIS freshly-built — still un-pruned —
-# Wine (full DLLs + Wine Mono present, so candle/light/makensis actually run). This downloads and
-# executes AV-flagged Windows tooling, so it is opt-in (RETRACE=1) and meant to run INSIDE the Linux
-# build container, never on a developer's machine. generate-trace-exes.sh rewrites the list next to
-# itself (where the prune below reads it); we also copy it to $OUT_DIR so it can be retrieved from the
-# mounted /output volume and committed:
+# Refresh wine-keep-dlls.txt by tracing the real native tools under THIS freshly-built — still
+# un-pruned — Wine. This downloads and executes AV-flagged Windows tooling, so it is opt-in
+# (RETRACE=1) and meant to run INSIDE the Linux build container, never on a developer's machine.
+# generate-trace-exes.sh rewrites the list next to itself (where the prune below reads it); we also
+# copy it to $OUT_DIR so it can be retrieved from the mounted /output volume and committed:
 #   docker run --rm --platform linux/amd64 -e RETRACE=1 -e OUT_DIR=/output \
 #       -v "$PWD/refresh:/output" wine-builder-linux
 #   cp refresh/wine-keep-dlls.txt packages/wine/assets/   # then git add + commit
 if [ -n "${RETRACE:-}" ]; then
-    echo "🧪 RETRACE=1 — regenerating keep-list(s) by tracing tools under the new Wine..."
+    echo "🧪 RETRACE=1 — regenerating keep-list by tracing tools under the new Wine..."
     WINE_BIN="$STAGE_DIR/bin/wine" WINEPREFIX="$WINEPREFIX" \
         bash "$SCRIPT_DIR/generate-trace-exes.sh" "$BUILD_DIR/trace-tools"
     mkdir -p "$OUT_DIR"
     cp "$SCRIPT_DIR/wine-keep-dlls.txt" "$OUT_DIR/" 2>/dev/null || true
-    cp "$SCRIPT_DIR/wine-mono-loaded.txt" "$OUT_DIR/" 2>/dev/null || true
-    echo "📄 Regenerated keep-list(s) + Mono evidence copied to $OUT_DIR — commit wine-keep-dlls.txt into packages/wine/assets/"
+    echo "📄 Regenerated keep-list copied to $OUT_DIR — commit wine-keep-dlls.txt into packages/wine/assets/"
 fi
 
 ############################################
@@ -333,7 +301,7 @@ fi
 # Keeping ALL of them is ~770 MB though, so instead we keep only the DLLs the bundled
 # tools actually load and apply the same whitelist to BOTH the prefix system32 and the
 # lib/wine builtin dlldirs (x86_64-windows for the 64-bit host, i386-windows for the
-# 32-bit WoW64 guest — rcedit/WiX/makensis/WriteZipToSetup are 32-bit).
+# 32-bit WoW64 guest — Squirrel's WriteZipToSetup and the NSIS installer are 32-bit).
 #
 # The keep-list is a committed, generated artifact — wine-keep-dlls.txt, next to this script. It is
 # produced by assets/generate-trace-exes.sh (which downloads + runs the bundled Windows tools under
@@ -396,56 +364,19 @@ rm -f "$SYSTEM32_DIR"/*.cpl "$SYSTEM32_DIR"/*.tlb "$SYSTEM32_DIR"/*.ocx \
       "$SYSTEM32_DIR"/*.drv "$SYSTEM32_DIR"/*.ax  "$SYSTEM32_DIR"/*.acm
 
 ############################################
-# 🧹 PRUNE WINE MONO — drop .NET stacks WiX candle/light never load
-############################################
-
-# candle/light are console XML compiler/linker tools; they never touch WPF, Windows Forms, ASP.NET,
-# WCF, Workflow, System.Data, etc. Mono loads referenced assemblies lazily (on first type use), so
-# these being referenced in wix.dll's metadata does NOT load them — deleting the bodies is safe and is
-# where ~all the Mono size lives (WPF + WinForms dominate). Delete by assembly NAME across BOTH the GAC
-# (lib/mono/gac/<name>/...) and the 4.x profile dirs (lib/mono/<profile>/<name>.dll, often a symlink
-# into the GAC) per the committed denylist; a keep-floor is never deleted. Verify with RETRACE=1
-# (wine-mono-loaded.txt) and test.sh's candle/light run.
-MONO_PRUNE_FILE="$SCRIPT_DIR/wine-mono-prune.txt"
-MONO_GAC_DIR="$(find "$WINEPREFIX/drive_c/windows/mono" -type d -name gac 2>/dev/null | head -1)"
-if [ -n "$MONO_GAC_DIR" ] && [ -s "$MONO_PRUNE_FILE" ]; then
-    MONO_LIB_DIR="$(dirname "$MONO_GAC_DIR")"   # .../lib/mono
-    # Mono bootstrap + candle/light startup floor — never deleted regardless of the denylist.
-    MONO_KEEP_FLOOR="mscorlib System System.Xml System.Core System.Configuration System.Xml.Linq System.Numerics System.Security System.IO.Compression WineMono.Security Mono.Cecil"
-    echo "🧹 Pruning Wine Mono assemblies ($(basename "$MONO_PRUNE_FILE"))"
-    _mono_before=$(du -sm "$MONO_LIB_DIR" 2>/dev/null | awk '{print $1}')
-    while IFS= read -r _glob; do
-        case "$_glob" in ''|\#*) continue ;; esac
-        # Never let a glob delete a floor assembly.
-        _skip=false
-        for _f in $MONO_KEEP_FLOOR; do
-            case "$_f" in $_glob) _skip=true; break ;; esac
-        done
-        if $_skip; then echo "  ! skip '$_glob' (matches keep-floor)"; continue; fi
-        # GAC bodies, then the profile-dir entries/symlinks (never under gac/ or Facades/).
-        find "$MONO_GAC_DIR" -maxdepth 1 -type d -name "$_glob" -exec rm -rf {} + 2>/dev/null || true
-        find "$MONO_LIB_DIR" -maxdepth 2 \( -type f -o -type l \) -name "${_glob}.dll" \
-            ! -path "*/gac/*" ! -path "*/Facades/*" -delete 2>/dev/null || true
-    done < "$MONO_PRUNE_FILE"
-    _mono_after=$(du -sm "$MONO_LIB_DIR" 2>/dev/null | awk '{print $1}')
-    echo "  Wine Mono lib/mono: ${_mono_before:-?} MB → ${_mono_after:-?} MB"
-else
-    echo "ℹ️  Skipping Wine Mono prune (no GAC found or no $(basename "$MONO_PRUNE_FILE"))"
-fi
-
-############################################
 # 🧹 REMOVE BULK WINDOWS CONTENT
 ############################################
 
 echo "🧹 Removing Windows bulk"
 WINDOWS_DIR="$WINEPREFIX/drive_c/windows"
 
-# Keep drive_c/windows/mono — Wine Mono is the .NET runtime that WiX candle/light run under
-# (verified via loaddll: candle loads mscoree.dll → WineMono.*). Microsoft.NET (Framework) is the
-# real-.NET path WiX does NOT take here, so it is still dropped. syswow64 is pruned above, not removed.
+# No .NET in this bundle: drop the Microsoft.NET Framework tree AND any Wine Mono dir. wineboot won't
+# install Mono without a datadir .msi (we provision none), but remove it defensively. syswow64 is
+# pruned above, not removed.
 rm -rf \
   "$WINDOWS_DIR/Installer" \
   "$WINDOWS_DIR/Microsoft.NET" \
+  "$WINDOWS_DIR/mono" \
   "$WINDOWS_DIR/logs" \
   "$WINDOWS_DIR/inf" \
   "$WINDOWS_DIR/Temp" \
