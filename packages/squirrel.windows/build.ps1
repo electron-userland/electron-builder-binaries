@@ -99,7 +99,22 @@ $nugetSha256  = "92DBED160DDEE0F64B901E907439E021211B428E57C089ECC12FC38DCC4BD9A
 $nugetUrl     = "https://dist.nuget.org/win-x86-commandline/v$nugetVersion/nuget.exe"
 $nugetDest    = Join-Path $vendorDir "nuget.exe"
 Write-Host "`n📦 Downloading pinned nuget.exe v$nugetVersion..."
-Invoke-WebRequest -Uri $nugetUrl -OutFile $nugetDest -UseBasicParsing
+# Retry transient network failures (connection resets, timeouts) — these throw rather than returning an
+# HTTP status, so Invoke-WebRequest's own -MaximumRetryCount would not cover them.
+$maxAttempts = 3
+for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+    try {
+        Invoke-WebRequest -Uri $nugetUrl -OutFile $nugetDest -UseBasicParsing
+        break
+    } catch {
+        if ($attempt -eq $maxAttempts) {
+            Write-Error "Failed to download nuget.exe from $nugetUrl after $maxAttempts attempts: $_"
+            exit 1
+        }
+        Write-Warning "nuget.exe download attempt $attempt/$maxAttempts failed: $_. Retrying in 5s..."
+        Start-Sleep -Seconds 5
+    }
+}
 $actualSha = (Get-FileHash -Path $nugetDest -Algorithm SHA256).Hash
 if ($actualSha -ne $nugetSha256) {
     Write-Error "nuget.exe checksum mismatch: expected $nugetSha256, got $actualSha"
