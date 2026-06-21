@@ -264,6 +264,32 @@ else
     fi
 fi
 
+# ── 3c: makensis (nsis@2.0.0) ────────────────────────────────────────────────
+header "Phase 3c: E2E (NSIS — makensis)"
+
+NSIS_URL="https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis%402.0.0/nsis-bundle-3.12.tar.gz"
+NSIS_DIR="$WORK_DIR/nsis"
+
+if [ -n "$E2E_SKIP_REASON" ]; then
+    skip "makensis (${E2E_SKIP_REASON})"
+else
+    echo "  📥 Downloading NSIS bundle..."
+    if curl -fsSL --retry 3 --retry-delay 2 --max-time 300 "$NSIS_URL" -o "$WORK_DIR/nsis.tar.gz" 2>/dev/null; then
+        mkdir -p "$NSIS_DIR"
+        tar -xzf "$WORK_DIR/nsis.tar.gz" -C "$NSIS_DIR" 2>/dev/null || true
+        MAKENSIS_EXE=$(find "$NSIS_DIR" -iname "makensis.exe" | head -1)
+        if [ -n "$MAKENSIS_EXE" ]; then
+            pass "makensis.exe found in NSIS bundle"
+            wine_assert_output "makensis.exe /VERSION" "$MAKENSIS_EXE" "/VERSION" \
+                "v[0-9]|nsis|makensis|usage|version|error"
+        else
+            skip "makensis.exe not found in NSIS archive"
+        fi
+    else
+        skip "NSIS download failed (network unavailable?)"
+    fi
+fi
+
 # =============================================================================
 # Phase 4: Results
 # =============================================================================

@@ -6,10 +6,13 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="${ROOT_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 BUILD_DIR=${BUILD_DIR:-$ROOT_DIR/build}
 
-# NOTE: update the checksums here as new versions are added
+# NOTE: update the checksums here as new versions are added — both the Wine source tarball (keyed by
+# Wine version) and its bundled Wine Mono msi (keyed by "wine-mono-<version>", the version Wine pins in
+# dlls/appwiz.cpl/addons.c). sha256 from the upstream wine-mono GitHub release, which winehq mirrors.
 get_checksum() {
     case "$1" in
         11.0) echo "c07a6857933c1fc60dff5448d79f39c92481c1e9db5aa628db9d0358446e0701" ;;
+        wine-mono-10.4.1) echo "071f4b2887e1c97a11d791ff3d65be9429eed6dec4c2708888bfd546ba358e23" ;;
         *) exit 1 ;;
     esac
 }
@@ -225,6 +228,34 @@ if $IS_DARWIN; then
     export WINEDLLOVERRIDES="winemac.drv="
 fi
 
+# WiX candle.exe/light.exe are 32-bit .NET assemblies that run on Wine Mono. A from-source Wine
+# does not bundle the Mono .msi and a headless `wineboot --init` won't fetch one, so place the exact
+# version THIS Wine expects — read from its own source, never hardcoded — into the Wine datadir,
+# where wineboot installs it into the prefix silently. Without it candle/light fail at runtime (and
+# generate-trace-exes.sh can't discover their .NET DLL deps when refreshing wine-keep-dlls.txt).
+MONO_VERSION="$(grep -oE 'MONO_VERSION "[0-9.]+"' "$SOURCE_DIR/dlls/appwiz.cpl/addons.c" | grep -oE '[0-9.]+' | head -1)"
+if [ -z "$MONO_VERSION" ]; then
+    echo "❌ could not read MONO_VERSION from $SOURCE_DIR/dlls/appwiz.cpl/addons.c — WiX (.NET) would be unavailable"
+    exit 1
+fi
+MONO_DATADIR="$STAGE_DIR/share/wine/mono"
+MONO_MSI="wine-mono-${MONO_VERSION}-x86.msi"
+echo "🍷 Provisioning Wine Mono ${MONO_VERSION} (.NET runtime for WiX candle/light)"
+mkdir -p "$MONO_DATADIR"
+curl -fsSL --retry 3 --retry-delay 2 --max-time 600 \
+    "https://dl.winehq.org/wine/wine-mono/${MONO_VERSION}/${MONO_MSI}" -o "$MONO_DATADIR/$MONO_MSI"
+# Verify against the pinned upstream sha256 — a bad/partial download or an unexpected artifact aborts.
+MONO_CHECKSUM="$(get_checksum "wine-mono-${MONO_VERSION}")" || {
+    echo "❌ no pinned checksum for wine-mono-${MONO_VERSION} — add it to get_checksum()"
+    exit 1
+}
+MONO_ACTUAL="$(shasum -a 256 "$MONO_DATADIR/$MONO_MSI" | awk '{print $1}')"
+if [ "$MONO_ACTUAL" != "$MONO_CHECKSUM" ]; then
+    echo "❌ Wine Mono checksum failed: expected $MONO_CHECKSUM, got $MONO_ACTUAL"
+    exit 1
+fi
+echo "✅ Verified Wine Mono ${MONO_VERSION}"
+
 if $IS_DARWIN; then
     "$STAGE_DIR/bin/wineboot" --init
     sleep 2
@@ -244,46 +275,66 @@ else
     fi
 fi
 
-############################################
-# 🔒 KEEP LIB/WINE PE DLLS (builtin loader requirement)
-############################################
-
-# DO NOT remove lib/wine/${PLATFORM_ARCH}-windows/.
-# These are Wine's *builtin* PE DLLs. At runtime Wine loads builtin modules
-# (ntdll, kernel32, win32u, ...) as PE images from this dlldir and pairs each
-# with its unix counterpart in lib/wine/${PLATFORM_ARCH}-unix/. The copies that
-# wineboot --init writes into the prefix's system32 are placeholders, NOT the
-# code Wine executes — so a pre-initialized prefix is not a substitute.
-# Removing this directory makes every process fail to bootstrap with
-# STATUS_DLL_NOT_FOUND (c0000135): "failed to load .../x86_64-unix/ntdll.dll".
-echo "🔒 Keeping lib/wine/${PLATFORM_ARCH}-windows (required builtin PE DLLs)"
+# Wine Mono is now installed into the prefix (drive_c/windows/mono), so the datadir .msi is dead
+# weight (~85 MB) — the bundle ships the pre-initialized prefix, not a fresh-install path.
+rm -f "$MONO_DATADIR"/*.msi
 
 ############################################
-# 🧹 PRUNE system32 — whitelist-based
+# 🧹 PRUNE PE DLLS — whitelist-based (system32 prefix + lib/wine builtin dlldirs)
 ############################################
 
-echo "🧹 Pruning system32 to whitelist"
-SYSTEM32_DIR="$WINEPREFIX/drive_c/windows/system32"
-
-# DLLs sufficient for electron-builder tools (rcedit + WiX candle/light).
-# Derived from: CI baseline (32 DLLs that make install produced on x86_64)
-# plus rcedit loaddll trace. Removing everything else saves ~500 MB.
-SYSTEM32_KEEP_DLLS="
-  advapi32.dll bcrypt.dll combase.dll comctl32.dll comdlg32.dll coml2.dll
-  crypt32.dll cryptbase.dll cryptui.dll gdi32.dll imm32.dll kernel32.dll
-  kernelbase.dll mpr.dll msvcrt.dll ncrypt.dll ntdll.dll ole32.dll
-  oleaut32.dll rpcrt4.dll sechost.dll shcore.dll shell32.dll shlwapi.dll
-  ucrtbase.dll urlmon.dll user32.dll version.dll win32u.dll wininet.dll
-  ws2_32.dll xmllite.dll
+# Wine's *builtin* PE DLLs live in lib/wine/${arch}-windows/ (paired with their unix
+# counterpart in lib/wine/${arch}-unix/). The new WoW64 loader executes those builtin
+# images directly — the copies wineboot writes into the prefix's system32 are not a
+# substitute, so removing lib/wine/${arch}-windows makes every process fail to bootstrap
+# with STATUS_DLL_NOT_FOUND (c0000135): "failed to load .../x86_64-unix/ntdll.dll".
+#
+# Keeping ALL of them is ~770 MB though, so instead we keep only the DLLs the bundled
+# tools actually load and apply the same whitelist to BOTH the prefix system32 and the
+# lib/wine builtin dlldirs (x86_64-windows for the 64-bit host, i386-windows for the
+# 32-bit WoW64 guest — rcedit/WiX/makensis/WriteZipToSetup are 32-bit).
+#
+# The keep-list is a committed, generated artifact — wine-keep-dlls.txt, next to this script. It is
+# produced by assets/generate-trace-exes.sh (which downloads + runs the bundled Windows tools under
+# Wine and records the system DLLs they load) and refreshed deliberately on a Wine/tool bump. The
+# build only READS it — it never downloads or executes that (AV-flagged) tooling. We union it with a
+# small bootstrap floor: the DLLs the loader maps to start any process, kept regardless so Wine boots
+# even if the list is ever edited down too far.
+BOOTSTRAP_KEEP_DLLS="
+  ntdll.dll kernel32.dll kernelbase.dll win32u.dll wow64.dll wow64cpu.dll
+  wow64win.dll sechost.dll ucrtbase.dll msvcrt.dll rpcrt4.dll advapi32.dll
+  user32.dll gdi32.dll ole32.dll combase.dll
 "
-for _dll in "$SYSTEM32_DIR"/*.dll; do
-    [ -f "$_dll" ] || continue
-    _name=$(basename "$_dll")
-    case " $SYSTEM32_KEEP_DLLS " in
-        *" $_name "*) ;;
-        *) rm -f "$_dll" ;;
-    esac
-done
+KEEP_FILE="$SCRIPT_DIR/wine-keep-dlls.txt"
+if [ ! -s "$KEEP_FILE" ]; then
+    echo "❌ missing PE DLL keep-list: $KEEP_FILE — regenerate it with assets/generate-trace-exes.sh"
+    exit 1
+fi
+echo "📄 Using committed PE DLL keep-list: $KEEP_FILE"
+FILE_KEEP_DLLS="$(grep -vE '^[[:space:]]*#' "$KEEP_FILE")"
+# Collapse newlines + indentation to single spaces so the space-delimited case match below works.
+WINDOWS_KEEP_DLLS=$(echo $BOOTSTRAP_KEEP_DLLS $FILE_KEEP_DLLS)
+echo "  Keeping $(printf '%s\n' $WINDOWS_KEEP_DLLS | sort -u | wc -l | tr -d ' ') unique PE DLLs"
+
+prune_dlls_to_whitelist() {
+    _dir="$1"
+    [ -d "$_dir" ] || return 0
+    for _dll in "$_dir"/*.dll; do
+        [ -f "$_dll" ] || continue
+        _name=$(basename "$_dll")
+        case " $WINDOWS_KEEP_DLLS " in
+            *" $_name "*) ;;
+            *) rm -f "$_dll" ;;
+        esac
+    done
+}
+
+echo "🧹 Pruning PE DLLs to whitelist (system32 + syswow64 + lib/wine builtin dlldirs)"
+SYSTEM32_DIR="$WINEPREFIX/drive_c/windows/system32"
+prune_dlls_to_whitelist "$SYSTEM32_DIR"
+prune_dlls_to_whitelist "$WINEPREFIX/drive_c/windows/syswow64"
+prune_dlls_to_whitelist "$STAGE_DIR/lib/wine/${PLATFORM_ARCH}-windows"
+prune_dlls_to_whitelist "$STAGE_DIR/lib/wine/i386-windows"
 
 # EXEs: keep only wine's internal service processes; drop all user-visible tools
 SYSTEM32_KEEP_EXES="
@@ -310,11 +361,12 @@ rm -f "$SYSTEM32_DIR"/*.cpl "$SYSTEM32_DIR"/*.tlb "$SYSTEM32_DIR"/*.ocx \
 echo "🧹 Removing Windows bulk"
 WINDOWS_DIR="$WINEPREFIX/drive_c/windows"
 
+# Keep drive_c/windows/mono — Wine Mono is the .NET runtime that WiX candle/light run under
+# (verified via loaddll: candle loads mscoree.dll → WineMono.*). Microsoft.NET (Framework) is the
+# real-.NET path WiX does NOT take here, so it is still dropped. syswow64 is pruned above, not removed.
 rm -rf \
   "$WINDOWS_DIR/Installer" \
   "$WINDOWS_DIR/Microsoft.NET" \
-  "$WINDOWS_DIR/mono" \
-  "$WINDOWS_DIR/syswow64" \
   "$WINDOWS_DIR/logs" \
   "$WINDOWS_DIR/inf" \
   "$WINDOWS_DIR/Temp" \
