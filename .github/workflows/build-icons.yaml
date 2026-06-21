@@ -5,9 +5,13 @@ on:
   workflow_call:
 
 jobs:
+  # Runs on macOS so the e2e suite's `iconutil` test executes — it converts the generated .icns back to
+  # an .iconset and asserts every standard size is present (regression guard for #9940, where the non-@2x
+  # icon_16x16.png / icon_32x32.png went missing). The bundle is deterministic JS + wasm, so building it
+  # on macOS produces the same artifact as Linux. The platform-agnostic tests run here too.
   build:
-    name: Build icons toolset
-    runs-on: ubuntu-latest
+    name: Build and validate icons toolset
+    runs-on: macos-latest
     timeout-minutes: 15
     steps:
       - name: Checkout repository
@@ -24,7 +28,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build and test
+      - name: Build and test (includes the macOS-only iconutil validation)
         run: bash ./build.sh --target all
         shell: bash
         working-directory: ./packages/icons
