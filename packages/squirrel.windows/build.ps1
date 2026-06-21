@@ -89,13 +89,38 @@ foreach ($src in $copyMap.Keys) {
 Write-Host "`n✅ Squirrel executables copied."
 
 # --- nuget.exe
-# The build already ran `nuget restore` and `nuget pack`, so nuget.exe is guaranteed
-# to be in PATH. Capture it here so it ships inside the vendor bundle and does not
-# need to be downloaded at runtime on end-user machines.
-Write-Host "`n📦 Bundling nuget.exe..."
-$nugetSrc = (Get-Command nuget.exe -ErrorAction Stop).Source
-Copy-Item $nugetSrc (Join-Path $vendorDir "nuget.exe") -Force
-Write-Host "  Source: $nugetSrc"
+# Ship a pinned, checksum-verified standalone nuget.exe. The Chocolatey shim (bin\nuget.exe) resolves
+# the real binary relative to its own install path and breaks once relocated to an arbitrary temp dir,
+# so the standalone NuGet.CommandLine exe is required. Pinning the download — rather than copying
+# whatever version the runner happens to have installed — keeps the bundled binary reproducible and
+# in lockstep with the version electron-builder provisions at runtime.
+$nugetVersion = "6.14.0"
+$nugetSha256  = "92DBED160DDEE0F64B901E907439E021211B428E57C089ECC12FC38DCC4BD9A5"
+$nugetUrl     = "https://dist.nuget.org/win-x86-commandline/v$nugetVersion/nuget.exe"
+$nugetDest    = Join-Path $vendorDir "nuget.exe"
+Write-Host "`n📦 Downloading pinned nuget.exe v$nugetVersion..."
+# Retry transient network failures (connection resets, timeouts) — these throw rather than returning an
+# HTTP status, so Invoke-WebRequest's own -MaximumRetryCount would not cover them.
+$maxAttempts = 3
+for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+    try {
+        Invoke-WebRequest -Uri $nugetUrl -OutFile $nugetDest -UseBasicParsing
+        break
+    } catch {
+        if ($attempt -eq $maxAttempts) {
+            Write-Error "Failed to download nuget.exe from $nugetUrl after $maxAttempts attempts: $_"
+            exit 1
+        }
+        Write-Warning "nuget.exe download attempt $attempt/$maxAttempts failed: $_. Retrying in 5s..."
+        Start-Sleep -Seconds 5
+    }
+}
+$actualSha = (Get-FileHash -Path $nugetDest -Algorithm SHA256).Hash
+if ($actualSha -ne $nugetSha256) {
+    Write-Error "nuget.exe checksum mismatch: expected $nugetSha256, got $actualSha"
+    exit 1
+}
+Write-Host "  Source: $nugetUrl (sha256 verified)"
 
 # --- 7-Zip binaries
 # Ship both a pre-selected 7z.exe/dll (x64, the host arch on GitHub Actions windows runners)
