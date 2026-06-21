@@ -2,4 +2,4 @@
 "wine": patch
 ---
 
-fix: rebuild wine with PE DLLs included
+fix(wine): scope the Wine bundle to electron-builder's toolchain (rcedit + WiX + makensis)
