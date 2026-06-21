@@ -4,16 +4,9 @@ import { svgToPng } from './svg'
 import { createIcns } from './icns'
 import { createIco } from './ico'
 import { createLinuxSet } from './linux'
-import { extractLargestPngFromIcns } from './icns-input'
-
-function parseArgs(argv: string[]): Record<string, string> {
-  const args: Record<string, string> = {}
-  for (const arg of argv) {
-    const m = arg.match(/^--([^=]+)=(.*)$/)
-    if (m) args[m[1]] = m[2]
-  }
-  return args
-}
+import { extractLargestPngFromIcns, describeIcnsEntries } from './icns-input'
+import { parseArgs } from './args'
+import { debug } from './log'
 
 const VALID_FORMATS = ['icns', 'ico', 'set'] as const
 type Format = typeof VALID_FORMATS[number]
@@ -30,7 +23,7 @@ async function main(): Promise<void> {
   const outDir = args['out']
 
   if (!input || !format || !outDir) {
-    console.error('Usage: node icon-tool.js --input=<path> --format=<icns|ico|set> --out=<dir>')
+    console.error('Usage: node icon-tool.js --input <path> --format <icns|ico|set> --out <dir>')
     process.exit(1)
   }
 
@@ -47,6 +40,7 @@ async function main(): Promise<void> {
   mkdirSync(outDir, { recursive: true })
 
   const ext = extname(input).toLowerCase()
+  debug(`input=${input} format=${format} ext=${ext} out=${outDir}`)
   let pngBuffer: Buffer
 
   if (ext === '.svg') {
@@ -56,12 +50,16 @@ async function main(): Promise<void> {
     pngBuffer = readFileSync(input)
   } else if (ext === '.icns') {
     const icnsBuffer = readFileSync(input)
-    const extracted = extractLargestPngFromIcns(icnsBuffer)
-    if (!extracted) {
-      console.error('Could not extract a PNG frame from ICNS file')
+    const { png, entries } = extractLargestPngFromIcns(icnsBuffer)
+    if (!png) {
+      console.error(
+        `Could not extract a PNG frame from ICNS file. Frames found: [${describeIcnsEntries(entries)}]. ` +
+          `This toolset can only read PNG-encoded ICNS frames; JPEG2000, ARGB, and legacy raw frames are not supported. ` +
+          `Re-export the icon as a PNG/SVG source, or as an ICNS containing a PNG frame.`
+      )
       process.exit(1)
     }
-    pngBuffer = extracted
+    pngBuffer = png
   } else {
     console.error(`Unsupported input format "${ext}". Supported: .png, .svg, .icns`)
     process.exit(1)
@@ -69,10 +67,10 @@ async function main(): Promise<void> {
 
   switch (format) {
     case 'icns':
-      createIcns(pngBuffer, outDir)
+      await createIcns(pngBuffer, outDir)
       break
     case 'ico':
-      createIco(pngBuffer, outDir)
+      await createIco(pngBuffer, outDir)
       break
     case 'set':
       await createLinuxSet(pngBuffer, outDir)

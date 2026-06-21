@@ -20,11 +20,11 @@ while [[ $# -gt 0 ]]; do
         --bin)    BIN="$2";   shift 2 ;;
         --outdir) OUTDIR="$2"; shift 2 ;;
         -h|--help) usage ;;
-        *) echo "Unknown argument: $1" >&2; usage ;;
+        *) echo "❌ Unknown argument: $1" >&2; usage ;;
     esac
 done
 
-[[ -z "$BIN" || -z "$OUTDIR" ]] && { echo "Error: --bin and --outdir are required" >&2; usage; }
+[[ -z "$BIN" || -z "$OUTDIR" ]] && { echo "❌ Error: --bin and --outdir are required" >&2; usage; }
 
 # If user passed a directory, detect binary path:
 if [[ -d "$BIN" ]]; then

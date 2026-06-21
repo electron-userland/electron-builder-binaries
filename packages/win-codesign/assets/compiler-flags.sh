@@ -12,7 +12,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --arch) ARCH="$2"; shift 2 ;;
         -h|--help) usage ;;
-        *) echo "Unknown argument: $1" >&2; usage ;;
+        *) echo "❌ Unknown argument: $1" >&2; usage ;;
     esac
 done
 
@@ -46,7 +46,7 @@ case "$ARCH" in
     ;;
 
   *)
-    echo "Unknown architecture: $ARCH" >&2
+    echo "❌ Error: Unknown architecture: $ARCH" >&2
     exit 1
     ;;
 esac

@@ -2,6 +2,15 @@ name: Build Windows Code Sign
 
 on:
   workflow_dispatch:
+    inputs:
+      osslsigncode_ver:
+        description: "osslsigncode version tag to build"
+        default: "2.11"
+        required: false
+      rcedit_version:
+        description: "rcedit release version"
+        default: "2.0.0"
+        required: false
   workflow_call:
 
 jobs:
@@ -22,9 +31,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
-      - name: Install dependencies & build (${{ matrix.arch }})
+      - name: Build win-codesign Linux (${{ matrix.arch }})
         run: |
-          PLATFORM_ARCH=${{ matrix.arch }} bash ./packages/win-codesign/build.sh
+          bash ./packages/win-codesign/build.sh \
+            --arch ${{ matrix.arch }} \
+            --osslsigncode-ver ${{ inputs.osslsigncode_ver || '2.11' }}
 
       - name: Upload win-codesign Linux artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
@@ -70,14 +81,88 @@ jobs:
             pkgconf:p
             nodejs:p
 
-      - name: Build osslsigncode (${{ matrix.arch }})
+      - name: Build osslsigncode for Windows (${{ matrix.arch }})
         run: |
-          PLATFORM_ARCH=${{ matrix.arch }} bash ./packages/win-codesign/build.sh
+          bash ./packages/win-codesign/build.sh \
+            --arch ${{ matrix.arch }} \
+            --osslsigncode-ver ${{ inputs.osslsigncode_ver || '2.11' }} \
+            --target ossl
 
       - name: Upload artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
         with:
           name: win-codesign-windows-${{ matrix.arch }}
+          path: ./packages/win-codesign/out/**/*.zip
+          if-no-files-found: error
+          retention-days: 1
+
+  windows-kits-rcedit:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@fb197b72ce45fb24f17bf3f807a388985654d1f2 # v2.29.0
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            make
+            zip
+            unzip
+          pacboy: >-
+            gcc:p
+            cmake:p
+            openssl:p
+            curl:p
+            libgsf:p
+            zlib:p
+            pkgconf:p
+            nodejs:p
+
+      - name: Build Windows kits + ats + rcedit (x64 only)
+        run: |
+          bash ./packages/win-codesign/build.sh \
+            --arch x64 \
+            --rcedit-version ${{ inputs.rcedit_version || '2.0.0' }} \
+            --target kits \
+            --target ats \
+            --target rcedit
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        with:
+          name: win-codesign-windows-kits-rcedit
+          path: ./packages/win-codesign/out/**/*.zip
+          if-no-files-found: error
+          retention-days: 1
+
+  windows-dotnet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Install Wine and Xvfb
+        run: sudo apt-get install -y wine64 xvfb
+
+      - name: Build dotnet runtime bundle
+        run: bash ./packages/win-codesign/assets/build-win-dotnet.sh
+
+      - name: Run dotnet test suite (unit + Wine smoke test)
+        run: xvfb-run --auto-servernum bash ./packages/win-codesign/test/build-win-dotnet-test.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        with:
+          name: win-codesign-dotnet-runtime
           path: ./packages/win-codesign/out/**/*.zip
           if-no-files-found: error
           retention-days: 1
@@ -97,14 +182,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
-      - name: Install grealpath
-        run: brew install coreutils
-
-      - name: Build for macOS
+      - name: Build win-codesign macOS (${{ matrix.arch }})
         shell: bash
         run: |
-          PLATFORM_ARCH=${{ matrix.arch }} bash packages/win-codesign/build.sh
-      
+          bash packages/win-codesign/build.sh \
+            --arch ${{ matrix.arch }} \
+            --osslsigncode-ver ${{ inputs.osslsigncode_ver || '2.11' }}
+
       - name: Upload win-codesign macOS artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
         with:
