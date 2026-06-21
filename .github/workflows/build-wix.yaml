@@ -5,21 +5,17 @@ on:
   workflow_call:
 
 jobs:
-  # Build WiX v4 from source. Requires Windows: the C++ wixnative.exe component
-  # needs MSVC, and the build entry point is a Windows batch script.
-  # build_all.cmd uses vswhere -version [17.0,18.0) to find VS 2022; windows-2022
-  # has VS 2022 (MSBuild 17.x). windows-2025 would also work today but is scheduled
-  # to redirect to windows-2025-vs2026 (VS 2026 only) on 2026-06-15, breaking the
-  # vswhere check. build.sh pins the .NET SDK to 8.x so MSBuild 17 can load it.
+  # Download the official WiX v3 binaries and repackage them. No compiler or
+  # Windows runner is needed — it is a download + checksum + repackage step.
   build:
-    name: Build (Windows source compile)
-    runs-on: windows-2022
-    timeout-minutes: 60
+    name: Build (download + repackage)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
-      - name: Build WiX from source
+      - name: Build WiX bundle
         shell: bash
         run: bash ./packages/wix/build.sh --target build
 
@@ -31,9 +27,9 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # Smoke test on each platform. Structural checks always pass;
-  # the full Wine functional test (wix.exe build → .msi) requires
-  # .NET 6 Windows runtime in the Wine prefix (see Dockerfile notes).
+  # Smoke test on each platform. Structural checks always pass; the full
+  # functional test (candle → light → .msi) runs only on a native x86_64 host
+  # with wine-mono available (see Dockerfile notes) and skips otherwise.
   test:
     name: Test (${{ matrix.runner }})
     runs-on: ${{ matrix.runner }}
