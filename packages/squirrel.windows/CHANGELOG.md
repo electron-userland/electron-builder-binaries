@@ -1,5 +1,11 @@
 # squirrel.windows
 
+## 1.1.1
+
+### Patch Changes
+
+- [#203](https://github.com/electron-userland/electron-builder-binaries/pull/203) [`6ae596e`](https://github.com/electron-userland/electron-builder-binaries/commit/6ae596e5ae49d11b3b186980d95a98d20422ba53) Thanks [@mmaietta](https://github.com/mmaietta)! - fix(squirrel.windows): bundle a pinned, checksum-verified standalone nuget.exe (v6.14.0) instead of the Chocolatey shim
+
 ## 1.1.0
 
 ### Minor Changes

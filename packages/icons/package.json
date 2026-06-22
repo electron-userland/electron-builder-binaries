@@ -1,6 +1,6 @@
 {
     "name": "icons",
-    "version": "1.2.1",
+    "version": "1.2.2",
     "description": "Portable icon conversion toolset for electron-builder — converts PNG/SVG/ICNS to ICNS (macOS), ICO (Windows), and Linux PNG sets. Uses Lanczos3 resampling via wasm-vips and SVG rasterization via resvg-wasm. Zero native dependencies; bundled as a single Node.js script.",
     "dependencies": {
         "@resvg/resvg-wasm": "^2.6.2",

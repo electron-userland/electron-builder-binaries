@@ -1,5 +1,11 @@
 # nsis
 
+## 2.0.1
+
+### Patch Changes
+
+- [#218](https://github.com/electron-userland/electron-builder-binaries/pull/218) [`8d0246c`](https://github.com/electron-userland/electron-builder-binaries/commit/8d0246cbbd587420940f0fc8d0601787d8090101) Thanks [@mmaietta](https://github.com/mmaietta)! - fix(nsis): strip unused `Bin/` tools (`RegTool-*.bin`, `makensisw.exe`, `zip2exe.exe`, `MakeLangId.exe`) from the bundle. `makensis.exe` lives at `windows/makensis.exe` and reads none of these during compilation; `RegTool-*.bin` and `makensisw.exe` are recurring AV false-positives.
+
 ## 2.0.0
 
 ### Major Changes
