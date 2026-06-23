@@ -56,36 +56,65 @@ async function initVips(): Promise<any> {
   return vips
 }
 
-// Resize an image buffer to exactly targetSize×targetSize using Lanczos3 resampling
-// (vips thumbnail: box-filter pre-shrink + Lanczos final stage, matching the Go
+// Resize to a square targetSize×targetSize image using Lanczos3 resampling (vips
+// thumbnail: box-filter pre-shrink + Lanczos final stage, matching the Go
 // icon-converter's imaging.Lanczos). The aspect ratio is preserved: a non-square
 // source is fitted inside the box and padded to a square with a transparent
 // background rather than stretched. A square source needs no padding (fast path).
-export async function resizeWithLanczos(imageBuffer: Buffer, targetSize: number): Promise<Buffer> {
-  const vips = await getVips()
-  let thumb: any = null
-  let squared: any = null
-  let padded: any = null
+// Returns a vips Image the caller MUST .delete().
+function resizeSquare(vips: any, imageBuffer: Buffer, targetSize: number): any {
+  // Size.both fits within targetSize×targetSize preserving aspect ratio. Callers
+  // cap targetSize at the source's largest dimension, so this only downscales.
+  const thumb = vips.Image.thumbnailBuffer(imageBuffer, targetSize, {
+    height: targetSize,
+    size: vips.Size.both,
+  })
+  if (thumb.width === targetSize && thumb.height === targetSize) {
+    return thumb
+  }
+  // Non-square: center on a transparent square canvas (ensure an alpha channel first).
+  const squared = thumb.hasAlpha() ? thumb : thumb.bandjoin(255)
   try {
-    // Size.both fits within targetSize×targetSize preserving aspect ratio. Callers
-    // cap targetSize at the source's largest dimension, so this only downscales.
-    thumb = vips.Image.thumbnailBuffer(imageBuffer, targetSize, {
-      height: targetSize,
-      size: vips.Size.both,
-    })
-    if (thumb.width === targetSize && thumb.height === targetSize) {
-      return Buffer.from(thumb.writeToBuffer('.png'))
-    }
-    // Non-square: center on a transparent square canvas (ensure an alpha channel first).
-    squared = thumb.hasAlpha() ? thumb : thumb.bandjoin(255)
-    padded = squared.gravity('centre', targetSize, targetSize, {
+    return squared.gravity('centre', targetSize, targetSize, {
       extend: 'background',
       background: [0, 0, 0, 0],
     })
-    return Buffer.from(padded.writeToBuffer('.png'))
   } finally {
-    if (padded) padded.delete()
-    if (squared && squared !== thumb) squared.delete()
-    if (thumb) thumb.delete()
+    if (squared !== thumb) squared.delete()
+    thumb.delete()
+  }
+}
+
+// Resize to exactly targetSize×targetSize and encode as a PNG.
+export async function resizeWithLanczos(imageBuffer: Buffer, targetSize: number): Promise<Buffer> {
+  const vips = await getVips()
+  const image = resizeSquare(vips, imageBuffer, targetSize)
+  try {
+    return Buffer.from(image.writeToBuffer('.png'))
+  } finally {
+    image.delete()
+  }
+}
+
+// Resize to exactly targetSize×targetSize and return raw row-major RGBA bytes
+// (targetSize*targetSize*4, 8-bit, straight/non-premultiplied) for the ICNS ARGB
+// types ic04/ic05 (see argb.ts). The image is normalized to 8-bit sRGB with an alpha
+// channel so the byte layout is always interleaved R,G,B,A.
+export async function resizeToRawRgba(imageBuffer: Buffer, targetSize: number): Promise<Buffer> {
+  const vips = await getVips()
+  const sized = resizeSquare(vips, imageBuffer, targetSize)
+  let srgb: any = null
+  let rgba: any = null
+  let bytes: any = null
+  try {
+    srgb = sized.colourspace(vips.Interpretation.srgb)
+    rgba = srgb.hasAlpha() ? srgb : srgb.bandjoin(255)
+    bytes = rgba.format === 'uchar' ? rgba : rgba.cast(vips.BandFormat.uchar)
+    return Buffer.from(bytes.writeToMemory())
+  } finally {
+    if (bytes && bytes !== rgba) bytes.delete()
+    if (rgba && rgba !== srgb) rgba.delete()
+    if (srgb && srgb !== sized) srgb.delete()
+    sized.delete()
   }
 }

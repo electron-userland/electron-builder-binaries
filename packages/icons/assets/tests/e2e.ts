@@ -1,9 +1,9 @@
 import { execSync } from 'child_process'
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { deflateSync } from 'zlib'
 import { join, dirname } from 'path'
 import { tmpdir } from 'os'
-import { parseIcns, parseIco, parsePngDimensions } from './validate'
+import { parseIcns, parseIco, parsePngDimensions, decodePngToRgba, decodeArgb, extractIcnsChunk } from './validate'
 import { isMemoryAllocationError, retryOnAllocationFailure } from '../src/retry'
 import { parseArgs } from '../src/args'
 import { extractLargestPngFromIcns } from '../src/icns-input'
@@ -69,6 +69,34 @@ function makeSolidPng(size: number, r = 70, g = 130, b = 220): Buffer {
   ])
 }
 
+// Creates an opaque PNG with a smooth per-pixel gradient (R=x, G=y, B=128). Opaque and
+// spatially varying, so a downscale exercises real RLE/channel-order paths — used by the
+// iconutil ARGB pixel-parity test where partial alpha would be muddied by iconutil's
+// un-premultiply-on-extract behavior.
+function makeGradientPng(size: number): Buffer {
+  const sig = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
+  const ihdr = Buffer.allocUnsafe(13)
+  ihdr.writeUInt32BE(size, 0)
+  ihdr.writeUInt32BE(size, 4)
+  ihdr.writeUInt8(8, 8)   // bit depth
+  ihdr.writeUInt8(2, 9)   // color type: RGB
+  ihdr.writeUInt8(0, 10)
+  ihdr.writeUInt8(0, 11)
+  ihdr.writeUInt8(0, 12)
+  const rowLen = 1 + size * 3
+  const raw = Buffer.allocUnsafe(size * rowLen)
+  for (let y = 0; y < size; y++) {
+    raw[y * rowLen] = 0
+    for (let x = 0; x < size; x++) {
+      const o = y * rowLen + 1 + x * 3
+      raw[o] = Math.round((x * 255) / (size - 1))
+      raw[o + 1] = Math.round((y * 255) / (size - 1))
+      raw[o + 2] = 128
+    }
+  }
+  return Buffer.concat([sig, pngChunk('IHDR', ihdr), pngChunk('IDAT', deflateSync(raw)), pngChunk('IEND', Buffer.alloc(0))])
+}
+
 const TEST_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
   <rect width="100" height="100" fill="#4682dc"/>
   <circle cx="50" cy="50" r="35" fill="#ffffff" opacity="0.8"/>
@@ -124,23 +152,29 @@ tests.push({
     if (!existsSync(file)) throw new Error('icon.icns was not created')
     const entries = parseIcns(readFileSync(file))
     if (entries.length === 0) throw new Error('ICNS file contains no entries')
-    // For a 1024×1024 source, every standard entry must be present. icp4 (16px) and icp5 (32px) guard
-    // against regression #9940, where the small non-@2x sizes were dropped and the icon rendered broken
-    // in Finder/Activity Monitor list views. ic11–ic14 are the HiDPI (@2x) counterparts.
-    const required = ['icp4', 'icp5', 'ic07', 'ic08', 'ic09', 'ic10', 'ic11', 'ic12', 'ic13', 'ic14']
+    // For a 1024×1024 source, every standard entry must be present. ic04 (16px) and ic05 (32px)
+    // are the 1× small icons #9940 needs, stored as ARGB — NOT as PNG in icp4/icp5/icp6, which
+    // macOS renders corrupt in Finder/Activity Monitor list views (#9980). ic11–ic14 are the
+    // HiDPI (@2x) counterparts.
+    const required = ['ic04', 'ic05', 'ic07', 'ic08', 'ic09', 'ic10', 'ic11', 'ic12', 'ic13', 'ic14']
     for (const e of required) {
       if (!entries.includes(e)) throw new Error(`ICNS is missing entry "${e}" (found: ${entries.join(', ')})`)
+    }
+    // The icp4/icp5/icp6 PNG chunks must never be emitted — re-adding them reintroduces #9980.
+    for (const e of ['icp4', 'icp5', 'icp6']) {
+      if (entries.includes(e)) throw new Error(`ICNS must not emit "${e}" — PNG in icpX renders corrupt in Finder (#9980)`)
     }
   },
 })
 
-// Test 1b: PNG → ICNS validated with macOS `iconutil` (the exact repro from issue #9940).
+// Test 1b: PNG → ICNS validated with macOS `iconutil` (the repro from issues #9940 and #9980).
 // iconutil is macOS-only, so this is skipped on Linux/Windows CI; the Build Icons workflow runs it
 // in a dedicated macOS job. It converts the generated .icns back to an .iconset and asserts every
-// standard size is present — most importantly the non-@2x icon_16x16.png / icon_32x32.png that #9940
-// reported missing (which broke the icon in Finder/Activity Monitor/Trash list views).
+// standard size is present — including the 1× icon_16x16.png / icon_32x32.png that #9940 needs —
+// AND that icon_48x48.png is absent, since that file appears only when the corrupt icp6 chunk (#9980)
+// is emitted.
 tests.push({
-  name: 'PNG → ICNS → iconutil iconset (all macOS sizes present)',
+  name: 'PNG → ICNS → iconutil iconset (all macOS sizes present, no corrupt chunks)',
   run(tmpDir, toolPath, pngFixture) {
     if (process.platform !== 'darwin') {
       return { skipped: 'iconutil is macOS-only' }
@@ -155,7 +189,8 @@ tests.push({
     execSync(`iconutil --convert iconset "${icnsFile}" --output "${iconset}"`)
     const produced = new Set(readdirSync(iconset))
 
-    // The 10 standard macOS iconset sizes. icon_16x16.png and icon_32x32.png are the ones #9940 dropped.
+    // The 10 standard macOS iconset sizes. icon_16x16.png / icon_32x32.png come from the ic04/ic05
+    // ARGB entries (#9940); the rest are PNG.
     const requiredSizes = [
       'icon_16x16.png',
       'icon_16x16@2x.png',
@@ -171,6 +206,73 @@ tests.push({
     const missing = requiredSizes.filter(name => !produced.has(name))
     if (missing.length > 0) {
       throw new Error(`iconutil iconset is missing sizes: ${missing.join(', ')} (found: ${[...produced].sort().join(', ')})`)
+    }
+    // icon_48x48.png is what iconutil names the icp6 chunk; its presence means the corrupt
+    // #9980 small-icon chunk was emitted.
+    if (produced.has('icon_48x48.png')) {
+      throw new Error('iconutil produced icon_48x48.png — the corrupt icp6 chunk (#9980) was emitted')
+    }
+  },
+})
+
+// Test 1c: pixel-parity — the ic04/ic05 ARGB chunks our converter writes must (a) decode back to
+// exactly the pixels our wasm library produced, and (b) match, byte-for-byte after decoding, what
+// macOS's own `iconutil` produces from the same pixels. This is the regression guard for #9980: a
+// wrong ARGB encoding (channel order, RLE, magic, or premultiplied vs straight alpha) would surface
+// here as a pixel mismatch.
+//
+// NB: we deliberately compare the ARGB *chunks*, not the output of `iconutil --convert iconset`.
+// That extraction path is lossy for ARGB — it corrupts part of the image even for icns that iconutil
+// itself created — so it is not a valid pixel oracle. iconutil's *encode* direction (iconset → icns)
+// is reliable, so we use it to produce the reference ARGB. macOS-only (needs iconutil to encode).
+tests.push({
+  name: 'ICNS ic04/ic05 ARGB ↔ iconutil pixel parity',
+  run(tmpDir, toolPath) {
+    if (process.platform !== 'darwin') {
+      return { skipped: 'iconutil is macOS-only' }
+    }
+    const src = join(tmpDir, 'pixparity-1024.png')
+    writeFileSync(src, makeGradientPng(1024))
+
+    // our converter → icns (the ic04/ic05 entries are ARGB)
+    const icnsOut = join(tmpDir, 'pixparity-icns')
+    mkdirSync(icnsOut)
+    execSync(`node "${toolPath}" --input "${src}" --format icns --out "${icnsOut}"`)
+    const ourIcns = readFileSync(join(icnsOut, 'icon.icns'))
+
+    // our wasm reference PNGs at the small sizes (the Linux 'set' uses the same resize path)
+    const setOut = join(tmpDir, 'pixparity-set')
+    mkdirSync(setOut)
+    execSync(`node "${toolPath}" --input "${src}" --format set --out "${setOut}"`)
+
+    // iconutil's own ARGB encoding of the very same wasm PNGs (encode direction is reliable)
+    const refIconset = join(tmpDir, 'pixparity-ref.iconset')
+    mkdirSync(refIconset)
+    copyFileSync(join(setOut, '16x16.png'), join(refIconset, 'icon_16x16.png'))
+    copyFileSync(join(setOut, '32x32.png'), join(refIconset, 'icon_32x32.png'))
+    copyFileSync(join(setOut, '128x128.png'), join(refIconset, 'icon_128x128.png'))
+    const refIcns = join(tmpDir, 'pixparity-ref.icns')
+    execSync(`iconutil --convert icns "${refIconset}" --output "${refIcns}"`)
+    const appleIcns = readFileSync(refIcns)
+
+    for (const [size, ostype, setName] of [[16, 'ic04', '16x16.png'], [32, 'ic05', '32x32.png']] as const) {
+      const ourArgb = extractIcnsChunk(ourIcns, ostype)
+      const appleArgb = extractIcnsChunk(appleIcns, ostype)
+      if (!ourArgb) throw new Error(`our ICNS is missing the ${ostype} entry`)
+      if (!appleArgb) throw new Error(`iconutil reference ICNS is missing the ${ostype} entry`)
+
+      const pxOurs = decodeArgb(ourArgb, size)
+      const pxWasm = decodePngToRgba(readFileSync(join(setOut, setName))).rgba
+      const pxApple = decodeArgb(appleArgb, size)
+
+      let dWasm = 0
+      let dApple = 0
+      for (let i = 0; i < size * size * 4; i++) {
+        dWasm = Math.max(dWasm, Math.abs(pxOurs[i] - pxWasm[i]))
+        dApple = Math.max(dApple, Math.abs(pxOurs[i] - pxApple[i]))
+      }
+      if (dWasm > 1) throw new Error(`${ostype}: our ARGB decodes ${dWasm} off from the wasm ${setName} pixels (expected ≤1)`)
+      if (dApple > 1) throw new Error(`${ostype}: our ARGB differs from iconutil's own ARGB by ${dApple} (expected ≤1)`)
     }
   },
 })
@@ -482,7 +584,7 @@ tests.push({
     execSync(`node "${toolPath}" --input "${smallPng}" --format icns --out "${icnsOut}"`)
     const icnsFile = join(icnsOut, 'icon.icns')
     if (!existsSync(icnsFile)) throw new Error('icon.icns was not created from 128px source')
-    // The 128px source only yields non-preferred frames (icp4/icp5/icp6/ic07/ic11/ic12).
+    // The 128px source only yields the small/standard frames (ic04/ic05/ic07/ic11/ic12).
     const types = parseIcns(readFileSync(icnsFile))
     if (!types.includes('ic07')) throw new Error(`expected ic07 frame, found: ${types.join(', ')}`)
 
