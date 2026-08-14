@@ -11,10 +11,28 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [macos-26-intel, macos-26]
+        # Oldest generally-available runners so the Homebrew bottles copied into
+        # the bundle keep the lowest possible minimum-macOS requirement.
+        # Bottles inherit the runner's OS as their min version: macos-26 runners
+        # produced binaries that refuse to load on macOS < 26 (electron-builder#10084).
+        runner: [macos-15-intel, macos-15]
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      # build-mac.sh needs install_name_tool from Xcode 26+ to patch Homebrew
+      # ld_prime binaries. macos-15 images ship Xcode 26.x preinstalled but
+      # default to 16.x, so select the newest Xcode 26 explicitly.
+      - name: Select Xcode 26
+        run: |
+          XCODE_APP="$(ls -d /Applications/Xcode_26*.app | sort -V | tail -n 1)"
+          if [ -z "$XCODE_APP" ]; then
+            echo "No Xcode 26 installation found on this runner"
+            exit 1
+          fi
+          echo "Selecting $XCODE_APP"
+          sudo xcode-select -s "$XCODE_APP/Contents/Developer"
+          xcodebuild -version
 
       - name: Build
         run: |
