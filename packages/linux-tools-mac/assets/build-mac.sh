@@ -11,7 +11,9 @@ XCODE_MAJOR="${XCODE_VER%%.*}"
 if [[ -z "$XCODE_MAJOR" || "$XCODE_MAJOR" -lt 26 ]]; then
     echo "❌ Xcode 26+ required (found: ${XCODE_VER:-none})"
     echo "   install_name_tool in Xcode < 26 rejects Homebrew ld_prime binaries."
-    echo "   Use a macos-26 runner."
+    echo "   On macos-15 runners select a preinstalled Xcode 26, e.g.:"
+    echo "   sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer"
+    echo "   (Avoid macos-26 runners: their Homebrew bottles require macOS >= 26 at runtime.)"
     exit 1
 fi
 
