@@ -276,32 +276,53 @@ function buildWin() {
   verifySha256(extraArchive, WX64_SHA256);
   mkdirSync(winX64Extract, { recursive: true });
   quiet(`7zz x -bd ${q(extraArchive)} -o${q(winX64Extract)} -y`);
-  const winX64Exe = join(winX64Extract, "7za.exe");
+  // The "extra" package roots the 32-bit x86 console build; the 64-bit and
+  // ARM64 console builds live in its x64/ and arm64/ subdirectories. Bundling
+  // the root binary shipped a 32-bit 7za as 7zip-win-x64, which caps 7-Zip's
+  // compression memory budget at 80% of 1.75 GiB and quietly collapses LZMA2
+  // multithreading to ~1 encoder (see electron-builder-binaries#222).
+  const winX64Exe = join(winX64Extract, "x64", "7za.exe");
   if (!existsSync(winX64Exe)) {
-    console.error("❌ 7za.exe not found in extra.7z");
+    console.error("❌ x64/7za.exe not found in extra.7z");
     process.exit(1);
   }
   bundleWin("7zip-win-x64", winX64Exe);
+  // The root of the extra package IS the 32-bit x86 build — the right
+  // fallback for ia32 (and never for x64/arm64).
+  const winIa32ExtraExe = join(winX64Extract, "7za.exe");
+  // Native ARM64 console build from the same extra package.
+  const winArm64ExtraExe = join(winX64Extract, "arm64", "7za.exe");
 
-  // arm64: NSIS installer; fall back to x64 binary if 7za.exe not bundled
-  const arm64Installer = join(workDir, "win-arm64-installer.exe");
-  download(`${base}/7z${ver}-arm64.exe`, arm64Installer);
-  trackDownload("WARM64_SHA256", arm64Installer);
-  verifySha256(arm64Installer, WARM64_SHA256);
-  const arm64Exe = extractNsis(arm64Installer, join(workDir, "extract-win-arm64"));
-  if (arm64Exe) console.log(`  Found 7za.exe (arm64): ${arm64Exe}`);
-  else console.log("  ⚠️  7za.exe not found in arm64 installer — falling back to x64");
-  bundleWin("7zip-win-arm64", arm64Exe ?? winX64Exe);
+  // arm64: prefer the extra-package console build; otherwise extract the NSIS
+  // installer, falling back to the x64 binary if 7za.exe is not bundled there
+  let winArm64Exe = winArm64ExtraExe;
+  if (existsSync(winArm64ExtraExe)) {
+    console.log(`  Found 7za.exe (arm64): ${winArm64ExtraExe}`);
+  } else {
+    const arm64Installer = join(workDir, "win-arm64-installer.exe");
+    download(`${base}/7z${ver}-arm64.exe`, arm64Installer);
+    trackDownload("WARM64_SHA256", arm64Installer);
+    verifySha256(arm64Installer, WARM64_SHA256);
+    const arm64Exe = extractNsis(arm64Installer, join(workDir, "extract-win-arm64"));
+    if (arm64Exe) console.log(`  Found 7za.exe (arm64): ${arm64Exe}`);
+    else console.log("  ⚠️  7za.exe not found in arm64 installer — falling back to x64");
+    winArm64Exe = arm64Exe ?? winX64Exe;
+  }
+  bundleWin("7zip-win-arm64", winArm64Exe);
 
-  // ia32: NSIS installer; fall back to x64 binary if 7za.exe not bundled
+  // ia32: NSIS installer; fall back to the extra-package x86 build if 7za.exe not bundled
   const ia32Installer = join(workDir, "win-ia32-installer.exe");
   download(`${base}/7z${ver}.exe`, ia32Installer);
   trackDownload("WIA32_SHA256", ia32Installer);
   verifySha256(ia32Installer, WIA32_SHA256);
   const ia32Exe = extractNsis(ia32Installer, join(workDir, "extract-win-ia32"));
   if (ia32Exe) console.log(`  Found 7za.exe (ia32): ${ia32Exe}`);
-  else console.log("  ⚠️  7za.exe not found in ia32 installer — falling back to x64");
-  bundleWin("7zip-win-ia32", ia32Exe ?? winX64Exe);
+  else console.log("  ⚠️  7za.exe not found in ia32 installer — falling back to the extra-package x86 build");
+  if (!ia32Exe && !existsSync(winIa32ExtraExe)) {
+    console.error("❌ 7za.exe not found in extra.7z root (ia32 fallback)");
+    process.exit(1);
+  }
+  bundleWin("7zip-win-ia32", ia32Exe ?? winIa32ExtraExe);
 }
 
 // ─── Checksums ────────────────────────────────────────────────────────────────
