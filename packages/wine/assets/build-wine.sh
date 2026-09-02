@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="${ROOT_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 BUILD_DIR=${BUILD_DIR:-$ROOT_DIR/build}
 
-# NOTE: update the checksums here as new versions are added
+# NOTE: update the checksum here as new Wine versions are added.
 get_checksum() {
     case "$1" in
         11.0) echo "c07a6857933c1fc60dff5448d79f39c92481c1e9db5aa628db9d0358446e0701" ;;
@@ -116,11 +116,28 @@ fi
 
 CONFIGURE_FLAGS=(
   --prefix="$STAGE_DIR"
+  # 64-bit Wine that ALSO builds the i386 PE DLLs (new WoW64), matching the proven macos-wine-build
+  # reference (--enable-win64 + --enable-archs=i386,x86_64). The native Windows tools this bundle runs
+  # are 32-bit (Squirrel's WriteZipToSetup, the generated NSIS installer), so without the i386 arch
+  # every 32-bit process dies with c0000135 (missing lib/wine/i386-windows/ntdll.dll). On Linux/Intel
+  # x86_64 the CPU runs 32-bit natively.
   --enable-win64
-  --without-x
-  --without-cups
-  --without-dbus
-  --without-freetype
+  --enable-archs=i386,x86_64
+  # Drop every external binding these native tools never touch. This shrinks the build and — the real
+  # win — removes the matching host .so dependencies, so the bundle doesn't require
+  # GStreamer/Vulkan/X/PulseAudio/etc. on the end user's machine. Kept (not listed): mingw (PE
+  # compilation) and gnutls (TLS).
+  --without-x          --without-wayland
+  --without-opengl     --without-vulkan      --without-opencl
+  --without-gstreamer  --without-ffmpeg
+  --without-alsa       --without-oss         --without-pulse      --without-coreaudio
+  --without-cups       --without-dbus        --without-udev
+  --without-freetype   --without-fontconfig
+  --without-sane       --without-gphoto      --without-usb        --without-v4l2
+  --without-capi       --without-pcap        --without-pcsclite
+  --without-krb5       --without-gssapi      --without-netapi
+  --without-hwloc      --without-sdl
+  --without-inotify    --without-gettextpo
 )
 
 NCPU=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
@@ -163,7 +180,7 @@ fi
 
 cd "$ROOT_DIR"
 
-# Wine 9+ with --enable-win64 no longer installs a separate wine64 binary.
+# Wine 9+ (win64 / new WoW64) no longer installs a separate wine64 binary.
 # Add wine64 → wine symlink for electron-builder compatibility.
 if [ ! -e "$STAGE_DIR/bin/wine64" ] && [ -f "$STAGE_DIR/bin/wine" ]; then
     ln -s wine "$STAGE_DIR/bin/wine64"
@@ -220,8 +237,16 @@ export WINEPREFIX="$STAGE_DIR/wine-home"
 export WINEARCH=win64
 export WINEDEBUG=-all
 if $IS_DARWIN; then
-    export DISPLAY=:99
+    # Headless: use the null display driver instead of winemac.drv so prefix
+    # init never blocks on the macOS WindowServer on CI runners.
+    export WINEDLLOVERRIDES="winemac.drv="
 fi
+
+# No .NET runtime is provisioned. electron-builder only runs NATIVE Windows tools under this bundle's
+# Wine — rcedit, Squirrel's WriteZipToSetup.exe, and the generated NSIS installer (for uninstaller
+# generation). The .NET-under-Wine paths (WiX candle/light for MSI, Windows PowerShell for Azure
+# Trusted Signing) need real .NET Framework (dotnet462), not Wine Mono, and are out of scope here;
+# Squirrel's own .NET tools (nuget/SyncReleases/Squirrel-Mono) run under the HOST's mono, not Wine.
 
 if $IS_DARWIN; then
     "$STAGE_DIR/bin/wineboot" --init
@@ -243,42 +268,82 @@ else
 fi
 
 ############################################
-# 🗑️  REMOVE LIB/WINE PE DLLS (post-init)
+# 🧪 RETRACE (opt-in, container only) — regenerate the committed keep-list
 ############################################
 
-# lib/wine/x86_64-windows/ seeds the prefix with PE DLLs during wineboot --init.
-# Now that wine-home is pre-initialized, this directory is not needed at runtime —
-# Wine loads DLLs from the prefix's system32, not from lib/wine.
-# Removing it saves ~770 MB extracted.
-echo "🗑️  Removing lib/wine/x86_64-windows (prefix is pre-initialized)"
-rm -rf "$STAGE_DIR/lib/wine/${PLATFORM_ARCH}-windows"
+# Refresh wine-keep-dlls.txt by tracing the real native tools under THIS freshly-built — still
+# un-pruned — Wine. This downloads and executes AV-flagged Windows tooling, so it is opt-in
+# (RETRACE=1) and meant to run INSIDE the Linux build container, never on a developer's machine.
+# generate-trace-exes.sh rewrites the list next to itself (where the prune below reads it); we also
+# copy it to $OUT_DIR so it can be retrieved from the mounted /output volume and committed:
+#   docker run --rm --platform linux/amd64 -e RETRACE=1 -e OUT_DIR=/output \
+#       -v "$PWD/refresh:/output" wine-builder-linux
+#   cp refresh/wine-keep-dlls.txt packages/wine/assets/   # then git add + commit
+if [ -n "${RETRACE:-}" ]; then
+    echo "🧪 RETRACE=1 — regenerating keep-list by tracing tools under the new Wine..."
+    WINE_BIN="$STAGE_DIR/bin/wine" WINEPREFIX="$WINEPREFIX" \
+        bash "$SCRIPT_DIR/generate-trace-exes.sh" "$BUILD_DIR/trace-tools"
+    mkdir -p "$OUT_DIR"
+    cp "$SCRIPT_DIR/wine-keep-dlls.txt" "$OUT_DIR/" 2>/dev/null || true
+    echo "📄 Regenerated keep-list copied to $OUT_DIR — commit wine-keep-dlls.txt into packages/wine/assets/"
+fi
 
 ############################################
-# 🧹 PRUNE system32 — whitelist-based
+# 🧹 PRUNE PE DLLS — whitelist-based (system32 prefix + lib/wine builtin dlldirs)
 ############################################
 
-echo "🧹 Pruning system32 to whitelist"
-SYSTEM32_DIR="$WINEPREFIX/drive_c/windows/system32"
-
-# DLLs sufficient for electron-builder tools (rcedit + WiX candle/light).
-# Derived from: CI baseline (32 DLLs that make install produced on x86_64)
-# plus rcedit loaddll trace. Removing everything else saves ~500 MB.
-SYSTEM32_KEEP_DLLS="
-  advapi32.dll bcrypt.dll combase.dll comctl32.dll comdlg32.dll coml2.dll
-  crypt32.dll cryptbase.dll cryptui.dll gdi32.dll imm32.dll kernel32.dll
-  kernelbase.dll mpr.dll msvcrt.dll ncrypt.dll ntdll.dll ole32.dll
-  oleaut32.dll rpcrt4.dll sechost.dll shcore.dll shell32.dll shlwapi.dll
-  ucrtbase.dll urlmon.dll user32.dll version.dll win32u.dll wininet.dll
-  ws2_32.dll xmllite.dll
+# Wine's *builtin* PE DLLs live in lib/wine/${arch}-windows/ (paired with their unix
+# counterpart in lib/wine/${arch}-unix/). The new WoW64 loader executes those builtin
+# images directly — the copies wineboot writes into the prefix's system32 are not a
+# substitute, so removing lib/wine/${arch}-windows makes every process fail to bootstrap
+# with STATUS_DLL_NOT_FOUND (c0000135): "failed to load .../x86_64-unix/ntdll.dll".
+#
+# Keeping ALL of them is ~770 MB though, so instead we keep only the DLLs the bundled
+# tools actually load and apply the same whitelist to BOTH the prefix system32 and the
+# lib/wine builtin dlldirs (x86_64-windows for the 64-bit host, i386-windows for the
+# 32-bit WoW64 guest — Squirrel's WriteZipToSetup and the NSIS installer are 32-bit).
+#
+# The keep-list is a committed, generated artifact — wine-keep-dlls.txt, next to this script. It is
+# produced by assets/generate-trace-exes.sh (which downloads + runs the bundled Windows tools under
+# Wine and records the system DLLs they load) and refreshed deliberately on a Wine/tool bump. The
+# build only READS it — it never downloads or executes that (AV-flagged) tooling. We union it with a
+# small bootstrap floor: the DLLs the loader maps to start any process, kept regardless so Wine boots
+# even if the list is ever edited down too far.
+BOOTSTRAP_KEEP_DLLS="
+  ntdll.dll kernel32.dll kernelbase.dll win32u.dll wow64.dll wow64cpu.dll
+  wow64win.dll sechost.dll ucrtbase.dll msvcrt.dll rpcrt4.dll advapi32.dll
+  user32.dll gdi32.dll ole32.dll combase.dll
 "
-for _dll in "$SYSTEM32_DIR"/*.dll; do
-    [ -f "$_dll" ] || continue
-    _name=$(basename "$_dll")
-    case " $SYSTEM32_KEEP_DLLS " in
-        *" $_name "*) ;;
-        *) rm -f "$_dll" ;;
-    esac
-done
+KEEP_FILE="$SCRIPT_DIR/wine-keep-dlls.txt"
+if [ ! -s "$KEEP_FILE" ]; then
+    echo "❌ missing PE DLL keep-list: $KEEP_FILE — regenerate it with assets/generate-trace-exes.sh"
+    exit 1
+fi
+echo "📄 Using committed PE DLL keep-list: $KEEP_FILE"
+FILE_KEEP_DLLS="$(grep -vE '^[[:space:]]*#' "$KEEP_FILE")"
+# Collapse newlines + indentation to single spaces so the space-delimited case match below works.
+WINDOWS_KEEP_DLLS=$(echo $BOOTSTRAP_KEEP_DLLS $FILE_KEEP_DLLS)
+echo "  Keeping $(printf '%s\n' $WINDOWS_KEEP_DLLS | sort -u | wc -l | tr -d ' ') unique PE DLLs"
+
+prune_dlls_to_whitelist() {
+    _dir="$1"
+    [ -d "$_dir" ] || return 0
+    for _dll in "$_dir"/*.dll; do
+        [ -f "$_dll" ] || continue
+        _name=$(basename "$_dll")
+        case " $WINDOWS_KEEP_DLLS " in
+            *" $_name "*) ;;
+            *) rm -f "$_dll" ;;
+        esac
+    done
+}
+
+echo "🧹 Pruning PE DLLs to whitelist (system32 + syswow64 + lib/wine builtin dlldirs)"
+SYSTEM32_DIR="$WINEPREFIX/drive_c/windows/system32"
+prune_dlls_to_whitelist "$SYSTEM32_DIR"
+prune_dlls_to_whitelist "$WINEPREFIX/drive_c/windows/syswow64"
+prune_dlls_to_whitelist "$STAGE_DIR/lib/wine/${PLATFORM_ARCH}-windows"
+prune_dlls_to_whitelist "$STAGE_DIR/lib/wine/i386-windows"
 
 # EXEs: keep only wine's internal service processes; drop all user-visible tools
 SYSTEM32_KEEP_EXES="
@@ -305,11 +370,13 @@ rm -f "$SYSTEM32_DIR"/*.cpl "$SYSTEM32_DIR"/*.tlb "$SYSTEM32_DIR"/*.ocx \
 echo "🧹 Removing Windows bulk"
 WINDOWS_DIR="$WINEPREFIX/drive_c/windows"
 
+# No .NET in this bundle: drop the Microsoft.NET Framework tree AND any Wine Mono dir. wineboot won't
+# install Mono without a datadir .msi (we provision none), but remove it defensively. syswow64 is
+# pruned above, not removed.
 rm -rf \
   "$WINDOWS_DIR/Installer" \
   "$WINDOWS_DIR/Microsoft.NET" \
   "$WINDOWS_DIR/mono" \
-  "$WINDOWS_DIR/syswow64" \
   "$WINDOWS_DIR/logs" \
   "$WINDOWS_DIR/inf" \
   "$WINDOWS_DIR/Temp" \

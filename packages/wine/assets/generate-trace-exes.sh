@@ -1,83 +1,123 @@
 #!/usr/bin/env bash
-set -exo pipefail
+#
+# Derive the set of Wine system DLLs that electron-builder's bundled Windows tools actually
+# load, by running each tool under a given Wine with WINEDEBUG=+loaddll and collecting every
+# DLL resolved out of windows\system32 / windows\syswow64.
+#
+# Used to (re)generate the static whitelist build-wine.sh prunes the Wine bundle to: the keep-list is
+# a committed artifact (wine-keep-dlls.txt, next to this script). build-wine.sh only READS that file —
+# it never runs this trace. Run this by hand to refresh the list on a Wine/tool bump. Because the trace
+# downloads + executes AV-flagged Windows tooling, run it on CI/a throwaway box only, never on a dev machine.
+#
+# Usage:
+#   generate-trace-exes.sh <work_dir>      # overwrites ./wine-keep-dlls.txt with the freshly traced list
+# Env:
+#   WINE_BIN     path to the wine binary to trace under (default: `wine` on PATH)
+#   WINEPREFIX   wine prefix to use (default: the wine's default prefix)
+#
+# Output: writes wine-keep-dlls.txt (sorted-unique lowercase DLL names, with a header) next to this
+#         script. All human-readable progress goes to stderr.
+set -uo pipefail
 
-echo "🧪 Electron Builder EXE discovery"
-echo "--------------------------------"
+WORK_DIR="${1:?usage: generate-trace-exes.sh <work_dir>}"
+WINE_BIN="${WINE_BIN:-wine}"
 
-# ------------------------------------------------------------
-# Config
-# ------------------------------------------------------------
+log() { echo "$@" >&2; }
 
-BASE_URL="https://github.com/electron-userland/electron-builder-binaries/releases/download/win-codesign@1.1.0"
+# Run a command with a hard time cap (portable — macOS ships no GNU `timeout`); kills it after
+# $1 seconds so a Wine hang fails fast instead of stalling the build. Mirrors test.sh's bound().
+bound() {
+    local secs="$1"; shift
+    "$@" &
+    local pid=$!
+    ( sleep "$secs"; kill -9 "$pid" 2>/dev/null ) >/dev/null 2>&1 &
+    local guard=$! rc=0
+    wait "$pid" 2>/dev/null || rc=$?
+    kill "$guard" 2>/dev/null || true
+    return "$rc"
+}
 
-TMP_ROOT="$(mktemp -d)"
-DOWNLOAD_DIR="$TMP_ROOT/downloads"
-UNPACK_DIR="$TMP_ROOT/unpacked"
-OUT_FILE="$TMP_ROOT/exe-list.txt"
-
+DOWNLOAD_DIR="$WORK_DIR/downloads"
+UNPACK_DIR="$WORK_DIR/unpacked"
 mkdir -p "$DOWNLOAD_DIR" "$UNPACK_DIR"
 
-echo "📂 Temp dir: $TMP_ROOT"
-echo "📄 Output:   $OUT_FILE"
-echo
+CODESIGN="https://github.com/electron-userland/electron-builder-binaries/releases/download/win-codesign@1.3.0"
+SQUIRREL="https://github.com/electron-userland/electron-builder-binaries/releases/download/squirrel.windows@1.1.0"
 
-# ------------------------------------------------------------
-# filename | sha256
-# ------------------------------------------------------------
-
+# url|sha256 — the NATIVE Windows tools electron-builder runs under this Wine bundle:
+#   win-codesign@1.3.0     → rcedit.exe (icon/version stamping)
+#   squirrel.windows@1.1.0 → WriteZipToSetup.exe (+ other native Squirrel stubs). Squirrel's own .NET
+#                            tools (nuget/SyncReleases/Squirrel-Mono) run under the HOST mono, not Wine,
+#                            so they trace to nothing here.
+# The generated NSIS installer (run under Wine only for uninstaller generation) can't be pre-downloaded;
+# it loads the same native PE DLL set as the above. No .NET tools are traced — the bundle ships no .NET
+# runtime, so WiX candle/light and Azure PowerShell are out of scope.
 ARCHIVES="
-windows-kits-bundle-10_0_26100_0.zip 284f18a2fde66e6ecfbefc3065926c9bfdf641761a9e6cd2bd26e18d1e328bf7
-win-codesign-windows-x64.zip        6e5dcc5d7af7c00a7387e2101d1ad986aef80e963a3526da07bd0e65de484c30
-rcedit-windows-2_0_0.zip            c66591ebe0919c60231f0bf79ff223e6504bfa69bc13edc1fa8bfc6177b73402
+$CODESIGN/rcedit-windows-2_0_0.zip|84ea279c5d94977fecffbe0f21b073318575dc631a3dae46fadb14309f2eef11
+$SQUIRREL/squirrel.windows-2.0.1-patched.zip|86e6c3e9ebf10e29cfde99dfff98f3738c29c9562495c540270129ffde1f79cf
 "
 
-# ------------------------------------------------------------
-# Download + verify + unpack
-# ------------------------------------------------------------
+extract() {
+    local file="$1" dest="$2"
+    mkdir -p "$dest"
+    case "$file" in
+        *.zip)    unzip -q -o "$file" -d "$dest" ;;
+        *.tar.gz) tar -xzf "$file" -C "$dest" ;;
+        *.tar.xz) tar -xJf "$file" -C "$dest" ;;
+        *) log "❌ unknown archive format: $file"; return 1 ;;
+    esac
+}
 
-echo "$ARCHIVES" | while read NAME SHA; do
-  [ -z "$NAME" ] && continue
+log "📥 Downloading + extracting trace toolchains"
+while IFS='|' read -r URL SHA; do
+    [ -z "$URL" ] && continue
+    NAME="$(basename "$URL")"
+    DEST="$DOWNLOAD_DIR/$NAME"
+    log "  ⬇️  $NAME"
+    curl -fsSL --retry 3 --retry-delay 2 --max-time 600 -o "$DEST" "$URL"
+    ACTUAL="$(shasum -a 256 "$DEST" | awk '{print $1}')"
+    if [ "$ACTUAL" != "$SHA" ]; then
+        log "❌ checksum mismatch for $NAME: expected $SHA got $ACTUAL"
+        exit 1
+    fi
+    extract "$DEST" "$UNPACK_DIR/${NAME%.*}" || exit 1
+done <<< "$ARCHIVES"
 
-  URL="$BASE_URL/$NAME"
-  DEST="$DOWNLOAD_DIR/$NAME"
-  OUT="$UNPACK_DIR/${NAME%.zip}"
+# Run every discovered .exe under Wine with +loaddll, harmlessly (no args), and capture the
+# system DLLs it resolves. A no-arg invocation still forces the loader to map the import chain.
+log "🧪 Tracing tool DLL loads under $WINE_BIN"
+TRACE_LOG="$WORK_DIR/loaddll.log"
+: > "$TRACE_LOG"
+while IFS= read -r exe; do
+    log "  🔎 $(basename "$exe")"
+    bound 90 env WINEDEBUG=+loaddll "$WINE_BIN" "$exe" >/dev/null 2>>"$TRACE_LOG" || true
+done < <(find "$UNPACK_DIR" -type f -iname '*.exe' | sort -u)
 
-  echo "⬇️  Fetching $NAME"
-  curl -fsSL --retry 3 --retry-delay 2 --max-time 300 -o "$DEST" "$URL"
+# Keep only DLLs resolved out of the Wine windows dirs (system32 / syswow64); the tools' own
+# sibling DLLs live elsewhere and are ignored. Wine prints the wide path with escaped separators
+# (...\\system32\\foo.dll), so match one-or-more backslashes around the dir name, not a single one.
+# Build the new list in a temp file first, then move it into place only if the trace actually
+# discovered DLLs — a failed/empty trace must never clobber the committed whitelist.
+KEEP_FILE="$(cd "$(dirname "$0")" && pwd)/wine-keep-dlls.txt"
+TMP_KEEP="$WORK_DIR/wine-keep-dlls.txt"
+{
+    echo "# AUTO-GENERATED by generate-trace-exes.sh — do not edit by hand."
+    echo "# Wine system DLLs (system32 / syswow64) that electron-builder's bundled Windows tools load."
+    echo "# build-wine.sh prunes the Wine bundle to these (plus a small bootstrap floor in build-wine.sh)."
+    echo "#"
+    echo "# Regenerate after a Wine or tool version bump:   bash assets/generate-trace-exes.sh <work_dir>"
+    echo "# CI ONLY — the trace downloads + executes AV-flagged Windows tooling (rcedit, Squirrel"
+    echo "# WriteZipToSetup); never run it on a developer machine."
+    grep -aoiE '\\+(system32|syswow64)\\+[a-z0-9_.+-]+\.dll' "$TRACE_LOG" \
+        | grep -aoiE '[a-z0-9_.+-]+\.dll$' \
+        | tr '[:upper:]' '[:lower:]' \
+        | sort -u
+} > "$TMP_KEEP"
 
-  echo "🔍 Verifying SHA-256"
-  ACTUAL="$(shasum -a 256 "$DEST" | awk '{print $1}')"
-
-  if [ "$ACTUAL" != "$SHA" ]; then
-    echo "❌ CHECKSUM FAILURE: $NAME"
-    echo "   Expected: $SHA"
-    echo "   Actual:   $ACTUAL"
+COUNT="$(grep -cvE '^[[:space:]]*#' "$TMP_KEEP")"
+if [ "$COUNT" -eq 0 ]; then
+    log "❌ trace discovered no system DLLs — keeping the existing $(basename "$KEEP_FILE"); aborting"
     exit 1
-  fi
-
-  echo "✅ Verified"
-
-  echo "📦 Unpacking"
-  mkdir -p "$OUT"
-  unzip -q "$DEST" -d "$OUT"
-  echo
-done
-
-# ------------------------------------------------------------
-# Discover .exe files
-# ------------------------------------------------------------
-
-echo "🔎 Scanning for Windows executables"
-echo "----------------------------------"
-
-find "$UNPACK_DIR" -type f -iname "*.exe" \
-  | sort -u \
-  | tee "$OUT_FILE"
-
-echo
-echo "🎉 EXE discovery complete"
-echo "📄 File: $OUT_FILE"
-
-# Print path so caller can capture it
-echo
-echo "EXE_LIST_FILE=$OUT_FILE"
+fi
+mv "$TMP_KEEP" "$KEEP_FILE"
+log "✅ Wrote $COUNT DLLs to $(basename "$KEEP_FILE")"
