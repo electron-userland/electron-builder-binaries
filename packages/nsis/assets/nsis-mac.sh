@@ -115,7 +115,7 @@ if ! scons \
     SKIPUTILS=all \
     SKIPMISC=all \
     NSIS_CONFIG_CONST_DATA_PATH=no \
-    NSIS_CONFIG_LOG=no \
+    NSIS_CONFIG_LOG=yes \
     NSIS_MAX_STRLEN=8192 \
     $SCONS_BREW_FLAGS \
     PREFIX="$BUILD_DIR/install" \
@@ -184,6 +184,7 @@ macOS Version: $(sw_vers -productVersion)
 
 This binary is compiled from source with:
 - Native macOS compilation (no cross-compile)
+- NSIS_CONFIG_LOG=yes (matches the Windows stubs)
 - NSIS_MAX_STRLEN=8192
 - NSIS_CONFIG_CONST_DATA_PATH=no
 
