@@ -98,7 +98,7 @@ RUN scons \
     SKIPUTILS=all \
     SKIPMISC=all \
     NSIS_CONFIG_CONST_DATA_PATH=no \
-    NSIS_CONFIG_LOG=no \
+    NSIS_CONFIG_LOG=yes \
     NSIS_MAX_STRLEN=8192 \
     PREFIX=/build/install \
     install-compiler
@@ -183,6 +183,7 @@ Docker image: ubuntu:22.04
 
 This binary is compiled from source with:
 - Static linking where possible
+- NSIS_CONFIG_LOG=yes (matches the Windows stubs)
 - NSIS_MAX_STRLEN=8192
 - NSIS_CONFIG_CONST_DATA_PATH=no
 
