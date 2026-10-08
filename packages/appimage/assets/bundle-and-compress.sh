@@ -44,6 +44,36 @@ echo "Extracting Linux (all architectures) → $BUILD_DIR/linux"
 tar -xzf "$LINUX_ZIP" -C "$BUILD_DIR"
 rm -f "$LINUX_ZIP"
 
+# =============================================================================
+# CROSS-PLATFORM MKSQUASHFS PARITY
+# =============================================================================
+# Every build compresses the same self-test fixture with zstd (build-appimage.sh
+# squashfs_selftest). All platforms must produce the same image bytes.
+echo ""
+echo "🔍 Checking mksquashfs zstd output parity across platforms..."
+PARITY_KEY="squashfs selftest zstd image sha256:"
+parity_ref=""
+parity_ok=1
+parity_report=""
+for version_file in "$BUILD_DIR"/{darwin,linux}/*/VERSION.txt; do
+    [[ -e "$version_file" ]] || continue
+    parity_line=$(grep "^$PARITY_KEY" "$version_file" || true)
+    parity_report+="   ${version_file#"$BUILD_DIR"/}: ${parity_line:-<missing>}"$'\n'
+    if [[ -z "$parity_line" ]]; then
+        parity_ok=0
+    elif [[ -z "$parity_ref" ]]; then
+        parity_ref="$parity_line"
+    elif [[ "$parity_line" != "$parity_ref" ]]; then
+        parity_ok=0
+    fi
+done
+printf '%s' "$parity_report"
+if [[ "$parity_ok" -ne 1 || -z "$parity_ref" ]]; then
+    echo "❌ mksquashfs zstd output differs across platforms (or a VERSION.txt is missing the selftest hash)"
+    exit 1
+fi
+echo "✅ All platforms produce identical zstd images"
+
 
 # =============================================================================
 # CREATE GENERIC APPIMAGE TOOL WRAPPER
@@ -171,7 +201,7 @@ export APPIMAGE_TOOLS_LIBDIR
 EOF
 chmod +x "$BUILD_DIR/select-runtime.env"
 
-ENTRYPOINTS=("mksquashfs" "desktop-file-validate" "opj_decompress")
+ENTRYPOINTS=("mksquashfs" "unsquashfs" "desktop-file-validate" "opj_decompress")
 for entry in "${ENTRYPOINTS[@]}"; do
     ln -sf appimage-tool "$BUILD_DIR/$entry"
 done

@@ -3,15 +3,19 @@ set -exuo pipefail
 
 CWD=$(cd "$(dirname "$BASH_SOURCE")/.." && pwd)
 
-verify_sha256() {
-    local file="$1" expected="$2" actual
+sha256_of() {
     if command -v sha256sum >/dev/null 2>&1; then
-        actual=$(sha256sum "$file" | awk '{print $1}')
+        sha256sum "$1" | awk '{print $1}'
     elif command -v shasum >/dev/null 2>&1; then
-        actual=$(shasum -a 256 "$file" | awk '{print $1}')
+        shasum -a 256 "$1" | awk '{print $1}'
     else
         echo "❌ No sha256 tool found (sha256sum or shasum required)" >&2; return 1
     fi
+}
+
+verify_sha256() {
+    local file="$1" expected="$2" actual
+    actual=$(sha256_of "$file")
     if [ "$actual" = "$expected" ]; then
         echo "  ✓ Checksum verified"
         return 0
@@ -23,7 +27,23 @@ verify_sha256() {
     fi
 }
 
-SQUASHFS_TOOLS_VERSION_TAG=${SQUASHFS_TOOLS_VERSION_TAG:-"4.6.1"}
+SQUASHFS_TOOLS_VERSION_TAG=${SQUASHFS_TOOLS_VERSION_TAG:-"4.7.5"}
+# Commit the tag must resolve to. Re-pin together with SQUASHFS_TOOLS_VERSION_TAG.
+SQUASHFS_TOOLS_COMMIT=${SQUASHFS_TOOLS_COMMIT:-"708c59ae80853b0845017c33b42e56061cc546cd"}
+# Upstream master commits applied on top of the tag (git cherry-pick --no-commit, in order)
+SQUASHFS_TOOLS_PATCHES=(
+    f88f4a659d6ab432a57e90fe2f6191149c6b343f # mksquashfs: use st_atimespec on macOS (4.7.5 does not compile on Darwin without it)
+    c96f0ecd47aabedd489dc0f8241894c8d068ce4f # mksquashfs: fix data race reading fragments during duplicate checking (#361)
+    58f659e105c6f42343805b9204ecd6657c482dc2 # mksquashfs: fix data race spilling blocks to disk during duplicate checking (#362)
+)
+# Compressors built into mksquashfs/unsquashfs; each one is round-trip tested by squashfs_selftest
+SQUASHFS_COMPRESSORS=(gzip xz lzo lz4 zstd)
+# zstd is built from source and linked statically into squashfs-tools so every host
+# (Linux distro / Homebrew) uses the same zstd and produces byte-identical zstd images.
+ZSTD_VERSION=${ZSTD_VERSION:-"1.5.7"}
+# SHA256 of https://github.com/facebook/zstd/releases/download/v${ZSTD_VERSION}/zstd-${ZSTD_VERSION}.tar.gz
+# Re-pin when bumping ZSTD_VERSION: curl -fsSL <url> | sha256sum
+ZSTD_SHA256=${ZSTD_SHA256:-"eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3"}
 DESKTOP_UTILS_DEPS_VERSION_TAG=${DESKTOP_UTILS_DEPS_VERSION_TAG:-"0.28"}
 OPENJPEG_VERSION=${OPENJPEG_VERSION:-"2.5.4"}
 # SHA256 of https://github.com/uclouvain/openjpeg/archive/v${OPENJPEG_VERSION}.tar.gz
@@ -43,6 +63,8 @@ case "$(uname -s)" in
         exit 1
     ;;
 esac
+
+NPROC=$(nproc 2>/dev/null || sysctl -n hw.ncpu)
 
 echo "🏗️  AppImage Tools Compiler for $OS"
 echo ""
@@ -103,7 +125,7 @@ else
     
     # Verify required brew packages are installed
     echo "🔍 Checking Homebrew dependencies..."
-    REQUIRED_DEPS=("lzo" "xz" "lz4" "zstd" "meson" "ninja" "tree")
+    REQUIRED_DEPS=("lzo" "xz" "lz4" "meson" "ninja" "tree")
     MISSING_DEPS=()
     
     for dep in "${REQUIRED_DEPS[@]}"; do
@@ -151,7 +173,17 @@ echo "   📥 Cloning squashfs-tools..."
 git clone https://github.com/plougher/squashfs-tools.git
 cd $BUILD_DIR/squashfs-tools
 git checkout $SQUASHFS_TOOLS_VERSION_TAG
-echo "   ✅ squashfs-tools cloned"
+SQUASHFS_TOOLS_HEAD=$(git rev-parse HEAD)
+if [ "$SQUASHFS_TOOLS_HEAD" != "$SQUASHFS_TOOLS_COMMIT" ]; then
+    echo "❌ squashfs-tools $SQUASHFS_TOOLS_VERSION_TAG resolved to $SQUASHFS_TOOLS_HEAD, expected $SQUASHFS_TOOLS_COMMIT"
+    exit 1
+fi
+for patch in "${SQUASHFS_TOOLS_PATCHES[@]}"; do
+    git cat-file -e "${patch}^{commit}"
+done
+git -c user.name=electron-builder-binaries -c user.email=noreply@electron.build cherry-pick --no-commit "${SQUASHFS_TOOLS_PATCHES[@]}"
+git --no-pager diff --stat HEAD
+echo "   ✅ squashfs-tools cloned and patched"
 
 cd "$BUILD_DIR"
 git clone https://gitlab.freedesktop.org/xdg/desktop-file-utils.git
@@ -160,45 +192,80 @@ git checkout $DESKTOP_UTILS_DEPS_VERSION_TAG
 echo "   ✅ desktop-file-utils cloned"
 
 # =============================================================================
+# BUILD STATIC ZSTD
+# =============================================================================
+# Single-threaded static libzstd (deterministic output); MOREFLAGS keeps zstd's own
+# CFLAGS (incl. -Wa,--noexecstack) intact.
+echo ""
+echo "📦 Building static zstd ${ZSTD_VERSION}..."
+ZSTD_PREFIX="$BUILD_DIR/zstd-prefix"
+cd "$BUILD_DIR"
+curl -fsSL --retry 3 --retry-delay 2 --max-time 300 \
+    "https://github.com/facebook/zstd/releases/download/v${ZSTD_VERSION}/zstd-${ZSTD_VERSION}.tar.gz" \
+    -o "zstd-${ZSTD_VERSION}.tar.gz"
+
+echo "  🔍 Verifying zstd checksum..."
+verify_sha256 "zstd-${ZSTD_VERSION}.tar.gz" "$ZSTD_SHA256"
+
+tar xzf "zstd-${ZSTD_VERSION}.tar.gz"
+make -C "zstd-${ZSTD_VERSION}/lib" -j"$NPROC" libzstd.a-release MOREFLAGS="-fPIC" ZSTD_LEGACY_SUPPORT=0 ZSTD_LIB_DICTBUILDER=0
+make -C "zstd-${ZSTD_VERSION}/lib" install-static install-includes PREFIX="$ZSTD_PREFIX"
+
+# Only the static archive may be visible to the squashfs-tools link
+for lib in "$ZSTD_PREFIX"/lib/libzstd*; do
+    if [ "$(basename "$lib")" != "libzstd.a" ]; then
+        echo "❌ Unexpected zstd library in $ZSTD_PREFIX/lib: $lib"
+        exit 1
+    fi
+done
+# zstd is linked into the shipped binaries, so ship its license with the bundle
+mkdir -p "$TEMP_DIR/LICENSES"
+cp "zstd-${ZSTD_VERSION}/LICENSE" "$TEMP_DIR/LICENSES/LICENSE.zstd"
+echo "   ✅ Built static libzstd ${ZSTD_VERSION}"
+
+# =============================================================================
 # BUILD SQUASHFS-TOOLS
 # =============================================================================
 echo "📦 Building squashfs-tools..."
 cd $BUILD_DIR/squashfs-tools/squashfs-tools
 
-if [ "$OS" = "linux" ]; then
-    
-    make -j$(nproc) \
-    GZIP_SUPPORT=1 \
-    XZ_SUPPORT=1 \
-    LZO_SUPPORT=1 \
-    LZ4_SUPPORT=1 \
-    ZSTD_SUPPORT=1
-    
-    mkdir -p "$ARCH_OUTPUT_DIR"
-    cp -aL mksquashfs "$ARCH_OUTPUT_DIR/"
-    chmod +x "$ARCH_OUTPUT_DIR/mksquashfs"
-    cp -aL unsquashfs "$ARCH_OUTPUT_DIR/"
-    chmod +x "$ARCH_OUTPUT_DIR/unsquashfs"
-
-else
-
+# The static zstd prefix must come first so -lzstd resolves to libzstd.a
+SQUASHFS_EXTRA_CFLAGS="-I${ZSTD_PREFIX}/include"
+SQUASHFS_EXTRA_LDFLAGS="-L${ZSTD_PREFIX}/lib"
+if [ "$OS" = "darwin" ]; then
     BREW_PREFIX=$(brew --prefix)
-    make -j$(sysctl -n hw.ncpu) \
+    SQUASHFS_EXTRA_CFLAGS="$SQUASHFS_EXTRA_CFLAGS -I${BREW_PREFIX}/include"
+    SQUASHFS_EXTRA_LDFLAGS="$SQUASHFS_EXTRA_LDFLAGS -L${BREW_PREFIX}/lib"
+fi
+
+make -j"$NPROC" \
     GZIP_SUPPORT=1 \
     XZ_SUPPORT=1 \
     LZO_SUPPORT=1 \
     LZ4_SUPPORT=1 \
     ZSTD_SUPPORT=1 \
-    EXTRA_CFLAGS="-I${BREW_PREFIX}/include" \
-    EXTRA_LDFLAGS="-L${BREW_PREFIX}/lib"
+    COMP_DEFAULT=zstd \
+    EXTRA_CFLAGS="$SQUASHFS_EXTRA_CFLAGS" \
+    EXTRA_LDFLAGS="$SQUASHFS_EXTRA_LDFLAGS"
 
-    mkdir -p "$ARCH_OUTPUT_DIR"
-    cp mksquashfs "$ARCH_OUTPUT_DIR/"
-    chmod +x "$ARCH_OUTPUT_DIR/mksquashfs"
-    cp unsquashfs "$ARCH_OUTPUT_DIR/"
-    chmod +x "$ARCH_OUTPUT_DIR/unsquashfs"
-    
-fi
+for tool in mksquashfs unsquashfs; do
+    if [ "$OS" = "linux" ]; then
+        tool_deps=$(readelf -d "$tool")
+    else
+        tool_deps=$(otool -L "$tool")
+    fi
+    if [[ "$tool_deps" == *libzstd* ]]; then
+        echo "❌ $tool is dynamically linked against libzstd (expected static zstd ${ZSTD_VERSION}):"
+        echo "$tool_deps"
+        exit 1
+    fi
+done
+
+mkdir -p "$ARCH_OUTPUT_DIR"
+cp -aL mksquashfs "$ARCH_OUTPUT_DIR/"
+chmod +x "$ARCH_OUTPUT_DIR/mksquashfs"
+cp -aL unsquashfs "$ARCH_OUTPUT_DIR/"
+chmod +x "$ARCH_OUTPUT_DIR/unsquashfs"
 
 echo "   ✅ Built mksquashfs unsquashfs"
 
@@ -245,11 +312,7 @@ cd "openjpeg-${OPENJPEG_VERSION}" || exit 1
 # Build
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local > /dev/null
-if [ "$OS" = "linux" ]; then
-    make -j$(nproc)
-else
-    make -j$(sysctl -n hw.ncpu)
-fi
+make -j"$NPROC"
 make install DESTDIR="$INSTALL_DIR"
 
 # Prepare output directory
@@ -357,6 +420,57 @@ find "$ARCH_OUTPUT_DIR" -type f -perm -111 | while read -r binary; do
     fi
 done
 
+if [ "$OS" = "darwin" ]; then
+    # Bundled dylibs have Homebrew dependencies of their own (e.g. libtiff -> libjpeg, libzstd).
+    # Copy and repoint them until no bundled dylib references /usr/local or /opt/homebrew.
+    echo ""
+    echo "   🔧 Bundling dependencies of bundled dylibs..."
+    changed=1
+    while [ "$changed" -eq 1 ]; do
+        changed=0
+        for dylib in "$ARCH_OUTPUT_DIR"/lib/*.dylib; do
+            if [ -L "$dylib" ]; then
+                continue
+            fi
+            # Homebrew dylibs are copied read-only (0444)
+            chmod u+w "$dylib"
+            dylib_id=$(otool -D "$dylib" | sed -n '2p')
+            for dep in $(otool -L "$dylib" | sed '1d' | awk '{print $1}'); do
+                if [ "$dep" = "$dylib_id" ]; then
+                    continue
+                fi
+                if [[ "$dep" != /usr/local/* ]] && [[ "$dep" != /opt/homebrew/* ]]; then
+                    continue
+                fi
+                libname=$(basename "$dep")
+                copy_lib_recursive "$dep" "$ARCH_OUTPUT_DIR/lib"
+                install_name_tool -change "$dep" "@loader_path/$libname" "$dylib"
+                echo "      ✅ $(basename "$dylib"): $dep -> @loader_path/$libname"
+                changed=1
+            done
+        done
+    done
+
+    # Fail if anything bundled still points into a Homebrew prefix (a dylib's own install-name ID is fine)
+    leftover=0
+    for file in "${EXECS_TO_PATCH[@]/#/$ARCH_OUTPUT_DIR/}" "$ARCH_OUTPUT_DIR"/lib/*.dylib; do
+        if [ -L "$file" ]; then
+            continue
+        fi
+        file_id=$(otool -D "$file" | sed -n '2p')
+        for dep in $(otool -L "$file" | sed '1d' | awk '{print $1}'); do
+            if [ "$dep" != "$file_id" ] && { [[ "$dep" == /usr/local/* ]] || [[ "$dep" == /opt/homebrew/* ]]; }; then
+                echo "❌ $(basename "$file") still references $dep"
+                leftover=1
+            fi
+        done
+    done
+    if [ "$leftover" -ne 0 ]; then
+        exit 1
+    fi
+    echo "   ✅ No Homebrew references left in bundled executables and dylibs"
+fi
+
 # =============================================================================
 # STRIP BINARIES
 # =============================================================================
@@ -439,8 +553,78 @@ echo "✅ $name verified: $first_line"
 
   return 0
 }
-verify_binary "mksquashfs" "$ARCH_OUTPUT_DIR/mksquashfs" "-version"
-verify_binary "unsquashfs" "$ARCH_OUTPUT_DIR/unsquashfs" "-version"
+
+# squashfs_check_image <tools dir> <source dir> <image> <compressor>
+# Asserts the image's compressor and that extracting it reproduces the source tree.
+squashfs_check_image() {
+    local dir="$1" src="$2" img="$3" comp="$4" out
+    out=$(LD_LIBRARY_PATH= "$dir/unsquashfs" -s "$img")
+    if ! grep -qx "Compression $comp" <<< "$out"; then
+        echo "❌ $(basename "$img"): unsquashfs -s did not report 'Compression $comp':"
+        echo "$out"
+        return 1
+    fi
+    LD_LIBRARY_PATH= "$dir/unsquashfs" -no-progress -quiet -d "$img.extracted" "$img"
+    diff -r "$src" "$img.extracted"
+    echo "✅ $(basename "$img"): Compression $comp, round trip matches"
+}
+
+# squashfs_selftest <tools dir>
+# Exercises the final (stripped, signed, bundled-lib) mksquashfs/unsquashfs: version, a round
+# trip per compressor, the default compressor, and records the zstd image hash in VERSION.txt
+# (compared across every platform by bundle-and-compress.sh).
+squashfs_selftest() {
+    local dir="$1" work out tool c sha
+    work=$(mktemp -d)
+
+    # Deterministic fixture: fixed contents and modes, no symlinks. The duplicate file
+    # exercises mksquashfs duplicate detection.
+    mkdir -p "$work/src/dir/nested"
+    seq 1 200000 > "$work/src/numbers.txt"
+    cp "$work/src/numbers.txt" "$work/src/dir/numbers-copy.txt"
+    printf 'squashfs selftest\n' > "$work/src/dir/nested/hello.txt"
+    printf '#!/bin/sh\necho squashfs selftest\n' > "$work/src/dir/run.sh"
+    : > "$work/src/empty.txt"
+    chmod 0755 "$work/src" "$work/src/dir" "$work/src/dir/nested" "$work/src/dir/run.sh"
+    chmod 0644 "$work/src/numbers.txt" "$work/src/dir/numbers-copy.txt" "$work/src/dir/nested/hello.txt" "$work/src/empty.txt"
+
+    for tool in mksquashfs unsquashfs; do
+        # unsquashfs -version exits non-zero, so only the output is checked
+        out=$(LD_LIBRARY_PATH= "$dir/$tool" -version 2>&1 || true)
+        if [[ "$out" != "$tool version $SQUASHFS_TOOLS_VERSION_TAG "* ]]; then
+            echo "❌ $tool -version does not start with '$tool version $SQUASHFS_TOOLS_VERSION_TAG ':"
+            echo "$out"
+            return 1
+        fi
+        echo "✅ $tool verified: ${out%%$'\n'*}"
+    done
+
+    # Same flags electron-builder passes to mksquashfs
+    for c in "${SQUASHFS_COMPRESSORS[@]}"; do
+        SOURCE_DATE_EPOCH=0 LD_LIBRARY_PATH= "$dir/mksquashfs" "$work/src" "$work/$c.squashfs" \
+            -comp "$c" -noappend -no-progress -quiet -all-root -no-xattrs -no-fragments
+        squashfs_check_image "$dir" "$work/src" "$work/$c.squashfs" "$c"
+    done
+
+    # Without -comp, mksquashfs must default to zstd
+    SOURCE_DATE_EPOCH=0 LD_LIBRARY_PATH= "$dir/mksquashfs" "$work/src" "$work/default.squashfs" \
+        -noappend -no-progress -quiet -all-root -no-xattrs
+    squashfs_check_image "$dir" "$work/src" "$work/default.squashfs" zstd
+
+    sha=$(sha256_of "$work/zstd.squashfs")
+    {
+        echo "squashfs-tools: $SQUASHFS_TOOLS_VERSION_TAG ($SQUASHFS_TOOLS_COMMIT)"
+        echo "squashfs-tools patches: ${SQUASHFS_TOOLS_PATCHES[*]}"
+        echo "zstd: $ZSTD_VERSION (static, tarball sha256 $ZSTD_SHA256)"
+        echo "squashfs compressors verified: ${SQUASHFS_COMPRESSORS[*]}"
+        echo "squashfs selftest zstd image sha256: $sha"
+    } >> "$VERSION_FILE"
+    echo "✅ squashfs selftest zstd image sha256: $sha"
+
+    rm -rf "$work"
+}
+
+squashfs_selftest "$ARCH_OUTPUT_DIR"
 verify_binary "opj_decompress" "$ARCH_OUTPUT_DIR/opj_decompress" "--help"
 
 # =============================================================================
@@ -526,7 +710,7 @@ echo "📦 Creating archive..."
 ARCHIVE_NAME="appimage-tools-${OS}-${TARGETARCH}${TARGETVARIANT}.tar.gz"
 mkdir -p "$DEST"
 
-items=( "$(basename "$OS_OUTPUT")" )
+items=( "$(basename "$OS_OUTPUT")" "LICENSES" )
 if [ -d "$LIB_DIR" ]; then
     items+=( "$(basename "$LIB_DIR")" )
 fi
