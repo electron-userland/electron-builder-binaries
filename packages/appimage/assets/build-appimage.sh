@@ -580,7 +580,7 @@ squashfs_selftest() {
     # Deterministic fixture: fixed contents and modes, no symlinks. The duplicate file
     # exercises mksquashfs duplicate detection.
     mkdir -p "$work/src/dir/nested"
-    seq 1 200000 > "$work/src/numbers.txt"
+    awk 'BEGIN { for (i = 1; i <= 200000; i++) print i }' > "$work/src/numbers.txt"
     cp "$work/src/numbers.txt" "$work/src/dir/numbers-copy.txt"
     printf 'squashfs selftest\n' > "$work/src/dir/nested/hello.txt"
     printf '#!/bin/sh\necho squashfs selftest\n' > "$work/src/dir/run.sh"
