@@ -1,5 +1,11 @@
 # nsis
 
+## 2.0.2
+
+### Patch Changes
+
+- [#227](https://github.com/electron-userland/electron-builder-binaries/pull/227) [`3d73456`](https://github.com/electron-userland/electron-builder-binaries/commit/3d73456229bd2cbff16a6d956df12d4aec314e66) Thanks [@claude](https://github.com/apps/claude)! - fix(nsis): build the Linux and macOS `makensis` with `NSIS_CONFIG_LOG=yes` to match the log-enabled Windows stubs shipped since 2.0.0. With the flag off, the host compilers rejected `LogSet`/`LogText` and numbered every opcode after `EW_LOG` one lower than the stubs expect, so `LockWindow` (used by MUI2), `SectionGetFlags`/`SectionSetFlags` and friends were emitted as the wrong instructions in installers cross-compiled on Linux or macOS.
+
 ## 2.0.1
 
 ### Patch Changes
