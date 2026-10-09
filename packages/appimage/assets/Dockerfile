@@ -49,7 +49,6 @@ RUN rm -rf /var/lib/apt/lists/* \
     libtool \
     libxss1 \
     libxtst6 \
-    libzstd-dev \
     meson \
     ninja-build \
     patchelf \
@@ -103,7 +102,7 @@ WORKDIR /project/build
 ARG DESKTOP_UTILS_DEPS_VERSION_TAG="0.28"
 ENV DESKTOP_UTILS_DEPS_VERSION_TAG=${DESKTOP_UTILS_DEPS_VERSION_TAG}
 
-ARG SQUASHFS_TOOLS_VERSION_TAG="4.6.1"
+ARG SQUASHFS_TOOLS_VERSION_TAG="4.7.5"
 ENV SQUASHFS_TOOLS_VERSION_TAG=${SQUASHFS_TOOLS_VERSION_TAG}
 
 ARG OPENJPEG_VERSION="2.5.4"

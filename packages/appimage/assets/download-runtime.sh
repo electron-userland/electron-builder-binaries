@@ -1,7 +1,9 @@
 #!/bin/sh
 set -eu
 
-# Download pinned AppImage runtimes and verify SHA256 checksums.
+# Download pinned AppImage runtimes and verify SHA256 checksums and GPG signatures.
+#
+# Requires gpg (or gpg2). Exit codes: 5 = no gpg / bad signing key, 6 = bad signature.
 #
 # Usage:
 #   download-runtime.sh               # download and verify to current directory (default)
@@ -30,6 +32,13 @@ e72ea0b140a0a16e680713238a6f30aad278b62c4ca17919c554864124515498  runtime-ia32
 e9060d37577b8a29914ec12d8740add24e19ff29012fb1fa0f60daf62db0688d  runtime-arm32
 CHECKSUMS
 )
+
+# type2-runtime release signing key, vendored next to this script. Byte-identical to
+# the 20251108 release asset signing-pubkey.asc
+# (sha256 db8b615eb5bbf5e8418d52906b4a492960926370e2c5041ad6acaccda56ef0c6).
+RUNTIME_SIGNING_KEY="${RUNTIME_SIGNING_KEY:-$(cd "$(dirname "$0")" && pwd)/type2-runtime-signing-pubkey.asc}"
+# Primary key fingerprint every runtime's detached <asset>.sig must verify against (expires 2034-05-03)
+RUNTIME_SIGNING_FINGERPRINT="570C77ACEA40C0F1B758902CBF96CCA56490F695"
 
 usage() {
 	echo "Usage: $0 [OPTIONS]"
@@ -73,6 +82,9 @@ fi
 
 OUT_DIR="${OUT_DIR:-$INSTALL_DIR}"
 
+# Detached signatures are kept next to (not inside) the install directory so they are not bundled
+SIG_DIR="${INSTALL_DIR%/}.sigs"
+
 # Helper: compute sha256 of a file in a portable way
 sha256_of() {
 	file="$1"
@@ -88,8 +100,79 @@ sha256_of() {
 	fi
 }
 
+# Helper: locate GnuPG (gpg, then gpg2) and store it in GPG
+find_gpg() {
+	for candidate in gpg gpg2; do
+		if command -v "$candidate" >/dev/null 2>&1; then
+			GPG="$candidate"
+			return 0
+		fi
+	done
+	echo "Error: gpg or gpg2 is required to verify runtime signatures" >&2
+	exit 5
+}
+
+# Helper: import the signing key into a temporary GNUPGHOME and assert its fingerprint
+setup_gpg() {
+	find_gpg
+	if [ ! -f "$RUNTIME_SIGNING_KEY" ]; then
+		echo "Error: runtime signing key not found: $RUNTIME_SIGNING_KEY" >&2
+		exit 5
+	fi
+	GNUPGHOME="$(mktemp -d)"
+	export GNUPGHOME
+	trap 'rm -rf "$GNUPGHOME"' EXIT
+	chmod 700 "$GNUPGHOME"
+	if ! gpg_log="$("$GPG" --batch --no-tty --no-autostart --import "$RUNTIME_SIGNING_KEY" 2>&1)"; then
+		echo "$gpg_log" >&2
+		echo "Error: failed to import runtime signing key $RUNTIME_SIGNING_KEY" >&2
+		exit 5
+	fi
+	key_fingerprints="$("$GPG" --batch --no-tty --no-autostart --with-colons --fingerprint 2>/dev/null | awk -F: '$1 == "pub" { want = 1; next } $1 == "fpr" && want { print $10; want = 0 }')"
+	if [ "$key_fingerprints" != "$RUNTIME_SIGNING_FINGERPRINT" ]; then
+		echo "Error: $RUNTIME_SIGNING_KEY is not the pinned runtime signing key" >&2
+		echo "  expected: $RUNTIME_SIGNING_FINGERPRINT" >&2
+		echo "  found:    $key_fingerprints" >&2
+		exit 5
+	fi
+	echo "Using $GPG with runtime signing key $RUNTIME_SIGNING_FINGERPRINT" >&2
+}
+
+# Helper: require a GOODSIG on file $1 (detached signature $2) made by the pinned key
+verify_sig() {
+	file="$1"
+	sig="$2"
+	if [ ! -f "$file" ] || [ ! -f "$sig" ]; then
+		echo "Missing $file or its signature $sig" >&2
+		exit 6
+	fi
+	gpg_status="$("$GPG" --batch --no-tty --no-autostart --status-fd 1 --verify "$sig" "$file" 2>/dev/null || true)"
+	# Last VALIDSIG field is the primary key fingerprint
+	signer="$(printf '%s\n' "$gpg_status" | awk '$1 == "[GNUPG:]" && $2 == "VALIDSIG" { print $NF }')"
+	case "$gpg_status" in
+		*"[GNUPG:] GOODSIG "*) ;;
+		*) signer="" ;;
+	esac
+	if [ "$signer" != "$RUNTIME_SIGNING_FINGERPRINT" ]; then
+		echo "Bad signature for $file" >&2
+		printf '%s\n' "$gpg_status" >&2
+		exit 6
+	fi
+	echo "GPG  $file" >&2
+}
+
+verify_sigs() {
+	for mapping in $FILES; do
+		dest=${mapping##*:}
+		verify_sig "$INSTALL_DIR/$dest" "$SIG_DIR/$dest.sig"
+	done
+}
+
+setup_gpg
+
 # Download files
 if [ -z "${SKIP_DOWNLOAD-}" ]; then
+	mkdir -p "$SIG_DIR"
 	for mapping in $FILES; do
 		src=${mapping%%:*}
 		dest=${mapping##*:}
@@ -100,12 +183,19 @@ if [ -z "${SKIP_DOWNLOAD-}" ]; then
 			echo "Failed to download $url" >&2
 			exit 2
 		fi
+		echo "Downloading $url.sig -> $SIG_DIR/$dest.sig" >&2
+		if ! curl -fsSL "$url.sig" -o "$SIG_DIR/$dest.sig"; then
+			echo "Failed to download $url.sig" >&2
+			exit 2
+		fi
 	done
 else
 	echo "SKIP_DOWNLOAD is set; skipping downloads" >&2
 fi
 
 if [ "$MODE" = "print" ]; then
+	# Only print checksums of correctly signed runtimes
+	verify_sigs
 	# Print computed checksums in the standard format for copy/paste into
 	# CHECKSUMS block. Don't modify the script automatically by default.
 	for mapping in $FILES; do
@@ -163,7 +253,10 @@ if [ "$failed" -ne 0 ]; then
 	exit 4
 fi
 
+verify_sigs
+
 echo "AppImage/type2-runtime release: $APPIMAGE_TYPE2_RELEASE" > "$INSTALL_DIR/VERSION.txt"
+echo "GPG signer: $RUNTIME_SIGNING_FINGERPRINT" >> "$INSTALL_DIR/VERSION.txt"
 echo "$CHECKSUMS" >> "$INSTALL_DIR/VERSION.txt"
 echo "All files verified successfully." >&2
 
