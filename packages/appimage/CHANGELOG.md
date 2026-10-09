@@ -1,5 +1,11 @@
 # appimage
 
+## 1.2.0
+
+### Minor Changes
+
+- [#231](https://github.com/electron-userland/electron-builder-binaries/pull/231) [`bc5926c`](https://github.com/electron-userland/electron-builder-binaries/commit/bc5926c8530586a3f3dc83539049d2452fe36a75) Thanks [@mmaietta](https://github.com/mmaietta)! - feat(appimage): build squashfs-tools 4.7.5 (plus upstream macOS-build and duplicate-detection race fixes) against a pinned, checksum-verified static zstd 1.5.7 so Linux and macOS hosts produce byte-identical zstd images, default `mksquashfs` to zstd, round-trip test every compressor at build time, bundle the remaining Homebrew dylib dependencies on macOS (incl. the missing `libjpeg`), add an `unsquashfs` entrypoint and GPG-verify the type2-runtime downloads
+
 ## 1.1.0
 
 ### Minor Changes
