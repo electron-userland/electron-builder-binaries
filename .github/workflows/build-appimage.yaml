@@ -22,7 +22,7 @@ jobs:
 
       - name: Setup Node.js
         uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a
-        with: { node-version: '22' }
+        with: { node-version: '22', check-latest: true }
 
       - name: Install dependencies
         run: pnpm i --frozen-lockfile
@@ -60,7 +60,7 @@ jobs:
 
       - name: Setup Node.js
         uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a
-        with: { node-version: '22' }
+        with: { node-version: '22', check-latest: true }
       - name: Install dependencies
         run: pnpm i --frozen-lockfile
 
@@ -98,7 +98,7 @@ jobs:
      
       - name: Setup Node.js
         uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a
-        with: { node-version: '22' }
+        with: { node-version: '22', check-latest: true }
      
       - name: Download all appimage artifacts
         uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
