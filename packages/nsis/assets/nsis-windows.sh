@@ -358,7 +358,6 @@ mkdir -p "$PLUGINS_DIR"
 PLUGIN_NAMES=(
     "INetC"
     "StdUtils"
-    "SpiderBanner"
     "NsProcess"
     "UAC"
     "WinShell"
@@ -370,7 +369,6 @@ PLUGIN_NAMES=(
 PLUGIN_URLS=(
     "https://github.com/DigitalMediaServer/NSIS-INetC-plugin/releases/download/v1.0.5.7/INetC.zip"
     "https://github.com/lordmulder/stdutils/releases/download/1.14/StdUtils.2018-10-27.zip"
-    "https://nsis.sourceforge.io/mediawiki/images/4/4c/SpiderBanner_plugin.zip"
     "https://nsis.sourceforge.io/mediawiki/images/1/18/NsProcess.zip"
     "https://nsis.sourceforge.io/mediawiki/images/8/8f/UAC.zip"
     "https://nsis.sourceforge.io/mediawiki/images/5/54/WinShell.zip"
@@ -382,7 +380,6 @@ PLUGIN_URLS=(
 PLUGIN_SHA256=(
     "b01077e56ebb19c005b45d40f837958ca6a92f51a5a937dc1bb497c7c7f2aa93"  # INetC
     "3ffe893dc7477fdb1cac551a86ae017509e1f2d0ebdc7185fd0fbaf20870688c"  # StdUtils
-    "45c79a024e5122834a3473a87649757bc11958a11602a3ce2d9f7ce006f0e2b7"  # SpiderBanner
     "fc19fc66a5219a233570fafd5daeb0c9b85387b379f6df5ac8898159a57c5944"  # NsProcess
     "20e3192af5598568887c16d88de59a52c2ce4a26e42c5fb8bee8105dcbbd1760"  # UAC
     "34e111f8aacf64c540d848fd06b9d6f3e2c10cb825ec9329a01d1141973e749b"  # WinShell
