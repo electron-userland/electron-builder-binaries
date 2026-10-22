@@ -59,6 +59,7 @@ WORKDIR /build
 # Script will be mounted or copied
 COPY build-wine.sh /build/build-wine.sh
 COPY generate-trace-exes.sh /build/generate-trace-exes.sh
+COPY wine-keep-dlls.txt /build/wine-keep-dlls.txt
 RUN chmod +x /build/build-wine.sh /build/generate-trace-exes.sh
 
 # Output directory
