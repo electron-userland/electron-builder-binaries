@@ -126,6 +126,9 @@ assert_file "$BUNDLE_DIR/windows/makensis.exe"          "windows/makensis.exe pr
 assert_file "$BUNDLE_DIR/linux/x64/makensis"            "linux/x64/makensis present"
 assert_file "$BUNDLE_DIR/linux/arm64/makensis"          "linux/arm64/makensis present"
 assert_file "$BUNDLE_DIR/elevate.exe"              "elevate.exe present at bundle root"
+for sb_variant in x86-unicode x86-ansi amd64-unicode; do
+    assert_file "$BUNDLE_DIR/windows/Plugins/$sb_variant/SpiderBanner.dll" "SpiderBanner.dll ($sb_variant, compiled from source) present"
+done
 
 if [ -f "$BUNDLE_DIR/elevate.exe" ]; then
     MZ_ELV=$(od -N 2 -A n -t x1 "$BUNDLE_DIR/elevate.exe" 2>/dev/null | tr -d ' \n')
