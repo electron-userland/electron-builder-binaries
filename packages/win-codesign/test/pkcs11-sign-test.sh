@@ -10,7 +10,6 @@
 #
 # Run: bash packages/win-codesign/test/pkcs11-sign-test.sh <bundle.zip | bundle dir>
 # Env: SOFTHSM2_MODULE  path to libsofthsm2.so (auto-detected for Homebrew / Debian)
-#      PKCS11_EXTRA_ENV  optional "VAR=value" applied to the signing run (for diagnosis)
 set -uo pipefail
 
 PASS=0
@@ -53,7 +52,6 @@ fi
 
 echo "🧪 PKCS#11 signing with bundle at $BUNDLE"
 echo "   module: $MODULE"
-[[ -n "${PKCS11_EXTRA_ENV:-}" ]] && echo "   extra env: $PKCS11_EXTRA_ENV"
 
 W="$TMPDIR_ROOT/work"
 mkdir -p "$W/tokens"
@@ -89,16 +87,8 @@ fi
 printf 'Write-Output "hello"\r\n' > "$W/test.ps1"
 KEY_URI="pkcs11:token=$LABEL;object=signkey;type=private"
 
-run_sign() {
-    if [[ -n "${PKCS11_EXTRA_ENV:-}" ]]; then
-        env "$PKCS11_EXTRA_ENV" "$OSSL" "$@"
-    else
-        "$OSSL" "$@"
-    fi
-}
-
 code=0
-run_sign sign -in "$W/test.ps1" -out "$W/signed.ps1" \
+"$OSSL" sign -in "$W/test.ps1" -out "$W/signed.ps1" \
     -pkcs11module "$MODULE" -key "$KEY_URI" -certs "$W/cert.pem" -h sha256 -pass "$PIN" \
     > "$W/sign.log" 2>&1 || code=$?
 if [[ $code -eq 0 && -f "$W/signed.ps1" ]]; then

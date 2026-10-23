@@ -194,33 +194,14 @@ jobs:
           bash packages/win-codesign/test/build-mac-test.sh \
             packages/win-codesign/out/win-codesign/win-codesign-darwin-${{ matrix.arch }}.zip
 
-      - name: Install SoftHSM and libp11 for the PKCS#11 test
-        run: brew install softhsm libp11
+      - name: Install SoftHSM for the PKCS#11 test
+        run: brew install softhsm
 
       - name: PKCS#11 signing test (${{ matrix.arch }})
         shell: bash
         run: |
           bash packages/win-codesign/test/pkcs11-sign-test.sh \
             packages/win-codesign/out/win-codesign/win-codesign-darwin-${{ matrix.arch }}.zip
-
-      # Not gating: for comparison, the previously published 1.3.0 bundle (linked to Homebrew's
-      # openssl@3) on the same runner, as electron-builder calls it and with libp11's provider dir set.
-      - name: PKCS#11 comparison with published 1.3.0 bundle (${{ matrix.arch }})
-        if: always()
-        continue-on-error: true
-        shell: bash
-        run: |
-          set +e
-          MODS="$(brew --prefix libp11)/lib/ossl-modules"
-          OLD="$RUNNER_TEMP/wcs-1.3.0.zip"
-          curl -fsSL -o "$OLD" "https://github.com/electron-userland/electron-builder-binaries/releases/download/win-codesign%401.3.0/win-codesign-darwin-${{ matrix.arch }}.zip"
-          echo "::group::published 1.3.0 bundle, no env"
-          bash packages/win-codesign/test/pkcs11-sign-test.sh "$OLD"
-          echo "::endgroup::"
-          echo "::group::published 1.3.0 bundle, OPENSSL_MODULES=$MODS"
-          PKCS11_EXTRA_ENV="OPENSSL_MODULES=$MODS" bash packages/win-codesign/test/pkcs11-sign-test.sh "$OLD"
-          echo "::endgroup::"
-          exit 0
 
       - name: Upload win-codesign macOS artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
