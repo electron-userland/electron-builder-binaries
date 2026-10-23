@@ -169,7 +169,8 @@ jobs:
 
   mac:
     runs-on: ${{ matrix.node }}
-    timeout-minutes: 20
+    # Includes building OpenSSL from source for the static link.
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -188,6 +189,12 @@ jobs:
           bash packages/win-codesign/build.sh \
             --arch ${{ matrix.arch }} \
             --osslsigncode-ver ${{ inputs.osslsigncode_ver || '2.11' }}
+
+      - name: Test win-codesign macOS bundle (${{ matrix.arch }})
+        shell: bash
+        run: |
+          bash packages/win-codesign/test/build-mac-test.sh \
+            packages/win-codesign/out/win-codesign/win-codesign-darwin-${{ matrix.arch }}.zip
 
       - name: Upload win-codesign macOS artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
