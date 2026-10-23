@@ -167,7 +167,7 @@ jobs:
 
   mac:
     runs-on: ${{ matrix.node }}
-    # Includes building OpenSSL from source for the static link.
+    # Includes building OpenSSL and libp11 from source.
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -203,20 +203,15 @@ jobs:
           bash packages/win-codesign/test/pkcs11-sign-test.sh \
             packages/win-codesign/out/win-codesign/win-codesign-darwin-${{ matrix.arch }}.zip
 
-      # Not gating: shows how the PKCS#11 path behaves with libp11's provider dir passed explicitly,
-      # and how the previously published (Homebrew-linked) 1.3.0 bundle behaves on the same runner.
-      - name: PKCS#11 diagnostics (${{ matrix.arch }})
+      # Not gating: for comparison, the previously published 1.3.0 bundle (linked to Homebrew's
+      # openssl@3) on the same runner, as electron-builder calls it and with libp11's provider dir set.
+      - name: PKCS#11 comparison with published 1.3.0 bundle (${{ matrix.arch }})
         if: always()
         continue-on-error: true
         shell: bash
         run: |
           set +e
           MODS="$(brew --prefix libp11)/lib/ossl-modules"
-          ls -la "$MODS"; otool -L "$MODS"/*.dylib
-          echo "::group::new bundle, OPENSSL_MODULES=$MODS"
-          PKCS11_EXTRA_ENV="OPENSSL_MODULES=$MODS" bash packages/win-codesign/test/pkcs11-sign-test.sh \
-            packages/win-codesign/out/win-codesign/win-codesign-darwin-${{ matrix.arch }}.zip
-          echo "::endgroup::"
           OLD="$RUNNER_TEMP/wcs-1.3.0.zip"
           curl -fsSL -o "$OLD" "https://github.com/electron-userland/electron-builder-binaries/releases/download/win-codesign%401.3.0/win-codesign-darwin-${{ matrix.arch }}.zip"
           echo "::group::published 1.3.0 bundle, no env"

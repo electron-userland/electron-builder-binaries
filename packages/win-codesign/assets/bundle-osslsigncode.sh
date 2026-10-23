@@ -4,20 +4,23 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 usage() {
-    echo "Usage: $0 --src <path-to-osslsigncode> [--output-dir <dir>] [--platform-arch <arch>]" >&2
+    echo "Usage: $0 --src <path-to-osslsigncode> [--lib-dir <dir>] [--output-dir <dir>] [--platform-arch <arch>]" >&2
     echo "  --src           Path to the compiled osslsigncode binary (required)" >&2
+    echo "  --lib-dir       Directory whose contents are copied into the bundle's lib/ (macOS)" >&2
     echo "  --output-dir    Directory to write the final ZIP bundle (default: \$ROOT/out/osslsigncode)" >&2
     echo "  --platform-arch Target architecture label, e.g. amd64, arm64, i386 (default: \$(uname -m))" >&2
     exit 2
 }
 
 OSSLSIGNCODE_SRC="${OSSLSIGNCODE_SRC:-}"
+EXTRA_LIB_DIR=""
 OUTPUT_DIR="${OUTPUT_DIR:-$ROOT/out/osslsigncode}"
 PLATFORM_ARCH="${PLATFORM_ARCH:-$(uname -m)}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --src)           OSSLSIGNCODE_SRC="$2"; shift 2 ;;
+        --lib-dir)       EXTRA_LIB_DIR="$2";    shift 2 ;;
         --output-dir)    OUTPUT_DIR="$2";        shift 2 ;;
         --platform-arch) PLATFORM_ARCH="$2";     shift 2 ;;
         -h|--help) usage ;;
@@ -63,6 +66,12 @@ echo "  ➕ Copying osslsigncode binary to bundle"
 cp -a "$OSSLSIGNCODE_SRC" "$BIN_DIR/osslsigncode"
 chmod +x "$BIN_DIR/osslsigncode"
 
+# ── Bundled libraries (macOS: OpenSSL dylibs + pkcs11prov) ────────────────────
+if [[ -n "$EXTRA_LIB_DIR" ]]; then
+    echo "  ➕ Copying bundled libraries from $EXTRA_LIB_DIR"
+    cp -R "$EXTRA_LIB_DIR"/. "$LIB_DIR"/
+fi
+
 # ── Linux: bundle shared libs ─────────────────────────────────────────────────
 if [[ "$uname_s" == "Linux" ]]; then
     echo "🐧 Linux detected"
@@ -73,6 +82,8 @@ fi
 echo "✂ Stripping symbols"
 find "$INSTALL_DIR" -type f -print0 | while IFS= read -r -d '' f; do
     [[ ! -x "$f" && "$f" == *VERSION.txt ]] && continue
+    # Apple's strip would drop the dylibs' exported symbols; they are signed below as built.
+    [[ "$uname_s" == "Darwin" && "$f" == "$LIB_DIR"/* ]] && continue
     if command -v strip >/dev/null 2>&1; then
         strip --strip-unneeded "$f" 2>/dev/null || true
     fi
@@ -81,6 +92,9 @@ done
 # ── macOS ad-hoc signing ──────────────────────────────────────────────────────
 if [[ "$uname_s" == "Darwin" ]]; then
     echo "🔏 Code signing binaries and libraries..."
+    while IFS= read -r -d '' f; do
+        /usr/bin/codesign --force --sign - "$f"
+    done < <(find "$LIB_DIR" -type f -name '*.dylib' -print0)
     for f in "$BIN_DIR"/*; do
         /usr/bin/codesign --force --sign - "$f"
     done
@@ -108,6 +122,8 @@ case "$(uname -s)" in
         xattr -d com.apple.quarantine "$HERE/bin/osslsigncode" || true
     fi
     export DYLD_FALLBACK_LIBRARY_PATH="$HERE/lib:${DYLD_FALLBACK_LIBRARY_PATH:-}"
+    # Bundled pkcs11prov (libp11) for -pkcs11module signing; must share the bundled libcrypto.
+    export OPENSSL_MODULES="$HERE/lib/ossl-modules"
     ;;
   Linux|GNU*)
     export LD_LIBRARY_PATH="$HERE/lib:${LD_LIBRARY_PATH:-}"

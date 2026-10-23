@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Smoke tests for the macOS osslsigncode bundle produced by build-mac.sh.
-#   - the binary links only against macOS system libraries (no Homebrew OpenSSL)
-#   - it reports the statically linked OpenSSL version
+#   - the binary and its bundled OpenSSL / pkcs11prov dylibs link only against macOS system
+#     libraries and each other (no Homebrew OpenSSL)
+#   - it reports the bundled OpenSSL version
 #   - it can sign and verify with a legacy (RC2/3DES) PKCS#12 file, which needs the
 #     legacy provider compiled into libcrypto, and with PEM key + certificate
 #
@@ -39,15 +40,24 @@ echo "🧪 Testing bundle at $BUNDLE"
 
 # ── Linkage ───────────────────────────────────────────────────────────────────
 if [[ "$(uname -s)" == "Darwin" ]]; then
-    if bash "$ASSETS_DIR/verify-macos-linkage.sh" "$BIN"; then
-        pass "bin/osslsigncode links only macOS system libraries"
+    for f in libcrypto.3.dylib libssl.3.dylib ossl-modules/pkcs11prov.dylib; do
+        if [[ -f "$BUNDLE/lib/$f" ]]; then
+            pass "bundle ships lib/$f"
+        else
+            fail "bundle is missing lib/$f"
+        fi
+    done
+    MACHO=("$BIN")
+    while IFS= read -r -d '' f; do MACHO+=("$f"); done < <(find "$BUNDLE/lib" -type f -name '*.dylib' -print0)
+    if bash "$ASSETS_DIR/verify-macos-linkage.sh" --lib-dir "$BUNDLE/lib" "${MACHO[@]}"; then
+        pass "binary and bundled dylibs link only macOS system libraries and each other"
     else
-        fail "bin/osslsigncode links non-system libraries"
+        fail "bundle links libraries outside macOS and the bundle"
     fi
-    if [[ -z "$(find "$BUNDLE/lib" -type f 2>/dev/null)" ]]; then
-        pass "bundle ships no dylibs in lib/"
+    if /usr/bin/codesign -v --strict "${MACHO[@]}" 2>/dev/null; then
+        pass "binary and bundled dylibs carry valid (ad-hoc) signatures"
     else
-        fail "bundle unexpectedly ships files in lib/"
+        fail "invalid code signature in bundle"
     fi
 else
     echo "  ⏭  linkage check skipped (not macOS)"
@@ -57,7 +67,7 @@ fi
 VERSION_OUT="$("$OSSL" --version 2>&1 || true)"
 echo "$VERSION_OUT" | sed 's/^/     /'
 if grep -q "Library: $EXPECTED_OPENSSL" <<< "$VERSION_OUT"; then
-    pass "reports static $EXPECTED_OPENSSL library"
+    pass "reports bundled $EXPECTED_OPENSSL library"
 else
     fail "expected 'Library: $EXPECTED_OPENSSL' in --version output"
 fi
