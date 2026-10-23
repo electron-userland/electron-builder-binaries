@@ -89,7 +89,8 @@ else
     if openssl pkcs12 -help 2>&1 | grep -q -- '-legacy'; then
         P12_ARGS+=(-legacy)
     fi
-    openssl pkcs12 -export "${P12_ARGS[@]}" -inkey "$W/key.pem" -in "$W/cert.pem" \
+    # ${arr[@]+...} form: macOS bash 3.2 treats an empty array as unbound under `set -u`.
+    openssl pkcs12 -export ${P12_ARGS[@]+"${P12_ARGS[@]}"} -inkey "$W/key.pem" -in "$W/cert.pem" \
         -out "$W/legacy.p12" -passout pass:smoke >/dev/null 2>&1
 
     printf 'Write-Output "hello"\r\n' > "$W/test.ps1"
