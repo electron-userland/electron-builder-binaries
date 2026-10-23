@@ -79,7 +79,6 @@ jobs:
             libgsf:p
             zlib:p
             pkgconf:p
-            nodejs:p
 
       - name: Build osslsigncode for Windows (${{ matrix.arch }})
         run: |
@@ -124,7 +123,6 @@ jobs:
             libgsf:p
             zlib:p
             pkgconf:p
-            nodejs:p
 
       - name: Build Windows kits + ats + rcedit (x64 only)
         run: |
