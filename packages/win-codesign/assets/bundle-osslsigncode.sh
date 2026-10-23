@@ -118,8 +118,9 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 case "$(uname -s)" in
   Darwin)
-    if grep -q "com.apple.quarantine" <<< "$(xattr "$HERE/bin/osslsigncode" 2>/dev/null || true)"; then
-        xattr -d com.apple.quarantine "$HERE/bin/osslsigncode" || true
+    # Gatekeeper also checks quarantined dylibs when they load, so clear lib/ too.
+    if grep -q "com.apple.quarantine" <<< "$(xattr -r "$HERE/bin" "$HERE/lib" 2>/dev/null || true)"; then
+        xattr -dr com.apple.quarantine "$HERE/bin" "$HERE/lib" 2>/dev/null || true
     fi
     export DYLD_FALLBACK_LIBRARY_PATH="$HERE/lib:${DYLD_FALLBACK_LIBRARY_PATH:-}"
     # Bundled pkcs11prov (libp11) for -pkcs11module signing; must share the bundled libcrypto.

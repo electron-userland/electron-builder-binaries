@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Smoke tests for the macOS osslsigncode bundle produced by build-mac.sh.
 #   - the binary and its bundled OpenSSL / pkcs11prov dylibs link only against macOS system
-#     libraries and each other (no Homebrew OpenSSL)
+#     libraries and each other (no Homebrew OpenSSL), embed no Homebrew paths and target
+#     macOS <= $EXPECTED_MIN_MACOS (default 11.0); the bundled libraries' licenses ship too
 #   - it reports the bundled OpenSSL version
 #   - it can sign and verify with a legacy (RC2/3DES) PKCS#12 file, which needs the
 #     legacy provider compiled into libcrypto, and with PEM key + certificate
@@ -14,6 +15,7 @@ PASS=0
 FAIL=0
 ASSETS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../assets" && pwd)"
 EXPECTED_OPENSSL="${EXPECTED_OPENSSL:-OpenSSL 3.5.}"
+EXPECTED_MIN_MACOS="${EXPECTED_MIN_MACOS:-11.0}"
 
 pass() { echo "  ✅ $1"; PASS=$(( PASS + 1 )); }
 fail() { echo "  ❌ $1"; FAIL=$(( FAIL + 1 )); }
@@ -40,7 +42,7 @@ echo "🧪 Testing bundle at $BUNDLE"
 
 # ── Linkage ───────────────────────────────────────────────────────────────────
 if [[ "$(uname -s)" == "Darwin" ]]; then
-    for f in libcrypto.3.dylib libssl.3.dylib ossl-modules/pkcs11prov.dylib; do
+    for f in libcrypto.3.dylib libssl.3.dylib ossl-modules/pkcs11prov.dylib LICENSE.openssl.txt LICENSE.libp11.txt; do
         if [[ -f "$BUNDLE/lib/$f" ]]; then
             pass "bundle ships lib/$f"
         else
@@ -49,10 +51,10 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
     done
     MACHO=("$BIN")
     while IFS= read -r -d '' f; do MACHO+=("$f"); done < <(find "$BUNDLE/lib" -type f -name '*.dylib' -print0)
-    if bash "$ASSETS_DIR/verify-macos-linkage.sh" --lib-dir "$BUNDLE/lib" "${MACHO[@]}"; then
-        pass "binary and bundled dylibs link only macOS system libraries and each other"
+    if bash "$ASSETS_DIR/verify-macos-linkage.sh" --lib-dir "$BUNDLE/lib" --macos-target "$EXPECTED_MIN_MACOS" "${MACHO[@]}"; then
+        pass "binary and bundled dylibs link only macOS system libraries and each other, embed no Homebrew paths, target macOS <= $EXPECTED_MIN_MACOS"
     else
-        fail "bundle links libraries outside macOS and the bundle"
+        fail "bundle links libraries outside macOS and the bundle, embeds Homebrew paths, or targets macOS > $EXPECTED_MIN_MACOS"
     fi
     if /usr/bin/codesign -v --strict "${MACHO[@]}" 2>/dev/null; then
         pass "binary and bundled dylibs carry valid (ad-hoc) signatures"

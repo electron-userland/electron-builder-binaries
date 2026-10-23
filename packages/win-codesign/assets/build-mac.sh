@@ -167,6 +167,8 @@ fetch_verified "https://github.com/OpenSC/libp11/releases/download/libp11-$LIBP1
     "$LIBP11_SHA256" "$LIBP11_TARBALL"
 tar -xzf "$LIBP11_TARBALL" -C "$TMP_DIR"
 
+# The empty --with-pkcs11-module keeps configure from baking the build host's p11-kit proxy
+# (a Homebrew Cellar path on the runners) into pkcs11prov as its default PKCS#11 module.
 (
     cd "$TMP_DIR/libp11-$LIBP11_VER"
     ./configure \
@@ -174,6 +176,7 @@ tar -xzf "$LIBP11_TARBALL" -C "$TMP_DIR"
         --with-modulesdir="$LIBP11_PREFIX/ossl-modules" \
         --with-enginesdir="$LIBP11_PREFIX/engines-3" \
         --disable-static \
+        --with-pkcs11-module= \
         CFLAGS="-arch $ARCH -mmacosx-version-min=$MACOSX_DEPLOYMENT_TARGET -O2" \
         LDFLAGS="-arch $ARCH -mmacosx-version-min=$MACOSX_DEPLOYMENT_TARGET" \
         OPENSSL_CFLAGS="-I$OPENSSL_PREFIX/include" \
@@ -197,6 +200,9 @@ cp "$PKCS11PROV" "$STAGE_LIB/ossl-modules/pkcs11prov.dylib"
 chmod 644 "$STAGE_LIB"/*.dylib "$STAGE_LIB/ossl-modules/pkcs11prov.dylib"
 relink_openssl "$STAGE_LIB/ossl-modules/pkcs11prov.dylib"
 add_rpath_once "$STAGE_LIB/ossl-modules/pkcs11prov.dylib" "@loader_path/.."
+# Licenses of the bundled libraries (OpenSSL: Apache-2.0, libp11: LGPL-2.1+).
+cp "$TMP_DIR/openssl-$OPENSSL_VER/LICENSE.txt" "$STAGE_LIB/LICENSE.openssl.txt"
+cp "$TMP_DIR/libp11-$LIBP11_VER/COPYING" "$STAGE_LIB/LICENSE.libp11.txt"
 
 # ── osslsigncode ──────────────────────────────────────────────────────────────
 mkdir -p "$SOURCE_DIR/build"
@@ -228,8 +234,9 @@ for f in "$OSSLSIGNCODE_BIN" "$STAGE_LIB"/*.dylib "$STAGE_LIB/ossl-modules/pkcs1
     /usr/bin/codesign --force --sign - "$f"
 done
 
-# Fail the build if anything references a library outside macOS or the bundle (e.g. Homebrew dylibs).
-bash "$SCRIPT_DIR/assets/verify-macos-linkage.sh" --lib-dir "$STAGE_LIB" \
+# Fail the build if anything references a library outside macOS or the bundle (e.g. Homebrew dylibs),
+# embeds a Homebrew path, or requires a newer macOS than the deployment target.
+bash "$SCRIPT_DIR/assets/verify-macos-linkage.sh" --lib-dir "$STAGE_LIB" --macos-target "$MACOSX_DEPLOYMENT_TARGET" \
     "$OSSLSIGNCODE_BIN" "$STAGE_LIB"/*.dylib "$STAGE_LIB/ossl-modules/pkcs11prov.dylib"
 
 OUT_DIR="$OUTPUT_DIR/osslsigncode/darwin"
