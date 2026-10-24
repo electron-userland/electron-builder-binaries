@@ -15,8 +15,10 @@ on:
 
 jobs:
   linux:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # arm64 builds natively: OpenSSL is built from source, which is too slow under QEMU.
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    # Includes building OpenSSL and libp11 from source.
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -36,6 +38,13 @@ jobs:
           bash ./packages/win-codesign/build.sh \
             --arch ${{ matrix.arch }} \
             --osslsigncode-ver ${{ inputs.osslsigncode_ver || '2.11' }}
+
+      # Clean ubuntu:24.04 (no OpenSSL 1.1): linkage, file signing and SoftHSM PKCS#11 signing.
+      - name: Test win-codesign Linux bundle (${{ matrix.arch }})
+        run: |
+          bash ./packages/win-codesign/test/build-linux-docker-test.sh \
+            ./packages/win-codesign/out/win-codesign/win-codesign-linux-${{ matrix.arch }}.zip \
+            ${{ matrix.arch }}
 
       - name: Upload win-codesign Linux artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1

@@ -25,25 +25,21 @@ ENV PATH=/opt/cmake/bin:$PATH
 RUN echo "Building on $BUILDPLATFORM for $TARGETPLATFORM" && \
     echo "PLATFORM_ARCH=$PLATFORM_ARCH TARGETARCH=$TARGETARCH"
 
-# Install base dependencies
+# Build tools only: OpenSSL and libp11 are built from source by build-linux-osslsigncode.sh
+# and bundled, so no distro libssl/libcurl dev packages (nothing can link against them).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl git build-essential pkg-config \
-    libssl-dev libcurl4-openssl-dev libgsf-1-dev \
-    p7zip-full zip ca-certificates xz-utils \
-    patchelf file \
+    curl git build-essential perl pkg-config zlib1g-dev \
+    zip unzip ca-certificates xz-utils \
+    patchelf file binutils \
     && rm -rf /var/lib/apt/lists/*
 
-# For i386 builds, install multilib and 32-bit dev libraries
-# Note: libgsf-1-dev doesn't have i386 package, but we can use the 64-bit headers
-# with 32-bit linking since we're building on amd64
+# For i386 builds, install multilib and the 32-bit zlib
 RUN if [ "$PLATFORM_ARCH" = "i386" ] || [ "$PLATFORM_ARCH" = "ia32" ]; then \
         dpkg --add-architecture i386 && \
         apt-get update && apt-get install -y --no-install-recommends \
         gcc-multilib g++-multilib \
         lib32stdc++6 \
         zlib1g-dev:i386 \
-        libssl-dev:i386 \
-        libcurl4-openssl-dev:i386 \
         && rm -rf /var/lib/apt/lists/* ; \
     fi
 
@@ -69,45 +65,13 @@ RUN ARCH=$(uname -m) && \
 # Verify CMake works
 RUN cmake --version
 
-# Clone osslsigncode
-WORKDIR /usr/src
-RUN git clone --depth 1 --branch ${OSSLSIGNCODE_VER} \
-    https://github.com/mtrojnar/osslsigncode.git
+COPY ./assets/deps-versions.sh ./assets/compiler-flags.sh ./assets/verify-linux-linkage.sh \
+     ./assets/bundle-osslsigncode.sh ./assets/build-linux-osslsigncode.sh /tmp/assets/
 
-# Copy helper scripts
-COPY ./assets/compiler-flags.sh /tmp/compiler-flags.sh
-RUN chmod +x /tmp/compiler-flags.sh
-
-# Build osslsigncode
-WORKDIR /usr/src/osslsigncode/build
-RUN echo "Starting build for PLATFORM_ARCH=$PLATFORM_ARCH" && \
-    if [ "$PLATFORM_ARCH" = "i386" ] || [ "$PLATFORM_ARCH" = "ia32" ]; then \
-        echo "Building 32-bit binary using multilib" && \
-        CMAKE_FLAGS=$(/tmp/compiler-flags.sh --arch i386) && \
-        echo "CMake flags: $CMAKE_FLAGS" && \
-        PKG_CONFIG_PATH=/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib32/pkgconfig \
-        cmake .. -DCMAKE_BUILD_TYPE=Release $CMAKE_FLAGS \
-            -DCMAKE_PREFIX_PATH=/usr/lib/i386-linux-gnu ; \
-    else \
-        echo "Building native binary for $(uname -m)" && \
-        cmake .. -DCMAKE_BUILD_TYPE=Release ; \
-    fi && \
-    make -j$(nproc)
-
-# Verify the binary was built
-RUN echo "Verifying binary..." && \
-    file /usr/src/osslsigncode/build/osslsigncode && \
-    /usr/src/osslsigncode/build/osslsigncode --version || echo "Version check failed (non-fatal)"
-
-COPY ./assets/bundle-osslsigncode.sh /tmp/bundle-osslsigncode.sh
-COPY ./assets/bundle-osslsigncode-libs.sh /tmp/bundle-osslsigncode-libs.sh
-RUN chmod +x /tmp/bundle-osslsigncode.sh /tmp/bundle-osslsigncode-libs.sh
-# Create portable bundle
-WORKDIR /out/linux
-RUN echo "Creating portable bundle with PLATFORM_ARCH=$PLATFORM_ARCH" && \
-    PLATFORM_ARCH="${PLATFORM_ARCH}" \
-    bash /tmp/bundle-osslsigncode.sh \
-    --src /usr/src/osslsigncode/build/osslsigncode \
+# Build OpenSSL + libp11 + osslsigncode and create the portable bundle
+RUN bash /tmp/assets/build-linux-osslsigncode.sh \
+    --arch "${PLATFORM_ARCH}" \
+    --osslsigncode-ver "${OSSLSIGNCODE_VER}" \
     --output-dir /out/linux/osslsigncode
 
 CMD ["/bin/bash"]
