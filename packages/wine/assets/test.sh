@@ -156,8 +156,6 @@ fi
 E2E_SKIP_REASON=""
 if [ -z "$WINE_ROOT" ]; then
     E2E_SKIP_REASON="no bundle"
-elif [ "$OS_NAME" = "linux" ] && ! command -v Xvfb >/dev/null 2>&1; then
-    E2E_SKIP_REASON="Xvfb not available for headless Wine on Linux"
 fi
 
 if [ -n "$E2E_SKIP_REASON" ]; then
@@ -165,8 +163,25 @@ if [ -n "$E2E_SKIP_REASON" ]; then
 else
     export WINEPREFIX="$WINE_ROOT/wine-home"
     export WINEDEBUG=-all
-    export DISPLAY="${DISPLAY:-:99}"
+    # Run headless: disable the macOS winemac driver so user32 uses the null
+    # display driver (Linux is already headless via --without-x). Without this
+    # the first GUI PE blocks on the macOS WindowServer indefinitely.
+    export WINEDLLOVERRIDES="winemac.drv="
+    unset DISPLAY
 fi
+
+# Run a command with a hard time cap (portable — macOS has no GNU timeout).
+# Kills it after $1 seconds so a Wine hang fails fast instead of stalling CI.
+bound() {
+    local secs="$1"; shift
+    "$@" &
+    local pid=$!
+    ( sleep "$secs"; kill -9 "$pid" 2>/dev/null ) >/dev/null 2>&1 &
+    local guard=$! rc=0
+    wait "$pid" 2>/dev/null || rc=$?
+    kill "$guard" 2>/dev/null || true
+    return "$rc"
+}
 
 # Helper: run one Windows EXE and assert its output matches a pattern.
 # Usage: wine_assert_output LABEL EXE_PATH HELP_FLAG PATTERN
@@ -176,7 +191,7 @@ wine_assert_output() {
         skip "$label (${E2E_SKIP_REASON})"; return
     fi
     local out
-    out=$("$WINE_ROOT/bin/wine" "$exe" "$flag" 2>&1 || true)
+    out=$(bound 120 "$WINE_ROOT/bin/wine" "$exe" "$flag" 2>&1 || true)
     if echo "$out" | grep -qiE "$pattern"; then
         pass "$label"
     else
@@ -210,44 +225,14 @@ else
     fi
 fi
 
-# ── 3b: WiX tools (wix-4.0.0.5512.2) ────────────────────────────────────────
-header "Phase 3b: E2E (WiX — candle, light, WriteZipToSetup)"
-
-WIX_URL="https://github.com/electron-userland/electron-builder-binaries/releases/download/wix-4.0.0.5512.2/wix-4.0.0.5512.2.7z"
-WIX_DIR="$WORK_DIR/wix"
-
-if [ -n "$E2E_SKIP_REASON" ]; then
-    skip "WiX tools (${E2E_SKIP_REASON})"
-else
-    # Find a 7z binary (macOS runners ship 7-Zip; Linux may have p7zip)
-    SEVENZ=""
-    for _cmd in 7z 7za 7zz; do
-        command -v "$_cmd" >/dev/null 2>&1 && { SEVENZ="$_cmd"; break; }
-    done
-
-    if [ -z "$SEVENZ" ]; then
-        skip "WiX tools (7z not found — install p7zip or 7-Zip)"
-    else
-        echo "  📥 Downloading WiX bundle..."
-        if curl -fsSL --retry 3 --retry-delay 2 --max-time 300 "$WIX_URL" -o "$WORK_DIR/wix.7z" 2>/dev/null; then
-            mkdir -p "$WIX_DIR"
-            "$SEVENZ" x -o"$WIX_DIR" -y "$WORK_DIR/wix.7z" >/dev/null 2>&1 || true
-
-            for _exe_name in candle.exe light.exe WriteZipToSetup.exe; do
-                _exe_path=$(find "$WIX_DIR" -iname "$_exe_name" | head -1)
-                if [ -n "$_exe_path" ]; then
-                    pass "$_exe_name found in WiX bundle"
-                    wine_assert_output "$_exe_name /?" "$_exe_path" "/?" \
-                        "wix|candle|light|setup|linker|compiler|usage|option|version|error"
-                else
-                    skip "$_exe_name not found in WiX archive"
-                fi
-            done
-        else
-            skip "WiX download failed (network unavailable?)"
-        fi
-    fi
-fi
+# NOTE: this bundle is scoped to the NATIVE Windows tools electron-builder runs under Wine — rcedit
+# (tested above), Squirrel's WriteZipToSetup.exe, and the generated NSIS installer (run under Wine for
+# uninstaller generation). They all load the same native PE DLL set, so rcedit is the representative
+# E2E. Intentionally NOT tested here:
+#   - WiX candle/light and Azure-Trusted-Signing PowerShell need real .NET Framework (not shipped);
+#     they are out of scope for this bundle.
+#   - makensis runs NATIVELY in electron-builder (a native Linux/mac NSIS build, not under Wine), so
+#     it is not a bundle tool.
 
 # =============================================================================
 # Phase 4: Results
