@@ -647,12 +647,16 @@ for entry in "${PLUGIN_LICENSE_FILES[@]}"; do
     fetch_plugin_license "$lic_plugin" "$lic_url" "$lic_sha256" "$lic_path" "$LICENSES_DIR"
 done
 
-# NsProcess, SpiderBanner and WinShell ship no license terms of their own: point at the NSIS plugin API license
+# NsProcess, SpiderBanner, WinShell and NSISunzU ship no license terms of their own: point at the NSIS plugin API
+# license (and, for NSISunzU, the Unicode build of Nsisunz, at Nsisunz's own license files)
 for notice_plugin in $PLUGIN_API_NOTICE_PLUGINS; do
     [ -d "$PLUGINS_DIR/$notice_plugin" ] || continue
+    notice_related=()
+    [ "$notice_plugin" = "NSISunzU" ] && notice_related=("Nsisunz" "the Unicode build of Nsisunz")
     write_plugin_api_notice "$notice_plugin" "$PLUGINS_DIR/$notice_plugin" "$LICENSES_DIR" \
         "$BUNDLE_DIR/windows/Examples/Plugin/nsis/api.h" "$NSIS_BRANCH" \
-        "$(awk -F'\t' -v p="$notice_plugin" '$1 == p {print $2}' "$PLUGIN_SOURCES")"
+        "$(awk -F'\t' -v p="$notice_plugin" '$1 == p {print $2}' "$PLUGIN_SOURCES")" \
+        ${notice_related[@]+"${notice_related[@]}"}
 done
 
 write_plugin_license_index "$LICENSES_DIR" "$PLUGIN_SOURCES"
