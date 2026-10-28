@@ -170,15 +170,19 @@ jobs:
           IMAGE: ${{ matrix.image }}
         run: |
           set -o pipefail
-          docker run --rm -v "$PWD:/w" -w /w "$IMAGE" bash -c '
+          docker run --rm -v "$PWD:/w" -w /w -e IMAGE "$IMAGE" bash -c '
             set -e
             if command -v apt-get >/dev/null; then
               # distro rpm 4.x (as electron-builder images install it): an independent reader of the
               # output, and a host rpmbuild that the PATH-prepended bundle must win over.
               # binutils provides readelf to assert the payload carries a build-id.
-              apt-get update -qq && apt-get install -y -qq --no-install-recommends rpm binutils >/dev/null
+              # Optional: a stale mirror must not hide the bundle result.
+              { apt-get update -qq && apt-get install -y -qq --no-install-recommends rpm binutils >/dev/null; } ||
+                echo "::warning::could not install distro rpm/binutils in $IMAGE; skipping host-rpm cross-check"
             fi
-            bash packages/rpm/assets/test.sh --bundle-dir /w/bundle --fpm /w/fpmtk/fpm --plant-host-macros --host-rpm "$(command -v rpm)"
+            host_rpm=()
+            if [ -x /usr/bin/rpm ]; then host_rpm=(--host-rpm /usr/bin/rpm); fi
+            bash packages/rpm/assets/test.sh --bundle-dir /w/bundle --fpm /w/fpmtk/fpm --plant-host-macros "${host_rpm[@]}"
           ' 2>&1 | tee test.log
 
       - name: Report test result as annotation

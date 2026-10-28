@@ -79,7 +79,10 @@ echo "▶ Building a package with fpm ($FPM)"
 mkdir -p "$WORK/app"
 HAS_BUILD_ID=0
 if [ "$OS" = "Linux" ]; then
-    cp /bin/true "$WORK/app/hello"
+    # first real ELF executable (on coreutils-single systems such as EL8 images /bin/true is a script)
+    for c in /bin/true /usr/bin/env /bin/bash; do
+        if [ "$(head -c 4 "$c" | od -An -tx1 | tr -d ' \n')" = "7f454c46" ]; then cp -L "$c" "$WORK/app/hello"; break; fi
+    done
     if command -v readelf >/dev/null 2>&1; then
         if readelf -n "$WORK/app/hello" | grep -q 'Build ID'; then HAS_BUILD_ID=1; ok "payload ELF has a GNU build-id"; else ko "payload ELF has no build-id; test would be meaningless"; fi
     else
