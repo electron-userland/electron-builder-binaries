@@ -378,6 +378,36 @@ else
 fi
 
 # =============================================================================
+# TEST 6b — Licenses: NSIS, every community plugin and elevate.exe
+# =============================================================================
+
+echo ""
+echo "── Test 6b: Licenses ───────────────────────────────────────────"
+
+for f in LICENSE windows/COPYING; do
+    if grep -q 'ZLIB/LIBPNG LICENSE' "$BUNDLE_DIR/$f" 2>/dev/null; then
+        pass "$f is the NSIS license"
+    else
+        fail "$f missing or not the NSIS license"
+    fi
+done
+
+# One LICENSES/<name>/ directory per community plugin (named as nsis-windows.sh downloads them) and elevate.exe
+for name in INetC StdUtils SpiderBanner NsProcess UAC WinShell EmbedHTML Nsisunz NSISunzU nsis7z elevate; do
+    if [ -n "$(find "$BUNDLE_DIR/LICENSES/$name" -type f 2>/dev/null | head -1)" ]; then
+        pass "LICENSES/$name has license files"
+    else
+        fail "LICENSES/$name missing or empty"
+    fi
+done
+
+if LICENSE_CHECK=$(bash "$SCRIPT_DIR/nsis-plugin-licenses.sh" verify "$BUNDLE_DIR" 2>&1); then
+    pass "Every plugin DLL has license terms"
+else
+    fail "Plugin DLLs without license terms: $LICENSE_CHECK"
+fi
+
+# =============================================================================
 # Set up the wrapper for compile tests 7-15
 # =============================================================================
 

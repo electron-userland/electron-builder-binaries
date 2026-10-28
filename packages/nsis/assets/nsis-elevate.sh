@@ -96,6 +96,17 @@ RUN curl -fsSL \
 # Extract only the src/ tree (preserves the libs/ subdirectory used by #include)
 RUN 7z x elevate-redist.7z "src/" -y
 
+# elevate.exe ships with its license terms: the license / readme files of the redist archive and the
+# leading comment block (copyright and license notice) of elevate.c, if it starts with one.
+RUN mkdir -p /output/LICENSES/elevate /redist && \
+    7z x elevate-redist.7z -o/redist -y >/dev/null && \
+    find /redist -type f \( -iname '*licen[cs]e*' -o -iname 'copying*' -o -iname 'readme*' \) \
+        -exec cp {} /output/LICENSES/elevate/ \; && \
+    awk 'NR == 1 && $0 !~ /^[[:space:]]*\/\*/ {exit} {print} /\*\// {exit}' src/elevate.c \
+        > /output/LICENSES/elevate/elevate.c-header.txt && \
+    if [ ! -s /output/LICENSES/elevate/elevate.c-header.txt ]; then rm /output/LICENSES/elevate/elevate.c-header.txt; fi && \
+    ls -la /output/LICENSES/elevate
+
 # GCC on Linux does not normalise backslashes in #include paths;
 # patch the one backslash path before compiling.
 RUN sed 's|libs\\SimpleString.h|libs/SimpleString.h|' \
@@ -170,6 +181,13 @@ if [ ! -f "$TEMP_DIR/nsis-bundle/elevate.exe" ]; then
 fi
 
 echo "  ✓ elevate.exe extracted"
+
+docker cp "$CONTAINER_NAME:/output/LICENSES" "$TEMP_DIR/nsis-bundle/LICENSES"
+if ! grep -rqiE 'licen[cs]e|permission is (hereby )?granted|public domain' "$TEMP_DIR/nsis-bundle/LICENSES/elevate" 2>/dev/null; then
+    echo "❌ No license terms for elevate.exe found in the elevate ${ELEVATE_VERSION} redist archive"
+    exit 1
+fi
+echo "  ✓ elevate license files extracted: $(find "$TEMP_DIR/nsis-bundle/LICENSES/elevate" -type f -exec basename {} \; | sort | xargs)"
 
 # =============================================================================
 # Verify Binary (PE MZ header)
