@@ -392,8 +392,16 @@ for f in LICENSE windows/COPYING; do
     fi
 done
 
-# One LICENSES/<name>/ directory per community plugin (named as nsis-windows.sh downloads them) and elevate.exe
-for name in INetC StdUtils SpiderBanner NsProcess UAC WinShell EmbedHTML Nsisunz NSISunzU nsis7z elevate; do
+# One LICENSES/<name>/ directory for elevate.exe and for every community plugin a shipped DLL came from
+# (LICENSES/plugin-dlls.tsv). A plugin whose DLLs are all replaced by another plugin's ships nothing to license.
+LICENSE_OWNERS=$(awk -F'\t' '{o[$1] = $2} END {for (d in o) if (o[d] != "NSIS") print o[d]}' \
+    "$BUNDLE_DIR/LICENSES/plugin-dlls.tsv" 2>/dev/null | sort -u | xargs)
+if [ -n "$LICENSE_OWNERS" ]; then
+    pass "LICENSES/plugin-dlls.tsv names the plugins: $LICENSE_OWNERS"
+else
+    fail "LICENSES/plugin-dlls.tsv missing or names no community plugin"
+fi
+for name in $LICENSE_OWNERS elevate; do
     if [ -n "$(find "$BUNDLE_DIR/LICENSES/$name" -type f 2>/dev/null | head -1)" ]; then
         pass "LICENSES/$name has license files"
     else

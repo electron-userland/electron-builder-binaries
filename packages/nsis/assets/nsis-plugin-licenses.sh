@@ -56,7 +56,6 @@ _sha256() {
 # Copies the license / readme documents the plugin's archive ships, keeping their paths.
 collect_plugin_licenses() {
     local plugin="$1" src="$2" dest="$3/$1" count=0 file rel
-    mkdir -p "$dest"
     while IFS= read -r file; do
         _is_license_doc "$file" || continue
         rel="${file#"$src"/}"
@@ -256,7 +255,7 @@ write_plugin_license_index() {
         echo "\`plugin-dlls.tsv\` maps every DLL in \`windows/Plugins\` to the plugin it came from."
         while IFS="$(printf '\t')" read -r plugin url sha; do
             [ -n "$plugin" ] || continue
-            files=$(cd "$licenses/$plugin" 2>/dev/null && find . -type f | sed 's|^\./||' | sort | sed 's|^|  - |')
+            files=$(cd "$licenses/$plugin" 2>/dev/null && find . -type f | sed 's|^\./||' | sort | sed 's|^|  - |' || true)
             dlls=$(awk -F'\t' -v p="$plugin" '{o[$1] = $2} END {for (d in o) if (o[d] == p) print "  - " d}' "$licenses/plugin-dlls.tsv" | sort)
             echo ""
             echo "## $plugin"
