@@ -80,7 +80,9 @@ run_test "verify-bundle.sh (self-contained, minos <= $MAX_MINOS)" \
 echo ""
 echo "── runtime linkage (DYLD_PRINT_LIBRARIES) ──"
 # Print every image dyld loads for `<bundle>/bin/<tool> --version` that is not
-# from the bundle or the OS. Lines look like "dyld[123]: <UUID> /path".
+# from the bundle or the OS. Image lines look like "dyld[123]: <UUID> /path";
+# dyld also prints status lines ("dyld[123]: move loaded to delayed: X"), so
+# only lines whose payload is an absolute path count as images.
 # Returns 2 if dyld printed no image list at all (so silence never passes).
 foreign_images() {
     local bundle="$1" tool="$2" log="$WORK/dyld-$2.log"
@@ -88,7 +90,7 @@ foreign_images() {
     env -i HOME="$HOME" PATH="$bundle/bin:/usr/bin:/bin" DYLD_PRINT_LIBRARIES=1 \
         "$bundle/bin/$tool" --version > /dev/null 2> "$log" || true
     grep -q '/usr/lib/libSystem' "$log" || { sed 's/^/      /' "$log" >&2; return 2; }
-    sed -nE 's/^dyld\[[0-9]+\]: (<[^>]*> )?//p' "$log" \
+    sed -nE 's#^dyld\[[0-9]+\]: (<[^>]*> )?(/.*)$#\2#p' "$log" \
         | grep -v -e "^$bundle/" -e '^/usr/lib/' -e '^/System/' || true
 }
 
