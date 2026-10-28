@@ -517,7 +517,14 @@ for plugin_zip in "$PLUGINS_DIR"/*.zip; do
             dll_path=$(dirname "$dll_file")
             dll_basename=$(basename "$dll_file")
 
-            if echo "$dll_path" | grep -qiE 'x64.*(ansi|ANSI)'; then
+            # Nsisunz.zip and NSISunzU.zip are the ANSI and Unicode builds of one plugin and both ship nsisunz.dll,
+            # so each goes to its own directory by plugin name, never by path or fallback (otherwise whichever zip is
+            # processed last overwrites the other build, as the ANSI one did in x86-unicode in nsis@2.0.3).
+            if [ "$plugin_name" = "Nsisunz" ]; then
+                cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-ansi/" 2>/dev/null || true
+            elif [ "$plugin_name" = "NSISunzU" ]; then
+                cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-unicode/" 2>/dev/null || true
+            elif echo "$dll_path" | grep -qiE 'x64.*(ansi|ANSI)'; then
                 cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x64-ansi/" 2>/dev/null || true
             elif echo "$dll_path" | grep -qiE 'x64.*(unicode|Unicode)'; then
                 cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x64-unicode/" 2>/dev/null || true
@@ -534,8 +541,6 @@ for plugin_zip in "$PLUGINS_DIR"/*.zip; do
                         _base="${dll_basename%W.dll}.dll"
                         cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-unicode/$_base" 2>/dev/null || true
                     fi
-                elif echo "$plugin_name" | grep -qiE 'NSISunzU'; then
-                    cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-unicode/" 2>/dev/null || true
                 else
                     # No architecture indicator: copy to x86-ansi unconditionally.
                     # Only copy to x86-unicode when no paired *W.dll exists in this
