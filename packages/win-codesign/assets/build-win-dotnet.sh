@@ -51,7 +51,7 @@ EOF
 # Defaults — CLI flags take precedence over env vars, env vars over built-in defaults
 DOTNET_VERSION="${DOTNET_VERSION:-8.0.33}"
 # Pinned SHA-256 of dotnet-runtime-8.0.33-win-x64.zip
-DOTNET_SHA256="${DOTNET_SHA256:-d525978009270857c7a3ff0ce7f5d1244ae547dd34482e09738fea49814f76cf}"
+DOTNET_SHA256="${DOTNET_SHA256:-d88b9624950fd33ffd561462f4a23d7ef6d4173ddef55d198adab07016bc5b8c}"
 OUTPUT_DIR="$SCRIPT_DIR/out/win-codesign"
 
 while [[ $# -gt 0 ]]; do
