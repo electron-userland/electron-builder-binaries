@@ -1,0 +1,32 @@
+# License files of the components statically linked into the AppImage type2-runtime binaries (runtimes/runtime-*),
+# fetched by bundle-and-compress.sh at pinned tags and verified by SHA256.
+#
+# Versions, for the release below:
+#   type2-runtime   the release tag itself (MIT)
+#   libfuse 3.15.0  scripts/common/install-dependencies.sh downloads fuse-3.15.0.tar.xz (lib/ is LGPL-2.1; the runtime
+#                   also prints "3.15.0"); type2-runtime patches lib/mount.c (patches/libfuse/mount.c.diff)
+#   squashfuse      0.5.2, same script (BSD-2-Clause)
+#   musl 1.2.5, zstd 1.5.6, zlib 1.3.1, mimalloc 2.1.7
+#                   Alpine 3.21 packages (scripts/docker/Dockerfile: FROM alpine:3.21, apk add ... musl-dev zstd-static
+#                   zlib-static mimalloc-dev); the runtime strings say zstd 1.5.6 and zlib "inflate 1.3.1"
+# The license notice embedded in the runtime binary lists runtime, musl, libfuse, squashfuse, libzstd and zlib (not mimalloc).
+#
+# Re-pin together with APPIMAGE_TYPE2_RELEASE (build.sh / download-runtime.sh): re-check the versions above, update
+# the URLs and SHA256s (curl -fsSL <url> | sha256sum) and the release line. The build fails while they differ.
+# type2-runtime-release: 20251108
+#
+# Lines for LICENSES/SOURCES.md:
+# source: - type2-runtime {APPIMAGE_TYPE2_RELEASE}: unmodified release binaries from https://github.com/AppImage/type2-runtime/releases/tag/{APPIMAGE_TYPE2_RELEASE} (SHA256s and signing key in runtimes/VERSION.txt); source: https://github.com/AppImage/type2-runtime/tree/{APPIMAGE_TYPE2_RELEASE}
+# source: - libfuse 3.15.0, statically linked into the runtime (LGPL-2.1): https://github.com/libfuse/libfuse/releases/download/fuse-3.15.0/fuse-3.15.0.tar.xz, **modified** by type2-runtime's patches/libfuse/mount.c.diff (https://github.com/AppImage/type2-runtime/blob/{APPIMAGE_TYPE2_RELEASE}/patches/libfuse/mount.c.diff); the runtime's complete source and build scripts are at the type2-runtime tag above
+# source: - squashfuse 0.5.2, statically linked into the runtime: https://github.com/vasi/squashfuse/archive/0.5.2.tar.gz
+# source: - musl 1.2.5, zstd 1.5.6, zlib 1.3.1 and mimalloc 2.1.7, statically linked into the runtime: Alpine Linux 3.21 packages (https://pkgs.alpinelinux.org/packages?branch=v3.21)
+#
+# component	file	sha256	url [fallback url...]
+type2-runtime	LICENSE	aa154fc9070614bbe7921f89db11efd1dba7a1f3a41685958110e2230f9c0ca1	https://raw.githubusercontent.com/AppImage/type2-runtime/{APPIMAGE_TYPE2_RELEASE}/LICENSE
+libfuse	LICENSE	b8832d9caaa075bbbd2aef24efa09f8b7ab66a832812d88c602da0c7b4397fad	https://raw.githubusercontent.com/libfuse/libfuse/fuse-3.15.0/LICENSE
+libfuse	LGPL2.txt	dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551	https://raw.githubusercontent.com/libfuse/libfuse/fuse-3.15.0/LGPL2.txt
+squashfuse	LICENSE	9e909cc8a8ba27b1a649c964cf9eda37de911f3138c2b64e6d2f01703904ac13	https://raw.githubusercontent.com/vasi/squashfuse/0.5.2/LICENSE
+musl	COPYRIGHT	f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af	https://git.musl-libc.org/cgit/musl/plain/COPYRIGHT?h=v1.2.5 https://raw.githubusercontent.com/kraj/musl/v1.2.5/COPYRIGHT
+zstd-1.5.6	LICENSE	7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8	https://raw.githubusercontent.com/facebook/zstd/v1.5.6/LICENSE
+zlib	LICENSE	845efc77857d485d91fb3e0b884aaa929368c717ae8186b66fe1ed2495753243	https://raw.githubusercontent.com/madler/zlib/v1.3.1/LICENSE
+mimalloc	LICENSE	19c99805e7a44a34b297a75d1edea9985e300066dfc024d5c99d4236d4573b5d	https://raw.githubusercontent.com/microsoft/mimalloc/v2.1.7/LICENSE
