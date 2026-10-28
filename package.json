@@ -11,7 +11,8 @@
     "ci:publish": "changeset tag",
     "ci:validate-staging": "bash scripts/validate-staging.sh",
     "ci:detect-changes": "bash ./scripts/detect-packages.sh",
-    "ci:version:dry-run": "node scripts/changeset-publish.js --dry-run"
+    "ci:version:dry-run": "node scripts/changeset-publish.js --dry-run",
+    "test:license-guard": "bash scripts/tests/verify-licenses-test.sh"
   },
   "devDependencies": {
     "@actions/attest": "^3.2.0",
