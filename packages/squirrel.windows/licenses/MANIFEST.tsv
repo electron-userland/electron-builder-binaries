@@ -1,10 +1,12 @@
 # Which licenses cover which binary of the squirrel.windows bundle (checked by scripts/verify-licenses.sh).
-# build.ps1 copies this directory to LICENSES/ at the bundle root and adds the files taken from the build inputs:
-#   squirrel-windows/COPYING   Squirrel.Windows source (tag $SquirrelVersion)
-#   semver/LICENSE.md          Squirrel.Windows source, src/StubExecutable/LICENSE.md
-#   7-zip/License.txt          the pinned 7-Zip x64 installer
+# No license text is committed. build.ps1 lays out LICENSES/ at the bundle root from:
+#   UPSTREAM.tsv                   the third-party license texts, downloaded at build time from pinned upstream
+#                                  sources and checked against their SHA-256
+#   squirrel-windows/COPYING       Squirrel.Windows source (tag $SquirrelVersion)
+#   semver/LICENSE.md              Squirrel.Windows source, src/StubExecutable/LICENSE.md
+#   7-zip/License.txt              the pinned 7-Zip x64 installer
 #   nuget-commandline/NOTICES.txt  the pinned NuGet.CommandLine package
-# Where every other file comes from: SOURCES.md.
+# Why each source and version: SOURCES.md.
 # Squirrel.exe, Squirrel-Mono.exe and SyncReleases.exe contain the assemblies merged by ILRepack (src/Update/Update.csproj,
 # src/Update/Update-Mono.csproj, src/SyncReleases/SyncReleases.csproj) and the source files Squirrel.Windows vendors.
 

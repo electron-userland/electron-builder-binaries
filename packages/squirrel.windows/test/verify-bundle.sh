@@ -4,6 +4,7 @@
 #     the Squirrel nupkg, which earlier releases swept in from build\artifacts)
 #   - electron-winstaller/vendor/ has every file electron-builder uses, and no Squirrel.com
 #   - LICENSES/ has the license files build.ps1 takes from its build inputs (e.g. NuGet's NOTICES.txt)
+#   - LICENSES/ has every license file build.ps1 downloads (LICENSES/UPSTREAM.tsv), with the SHA-256 listed there
 #   - every binary has its license files (scripts/verify-licenses.sh, LICENSES/MANIFEST.tsv)
 #
 # Run: bash packages/squirrel.windows/test/verify-bundle.sh <squirrel.windows-*.zip | extracted bundle dir>
@@ -22,7 +23,7 @@ REQUIRED_VENDOR_FILES=(
     LICENSE 7z-LICENSE.txt
 )
 # License files build.ps1 copies from its build inputs. The license check needs only one non-empty
-# file per component, so it would not notice NOTICES.txt missing next to NuGet's committed LICENSE.txt.
+# file per component, so it would not notice NOTICES.txt missing next to NuGet's downloaded LICENSE.txt.
 REQUIRED_LICENSE_FILES=(
     squirrel-windows/COPYING semver/LICENSE.md 7-zip/License.txt nuget-commandline/NOTICES.txt
 )
@@ -95,6 +96,28 @@ done
 for f in "${REQUIRED_LICENSE_FILES[@]}"; do
     [[ -s "$BUNDLE/LICENSES/$f" ]] || fail "LICENSES/$f: missing or empty"
 done
+
+# The license texts build.ps1 downloads: "<component> <version> <file> <sha256> <url> [...]" per line
+sha256_of() {
+    if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi | awk '{print tolower($1)}'
+}
+UPSTREAM="$BUNDLE/LICENSES/UPSTREAM.tsv"
+if [[ ! -s "$UPSTREAM" ]]; then
+    fail "LICENSES/UPSTREAM.tsv: missing or empty"
+else
+    upstream_files=0
+    while IFS=$'\t' read -r component _version file sha _rest || [[ -n "$component" ]]; do
+        case "$component" in ''|'#'*|$'\r') continue ;; esac
+        upstream_files=$((upstream_files + 1))
+        path="LICENSES/$component/$file"
+        if [[ ! -s "$BUNDLE/$path" ]]; then
+            fail "$path: missing or empty (listed in LICENSES/UPSTREAM.tsv)"
+        elif [[ "$(sha256_of "$BUNDLE/$path")" != "$(printf '%s' "$sha" | tr 'A-F' 'a-f')" ]]; then
+            fail "$path: SHA-256 differs from LICENSES/UPSTREAM.tsv"
+        fi
+    done < "$UPSTREAM"
+    [[ "$upstream_files" -gt 0 ]] || fail "LICENSES/UPSTREAM.tsv: lists no license files"
+fi
 if ! bash "$GUARD" "$BUNDLE"; then
     fail "license check failed (see above)"
 fi

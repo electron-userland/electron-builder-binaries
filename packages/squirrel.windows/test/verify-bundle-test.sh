@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Self-test for verify-bundle.sh and the committed license layout (licenses/): builds stand-in bundles
 # laid out like build.ps1 lays them out (vendor "binaries" are just the PE magic bytes; the license files
-# build.ps1 takes from its build inputs are stand-in text) and checks the right ones pass and fail.
+# build.ps1 takes from its build inputs or downloads per licenses/UPSTREAM.tsv are stand-in text) and checks
+# the right ones pass and fail. The download step itself is tested by upstream-licenses-test.ps1.
 # Portable bash: runs on Linux, macOS (bash 3.2) and Git Bash on Windows.
 # Run: bash packages/squirrel.windows/test/verify-bundle-test.sh
 set -euo pipefail
@@ -14,11 +15,28 @@ trap 'rm -rf "$WORK"' EXIT
 
 VENDOR_BINARIES="Squirrel.exe Squirrel-Mono.exe SyncReleases.exe Setup.exe StubExecutable.exe WriteZipToSetup.exe
 nuget.exe 7z.exe 7z.dll 7z-x64.exe 7z-x64.dll 7z-arm64.exe 7z-arm64.dll"
-# The license files build.ps1 copies from its build inputs rather than from licenses/
+# The license files build.ps1 copies from its build inputs rather than downloading them
 BUILD_LICENSES="squirrel-windows/COPYING semver/LICENSE.md 7-zip/License.txt nuget-commandline/NOTICES.txt"
 
 pe()   { mkdir -p "$(dirname "$1")"; printf 'MZ\220\000\003\000\000\000padding' > "$1"; }
 text() { mkdir -p "$(dirname "$1")"; printf '%s\n' "${2:-stand-in license text}" > "$1"; }
+sha256_of() {
+    if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi | awk '{print $1}'
+}
+
+# stand_in_upstream <bundle>: a stand-in text for every file licenses/UPSTREAM.tsv lists, and the bundle's
+# LICENSES/UPSTREAM.tsv with their SHA-256s (what build.ps1 checks each download against)
+stand_in_upstream() {
+    local d="$1" line c v f _sha rest
+    while IFS= read -r line || [ -n "$line" ]; do
+        line="${line%$'\r'}"
+        case "$line" in ''|'#'*) printf '%s\n' "$line"; continue ;; esac
+        IFS=$'\t' read -r c v f _sha rest <<< "$line"
+        text "$d/LICENSES/$c/$f" "stand-in $c $f"
+        printf '%s\t%s\t%s\t%s\t%s\n' "$c" "$v" "$f" "$(sha256_of "$d/LICENSES/$c/$f")" "$rest"
+    done < "$LICENSES_SRC/UPSTREAM.tsv" > "$d/LICENSES/UPSTREAM.tsv.new"
+    mv "$d/LICENSES/UPSTREAM.tsv.new" "$d/LICENSES/UPSTREAM.tsv"
+}
 
 # new_bundle <name>: a complete, valid bundle
 new_bundle() {
@@ -30,7 +48,9 @@ new_bundle() {
     done
     text "$d/electron-winstaller/vendor/LICENSE"
     text "$d/electron-winstaller/vendor/7z-LICENSE.txt"
-    cp -R "$LICENSES_SRC" "$d/LICENSES"
+    mkdir -p "$d/LICENSES"
+    cp "$LICENSES_SRC/MANIFEST.tsv" "$LICENSES_SRC/SOURCES.md" "$d/LICENSES/"
+    stand_in_upstream "$d"
     for f in $BUILD_LICENSES; do text "$d/LICENSES/$f"; done
     echo "$d"
 }
@@ -102,7 +122,32 @@ expect fail "an empty license file of a component with no other file fails" "$b"
 
 b=$(new_bundle no-wtl)
 rm -r "$b/LICENSES/wtl"
-expect fail "a missing committed license directory fails" "$b" "LICENSES/wtl/: missing"
+expect fail "a missing downloaded license directory fails" "$b" "LICENSES/wtl/: missing" \
+    "LICENSES/wtl/CPL.TXT: missing or empty \(listed in LICENSES/UPSTREAM.tsv\)"
+
+# simplejson keeps LICENSE.txt, so only the UPSTREAM.tsv check notices its NOTICE.txt is gone
+b=$(new_bundle no-simplejson-notice)
+rm "$b/LICENSES/simplejson/NOTICE.txt"
+expect fail "a missing downloaded license file of a component with other files fails" "$b" \
+    "LICENSES/simplejson/NOTICE.txt: missing or empty \(listed in LICENSES/UPSTREAM.tsv\)"
+
+b=$(new_bundle changed-cpl)
+printf 'not the CPL\n' > "$b/LICENSES/wtl/CPL.TXT"
+expect fail "a downloaded license file whose SHA-256 differs from UPSTREAM.tsv fails" "$b" \
+    "LICENSES/wtl/CPL.TXT: SHA-256 differs from LICENSES/UPSTREAM.tsv"
+
+b=$(new_bundle crlf-upstream)
+sed 's/$/\r/' "$b/LICENSES/UPSTREAM.tsv" > "$b/LICENSES/UPSTREAM.tsv.crlf"
+mv "$b/LICENSES/UPSTREAM.tsv.crlf" "$b/LICENSES/UPSTREAM.tsv"
+expect pass "an UPSTREAM.tsv with CRLF line endings (a Windows checkout) passes" "$b" "squirrel.windows bundle OK"
+
+b=$(new_bundle no-upstream)
+rm "$b/LICENSES/UPSTREAM.tsv"
+expect fail "a missing UPSTREAM.tsv fails" "$b" "LICENSES/UPSTREAM.tsv: missing or empty"
+
+b=$(new_bundle empty-upstream)
+grep '^#' "$LICENSES_SRC/UPSTREAM.tsv" > "$b/LICENSES/UPSTREAM.tsv"
+expect fail "an UPSTREAM.tsv that lists no file fails" "$b" "LICENSES/UPSTREAM.tsv: lists no license files"
 
 b=$(new_bundle unlisted)
 pe "$b/electron-winstaller/vendor/rcedit.exe"

@@ -28,6 +28,9 @@ jobs:
       - name: Test the bundle check (verify-bundle.sh)
         shell: bash
         run: bash packages/squirrel.windows/test/verify-bundle-test.sh
+      - name: Test the license download (upstream-licenses-test.ps1)
+        shell: pwsh
+        run: ./packages/squirrel.windows/test/upstream-licenses-test.ps1
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57
       - name: Build Squirrel.Windows

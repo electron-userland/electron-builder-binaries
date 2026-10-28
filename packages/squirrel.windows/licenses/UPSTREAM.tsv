@@ -1,0 +1,36 @@
+# License texts build.ps1 downloads at build time into LICENSES/<component>/<file> (Install-UpstreamLicenses in
+# build-helpers.ps1). None of them is committed: each is fetched from the pinned upstream source below and the build
+# fails unless its SHA-256 matches. SOURCES.md says why each source and version was chosen.
+#
+# Columns (tab-separated):
+#   component  version  file  sha256  url  [source-sha256  extract]
+#   sha256         of the file written to LICENSES/<component>/<file>
+#   url            the download: GitHub raw at a tag or commit, a nupkg from api.nuget.org, or a release zip
+#   source-sha256  of the download, when the file is extracted from it (otherwise the download is the file)
+#   extract        zip:<entry>         the entry of that name in the zip / nupkg
+#                  lines:<first>-<last> those lines, byte for byte, of the downloaded text (a license header)
+#
+# Every version is the one Squirrel.Windows pins (src/*/*.csproj, src/*/packages.config, the vendor/nuget submodule,
+# src/Setup/wtl90). Re-pin together with $SquirrelVersion in build.ps1: re-check the versions, update the URLs and
+# SHA-256s (curl -fsSL <url> | sha256sum) and the line below. The build fails while they differ.
+# squirrel-version: 2.0.1
+
+nuget-commandline	7.9.0.83	LICENSE.txt	f1e3c903178e459ebd0c25d2dc65ebf11163c0a0d3ae46690943dffd5813040e	https://raw.githubusercontent.com/NuGet/NuGet.Client/7.9.0.83/LICENSE.txt
+nuget-commandline	Apache-2.0	LICENSE-2.0.txt	cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30	https://raw.githubusercontent.com/apache/www-site/dbb0043547718d5df6f75286dc930c669ac76ede/content/licenses/LICENSE-2.0.txt
+nuget-squirrel	50f8d9e	LICENSE.txt	63ade0c646a86d07504178b55683652f7210d574d94977ede105f6e8d52c8a36	https://raw.githubusercontent.com/paulcbetts/NuGet/50f8d9e438fe948d7109501bd10f6024d0585b70/LICENSE.txt
+nuget-squirrel	50f8d9e	COPYRIGHT.txt	589031284b1430d06fe57e220d533f02bb0dabe6ddd0ccc9c6fbc8e9849267f4	https://raw.githubusercontent.com/paulcbetts/NuGet/50f8d9e438fe948d7109501bd10f6024d0585b70/COPYRIGHT.txt
+sharpcompress	0.17.1	LICENSE.txt	b7ca2b6174cee11afe41d78b48527e3d7659a4435c25019a4a5e072299a2f8ed	https://raw.githubusercontent.com/adamhathcock/sharpcompress/0.17.1/LICENSE.txt
+mono-cecil	0.11.2	LICENSE.txt	13d58ecbed676511c0c4c4009bff107025e50007ff5e7901dc562700ec62509e	https://raw.githubusercontent.com/jbevain/cecil/0.11.2/LICENSE.txt
+deltacompressiondotnet	1.1.0	README.md	d05d3c152581089bc077c87f8dc8f330899ba0e67c19e55a8a6848e8f81b45ab	https://raw.githubusercontent.com/taspeotis/DeltaCompressionDotNet/1.1.0/README.md
+deltacompressiondotnet	1.1.0	LICENSE	352113d42f5a058e333ec1857824ef75dbea6acb8ce17c8a6edbf25a967f8d53	https://raw.githubusercontent.com/taspeotis/DeltaCompressionDotNet/7215d81cc08e09d220565cf7b7ebe4bbd5f499de/LICENSE
+microsoft-web-xdt	2.1.1	Microsoft.Web.Xdt.nuspec	d3659a6763d99e36a3100935a5fd4a73c7092cf071c7709f817872462195a832	https://api.nuget.org/v3-flatcontainer/microsoft.web.xdt/2.1.1/microsoft.web.xdt.2.1.1.nupkg	69dc88a0189d6f210371fba54399b2692c12e207499a7648e228798c331b0aec	zip:Microsoft.Web.Xdt.nuspec
+wpfanimatedgif	1.4.15	LICENSE.txt	b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1	https://raw.githubusercontent.com/XamlAnimatedGif/WpfAnimatedGif/12408d52d65919ae89a3b91b9604045a799e47c6/LICENSE.txt
+octokit	0.10.0	LICENSE.txt	a8584361363ab1eefd7ab4837fac49392bc0cb78c58753e53cb01448e7f6da9d	https://raw.githubusercontent.com/octokit/octokit.net/v0.10.0/LICENSE.txt
+simplejson	0.38.0	LICENSE.txt	718e004f954a268b464ccbd4daa53e92dcb8495c0551fb27355c457fdb7732ea	https://raw.githubusercontent.com/facebook-csharp-sdk/simple-json/f739f0b2924bcfa33204e86b8b73aa98be68abac/LICENSE.txt
+simplejson	0.38.0	NOTICE.txt	d81b1a5f38af5dbce7ec585a69d48c5d27b49f9487bb582ef543aa3adbb1a736	https://raw.githubusercontent.com/facebook-csharp-sdk/simple-json/f739f0b2924bcfa33204e86b8b73aa98be68abac/NOTICE.txt
+splat	1.6.2	COPYING	9246838cd07e63b09e2715dfeb540ad52d00bd363f6ffc837b54796fc74f4c0f	https://raw.githubusercontent.com/reactiveui/splat/1.6.2/COPYING
+mono-options	squirrel-2.0.1	NOTICE.txt	1989b30e4d3cc15dc92af6fcb93c9bf11a651f2acf2eeb10ecaeb98e8f9d4f04	https://raw.githubusercontent.com/Squirrel/Squirrel.Windows/2.0.1/src/Update/Mono.Options/Options.cs	a73ec2f5ed042222c0e168a09fc2d0ed42161fb58534aab781d6db04d4e06c69	lines:1-31
+markdownsharp	squirrel-2.0.1	NOTICE.txt	5798d9d9860c7da6267416e1dd5ed815b7876f4bd50867e565bcd8dadd46836c	https://raw.githubusercontent.com/Squirrel/Squirrel.Windows/2.0.1/src/Squirrel/MarkdownSharp.cs	105db407253132ecdfbcc71fe43780fe1c24296812f339c7dd853604ce5bc05f	lines:1-82
+bsdiff	29852ed	ReadMe.txt	03862c635a710fb4dd548ccd34725e1f38261974227655f8e1249dee9b3b5053	https://raw.githubusercontent.com/LogosBible/bsdiff.net/29852ed7285c661b52e893b391c968fb68387f72/ReadMe.txt
+wtl	9.0.4140	CPL.TXT	17e786ec099f2b24cd312394ffa5feab15780a88d81686241d6ee2962ab0d528	https://downloads.sourceforge.net/project/wtl/WTL%209.0/WTL%209.0.4140%20Final/WTL90_4140_Final.zip	3a4aa60e4c83d88a17b69852db22fbaf8caa4dccb083528d419c82801b686813	zip:CPL.TXT
+unzip-zlib	squirrel-2.0.1	NOTICE.txt	0e70be2456b7c697fdc98628f736cfe78ac60e1dc9491976527a33fa4a29872b	https://raw.githubusercontent.com/Squirrel/Squirrel.Windows/2.0.1/src/Setup/unzip.cpp	30751fe785be4097a3158f064d534c0768a6b27828439cf0c915dc76253f57fd	lines:5-38

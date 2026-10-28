@@ -5,8 +5,11 @@ param (
 
 $ErrorActionPreference = "Stop"
 
-# Get-PinnedFile, Get-NuGetCommandLine, Install-BundleLicenses, Invoke-LicenseGuard
+# Get-PinnedFile, Get-NuGetCommandLine, Install-BundleLicenses, Install-UpstreamLicenses, Invoke-LicenseGuard
 . (Join-Path $PSScriptRoot "build-helpers.ps1")
+
+# Fail now, not after the build, when licenses/UPSTREAM.tsv is malformed or pinned to another Squirrel.Windows version
+Read-UpstreamLicenses -Manifest (Join-Path $PSScriptRoot "licenses\UPSTREAM.tsv") -SquirrelVersion $SquirrelVersion | Out-Null
 
 # --- Configuration
 $repoRoot      = "C:\s\Squirrel.Windows"
@@ -205,8 +208,12 @@ Copy-Item $licenseSrc (Join-Path $vendorDir "LICENSE") -Force
 Write-Host "`n✅ LICENSE copied."
 
 # --- LICENSES (every binary in the bundle; see packages/squirrel.windows/licenses/MANIFEST.tsv)
+# The third-party license texts are not in the repo: they are downloaded from the pinned sources in
+# licenses/UPSTREAM.tsv, checked against their SHA-256 and written only into the bundle.
 Write-Host "`n📜 Laying out LICENSES..."
 Install-BundleLicenses -BundleDir $bundleDir `
+    -SquirrelVersion $SquirrelVersion `
+    -WorkDir (Join-Path $env:TEMP "squirrel-upstream-licenses") `
     -SquirrelLicense $licenseSrc `
     -SemverLicense (Join-Path $repoRoot "src\StubExecutable\LICENSE.md") `
     -SevenZipLicense (Join-Path $vendorDir "7z-LICENSE.txt") `
