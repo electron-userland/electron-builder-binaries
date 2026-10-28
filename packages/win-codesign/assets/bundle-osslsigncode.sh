@@ -6,7 +6,7 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 usage() {
     echo "Usage: $0 --src <path-to-osslsigncode> [--lib-dir <dir>] [--output-dir <dir>] [--platform-arch <arch>]" >&2
     echo "  --src           Path to the compiled osslsigncode binary (required)" >&2
-    echo "  --lib-dir       Directory whose contents are copied into the bundle's lib/ (macOS)" >&2
+    echo "  --lib-dir       Directory whose contents are copied into the bundle's lib/" >&2
     echo "  --output-dir    Directory to write the final ZIP bundle (default: \$ROOT/out/osslsigncode)" >&2
     echo "  --platform-arch Target architecture label, e.g. amd64, arm64, i386 (default: \$(uname -m))" >&2
     exit 2
@@ -66,16 +66,10 @@ echo "  ➕ Copying osslsigncode binary to bundle"
 cp -a "$OSSLSIGNCODE_SRC" "$BIN_DIR/osslsigncode"
 chmod +x "$BIN_DIR/osslsigncode"
 
-# ── Bundled libraries (macOS: OpenSSL dylibs + pkcs11prov) ────────────────────
+# ── Bundled libraries (OpenSSL + pkcs11prov, from build-mac.sh / build-linux-osslsigncode.sh)
 if [[ -n "$EXTRA_LIB_DIR" ]]; then
     echo "  ➕ Copying bundled libraries from $EXTRA_LIB_DIR"
     cp -R "$EXTRA_LIB_DIR"/. "$LIB_DIR"/
-fi
-
-# ── Linux: bundle shared libs ─────────────────────────────────────────────────
-if [[ "$uname_s" == "Linux" ]]; then
-    echo "🐧 Linux detected"
-    "$ROOT/bundle-osslsigncode-libs.sh" --bin "$BIN_DIR" --outdir "$OUTPUT_DIR"
 fi
 
 # ── Strip symbols ─────────────────────────────────────────────────────────────
@@ -84,6 +78,8 @@ find "$INSTALL_DIR" -type f -print0 | while IFS= read -r -d '' f; do
     [[ ! -x "$f" && "$f" == *VERSION.txt ]] && continue
     # Apple's strip would drop the dylibs' exported symbols; they are signed below as built.
     [[ "$uname_s" == "Darwin" && "$f" == "$LIB_DIR"/* ]] && continue
+    # build-linux-osslsigncode.sh strips the binary and libraries before setting their RUNPATH.
+    [[ "$uname_s" == "Linux" ]] && continue
     if command -v strip >/dev/null 2>&1; then
         strip --strip-unneeded "$f" 2>/dev/null || true
     fi
