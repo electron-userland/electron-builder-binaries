@@ -1,0 +1,21 @@
+# License texts every bundled Homebrew formula must ship, copied from the formula's pinned upstream source
+# tarball (brew fetch --build-from-source; sha256 checked against the formula) into LICENSES/<formula>/.
+# collect-licenses.sh copies them and verify-bundle-licenses.sh fails the bundle if any is missing or empty.
+# A formula that ends up in the bundle (bin/ or a collected lib/ dependency) but is not listed here fails the build.
+#
+# <formula><TAB><files at the top level of the source tree, space separated><TAB><notices, optional>
+#   notice = <file in the source tree>:<name>: the file's leading comment block, verbatim, saved as LICENSES/<formula>/<name>
+#            (for code compiled in under a license of its own that the top-level files do not carry)
+
+# GNU tar (bin/gtar): GPL-3.0-or-later
+gnu-tar	COPYING AUTHORS
+# lzip (bin/lzip): GPL-2.0-or-later
+lzip	COPYING AUTHORS
+# binutils (bin/ar, lib/libbfd-*.dylib, lib/libsframe.*.dylib): ar, libbfd and libsframe are GPL-3.0-or-later
+# (COPYING3); COPYING3.LIB (LGPLv3), COPYING (GPLv2) and COPYING.LIB (LGPLv2) cover the parts of the tree under
+# those licenses (e.g. libiberty). Homebrew does not install COPYING3 / COPYING3.LIB into the keg, so all of them
+# are taken from the source tarball.
+binutils	COPYING COPYING.LIB COPYING3 COPYING3.LIB
+# zstd (lib/libzstd.1.dylib): BSD-3-Clause OR GPL-2.0-only, plus MIT for libdivsufsort-lite (lib/dictBuilder,
+# compiled into libzstd for the ZDICT_* dictionary builder)
+zstd	LICENSE COPYING	lib/dictBuilder/divsufsort.c:divsufsort-LICENSE
