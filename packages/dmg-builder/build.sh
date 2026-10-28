@@ -2,10 +2,13 @@
 set -euo pipefail
 
 # CONFIG
-PYTHON_VERSION="3.14.2"
-# https://github.com/dmgbuild/dmgbuild — base: v1.6.7
-# commit 75c8a6c7835c5b73dfd4510d92a8f357f93a5fbf
-DMGBUILD_VERSION_OR_HASH="75c8a6c"
+PYTHON_VERSION="3.14.10"
+# OpenSSL for the _ssl/_hashlib modules, built from source for MACOSX_DEPLOYMENT_TARGET.
+# 3.5 is the current LTS line (supported until 2030-04-08).
+OPENSSL_VERSION="3.5.9"
+# https://github.com/dmgbuild/dmgbuild — base: v1.6.7 (no newer release)
+# commit cc96fa235365b787ad0d73e4802a1f3953a62b19
+DMGBUILD_VERSION_OR_HASH="cc96fa2"
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 OUTPUT_DIR="${ROOT}/out/dmg-builder"
@@ -64,6 +67,7 @@ for ARCH in $ARCHS; do
     --root "$ROOT" \
     --output-dir "$OUTPUT_DIR" \
     --python-version "$PYTHON_VERSION" \
+    --openssl-version "$OPENSSL_VERSION" \
     --dmgbuild-version "$DMGBUILD_VERSION_OR_HASH" \
     --codesign-identity "-" \
     --arch "${ARCH}"

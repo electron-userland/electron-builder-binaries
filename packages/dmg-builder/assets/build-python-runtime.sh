@@ -13,6 +13,7 @@ _DEFAULT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT=""
 OUTPUT_DIR=""
 PYTHON_VERSION=""
+OPENSSL_VERSION=""
 DMGBUILD_VERSION=""
 CODESIGN_IDENTITY="-"
 ARCH=""
@@ -38,7 +39,7 @@ verify_sha256() {
 }
 
 usage() {
-    echo "Usage: $0 --root <dir> --output-dir <dir> --python-version <ver> --dmgbuild-version <ver> [--codesign-identity <id>] [--arch <arm64|x86_64>]"
+    echo "Usage: $0 --root <dir> --output-dir <dir> --python-version <ver> --openssl-version <ver> --dmgbuild-version <ver> [--codesign-identity <id>] [--arch <arm64|x86_64>]"
     exit 1
 }
 
@@ -47,6 +48,7 @@ while [[ $# -gt 0 ]]; do
         --root)              ROOT="$2";              shift 2 ;;
         --output-dir)        OUTPUT_DIR="$2";        shift 2 ;;
         --python-version)    PYTHON_VERSION="$2";    shift 2 ;;
+        --openssl-version)   OPENSSL_VERSION="$2";   shift 2 ;;
         --dmgbuild-version)  DMGBUILD_VERSION="$2";  shift 2 ;;
         --codesign-identity) CODESIGN_IDENTITY="$2"; shift 2 ;;
         --arch)              ARCH="$2";              shift 2 ;;
@@ -56,14 +58,19 @@ done
 
 ROOT="${ROOT:-$_DEFAULT_ROOT}"
 OUTPUT_DIR="${OUTPUT_DIR:-${ROOT}/dist}"
-PYTHON_VERSION="${PYTHON_VERSION:-3.11.8}"
+PYTHON_VERSION="${PYTHON_VERSION:-3.14.10}"
+OPENSSL_VERSION="${OPENSSL_VERSION:-3.5.9}"
 DMGBUILD_VERSION="${DMGBUILD_VERSION:-1.6.6}"
 ARCH="${ARCH:-$(uname -m)}"
 
 # SHA256 of https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz
 # Re-pin when bumping PYTHON_VERSION: curl -fsSL <url> | sha256sum
-# Default value is for Python 3.14.2 (the version set in build.sh)
-PYTHON_SHA256="${PYTHON_SHA256:-c609e078adab90e2c6bacb6afafacd5eaf60cd94cf670f1e159565725fcd448d}"
+# Default value is for Python 3.14.10 (the version set in build.sh; matches Homebrew's python@3.14 formula)
+PYTHON_SHA256="${PYTHON_SHA256:-9e4996c19ae5a3df31f10c37723661f71d3455d73bd005f79df7098e5cc13192}"
+
+# SHA256 of https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VERSION}/openssl-${OPENSSL_VERSION}.tar.gz
+# Default value is for OpenSSL 3.5.9 (the version set in build.sh; same pin as win-codesign and Homebrew's openssl@3)
+OPENSSL_SHA256="${OPENSSL_SHA256:-603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a}"
 
 if [[ "$ARCH" != "arm64" && "$ARCH" != "x86_64" ]]; then
     echo "❌ Unsupported ARCH: $ARCH"
@@ -88,6 +95,7 @@ DIR_TO_ARCHIVE="${BUILD_DIR}/dmg-builder-${ARCH}-${DMGBUILD_VERSION}"
 echo "🐍 dmgbuild portable bundler"
 echo "📁 Output directory: ${DIR_TO_ARCHIVE}"
 echo "🔢 Python version: ${PYTHON_VERSION}"
+echo "🔐 OpenSSL version: ${OPENSSL_VERSION}"
 echo "📦 dmgbuild version: ${DMGBUILD_VERSION}"
 echo "🍎 macOS deployment target: ${MACOSX_DEPLOYMENT_TARGET}"
 echo ""
@@ -126,24 +134,57 @@ export CPATH=""
 
 unset PKG_CONFIG_PATH
 
-# Locate Homebrew OpenSSL. --with-openssl scopes it only to the _ssl extension module, so no other Homebrew library can bleed into the build.
-OPENSSL_PREFIX=""
-for candidate in \
-    "$(brew --prefix openssl@3 2>/dev/null || true)" \
-    /opt/homebrew/opt/openssl@3 \
-    /usr/local/opt/openssl@3 \
-    /opt/homebrew/opt/openssl \
-    /usr/local/opt/openssl; do
-  if [[ -n "$candidate" && -d "$candidate/include/openssl" ]]; then
-    OPENSSL_PREFIX="$candidate"
-    break
-  fi
+### ================================
+### OPENSSL (built from source)
+### ================================
+# _ssl and _hashlib need libssl/libcrypto. Homebrew's bottles are built for the runner's macOS (minos 15.0 on
+# macos-15), which broke the 11.0 floor, so build OpenSSL here with the same deployment target.
+#   no-module  compile the legacy provider into libcrypto (no ossl-modules dir to ship)
+#   --prefix   only sets the compiled-in default MODULESDIR/ENGINESDIR, so it must be a path regular users cannot
+#              create (not the build dir); the libs are staged with DESTDIR and never installed there
+#   --openssldir=/private/etc/ssl  root-owned system location for openssl.cnf
+case "$ARCH" in
+    arm64)  OPENSSL_TARGET="darwin64-arm64-cc" ;;
+    x86_64) OPENSSL_TARGET="darwin64-x86_64-cc" ;;
+esac
+OPENSSL_RUNTIME_PREFIX="/opt/dmg-builder-openssl"
+OPENSSL_DESTDIR="$BUILD_DIR/openssl-destdir"
+OPENSSL_PREFIX="$OPENSSL_DESTDIR$OPENSSL_RUNTIME_PREFIX"
+OPENSSL_LIBDIR="$OPENSSL_PREFIX/lib"
+OPENSSL_SRC="$SRC_DIR/openssl-${OPENSSL_VERSION}"
+
+echo "🔐 Building OpenSSL ${OPENSSL_VERSION} (${OPENSSL_TARGET}, macOS >= ${MACOSX_DEPLOYMENT_TARGET})"
+curl -fsSL --retry 3 --retry-delay 2 --max-time 600 \
+    "https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VERSION}/openssl-${OPENSSL_VERSION}.tar.gz" \
+    -o "$SRC_DIR/openssl-${OPENSSL_VERSION}.tar.gz"
+echo "  🔍 Verifying OpenSSL source checksum..."
+verify_sha256 "$SRC_DIR/openssl-${OPENSSL_VERSION}.tar.gz" "$OPENSSL_SHA256"
+tar -xzf "$SRC_DIR/openssl-${OPENSSL_VERSION}.tar.gz" -C "$SRC_DIR"
+(
+    cd "$OPENSSL_SRC"
+    run_arch ./Configure "$OPENSSL_TARGET" \
+        shared no-module no-tests no-docs no-apps \
+        "-mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}" \
+        --prefix="$OPENSSL_RUNTIME_PREFIX" \
+        --openssldir=/private/etc/ssl \
+        --libdir=lib
+    run_arch make -j"$(sysctl -n hw.ncpu)" build_libs
+    run_arch make install_dev DESTDIR="$OPENSSL_DESTDIR"
+)
+# Only the dylibs are wanted; make sure nothing links the static archives.
+rm -f "$OPENSSL_LIBDIR"/*.a
+# The install names point at OPENSSL_RUNTIME_PREFIX, which does not exist. Point them at the staged copies so
+# Python's build (and its PGO run) can load _ssl/_hashlib; they are rewritten to @loader_path when bundling.
+for lib in libcrypto.3.dylib libssl.3.dylib; do
+    install_name_tool -id "$OPENSSL_LIBDIR/$lib" "$OPENSSL_LIBDIR/$lib"
 done
-if [[ -z "$OPENSSL_PREFIX" ]]; then
-  echo "❌ OpenSSL not found — install it with: brew install openssl@3"
-  exit 1
-fi
-echo "🔐 Using OpenSSL at: $OPENSSL_PREFIX"
+install_name_tool -change "$OPENSSL_RUNTIME_PREFIX/lib/libcrypto.3.dylib" "$OPENSSL_LIBDIR/libcrypto.3.dylib" \
+    "$OPENSSL_LIBDIR/libssl.3.dylib"
+# Editing load commands invalidates the linker's ad-hoc signature, which arm64 refuses to load.
+codesign --force --sign - "$OPENSSL_LIBDIR/libcrypto.3.dylib" "$OPENSSL_LIBDIR/libssl.3.dylib"
+otool -L "$OPENSSL_LIBDIR/libssl.3.dylib"
+vtool -show-build "$OPENSSL_LIBDIR/libcrypto.3.dylib"
+cd "$SRC_DIR/Python-${PYTHON_VERSION}"
 
 ### ================================
 ### CONFIGURE
@@ -173,7 +214,10 @@ file "$PREFIX/bin/python3"
 echo "🐍 Installing pip and dmgbuild"
 
 run_arch "$PREFIX/bin/python3" -m pip install --upgrade pip --no-warn-script-location --no-cache
-run_arch "$PREFIX/bin/python3" -m pip install --no-warn-script-location --no-cache "dmgbuild[badge_icons] @ git+https://github.com/dmgbuild/dmgbuild.git@${DMGBUILD_VERSION}"
+# dmgbuild's dependencies (ds_store, mac_alias, pyobjc) are pinned in dmgbuild-requirements.txt
+run_arch "$PREFIX/bin/python3" -m pip install --no-warn-script-location --no-cache \
+    --constraint "$ROOT/assets/dmgbuild-requirements.txt" \
+    "dmgbuild[badge_icons] @ git+https://github.com/dmgbuild/dmgbuild.git@${DMGBUILD_VERSION}"
 
 ###############################################################################
 # PATCH DMGBUILD
@@ -198,9 +242,12 @@ echo "📝 Creating VERSION.txt…"
 {
     echo "dmgbuild version/commit hash: ${DMGBUILD_VERSION}"
     echo "Python version: ${PYTHON_VERSION}"
+    echo "OpenSSL version: ${OPENSSL_VERSION}"
     echo "macOS deployment target: ${MACOSX_DEPLOYMENT_TARGET}"
     echo -n "dmgbuild package version: "
     run_arch "$PREFIX/bin/python3" -m pip show dmgbuild | grep ^Version: | awk '{print $2}'
+    echo "Python packages:"
+    run_arch "$PREFIX/bin/python3" -m pip list --format=freeze --exclude pip --exclude setuptools | sed 's/^/  /'
 } > "$DIR_TO_ARCHIVE/VERSION.txt"
 
 ###############################################################################
@@ -287,9 +334,9 @@ find "$PREFIX/lib" -name "*.so" | while read -r so; do
 done
 
 ###############################################################################
-# BUNDLE OPENSSL DYLIBS — rewrite Homebrew paths to @loader_path-relative
+# BUNDLE OPENSSL DYLIBS — rewrite staged OpenSSL paths to @loader_path-relative
 ###############################################################################
-# _ssl.so and _hashlib.so link against Homebrew's libssl/libcrypto. We copy dylibs into lib-dynload/ alongside the .so files and rewrite every reference so the bundle is self-contained and passes the Homebrew-leak guardrail.
+# _ssl.so and _hashlib.so link against the OpenSSL built above (absolute paths into its staging dir). We copy the dylibs into lib-dynload/ alongside the .so files and rewrite every reference so the bundle is self-contained.
 
 DYNLOAD_DIR="$(find "$PREFIX/lib" -maxdepth 2 -type d -name lib-dynload | head -n 1)"
 
@@ -300,29 +347,30 @@ bundle_openssl_dylib() {
     local dst="$DYNLOAD_DIR/$name"
     if [[ ! -f "$dst" ]]; then
         cp "$src" "$dst"
+        chmod u+w "$dst"
+        strip -x "$dst"
         install_name_tool -id "@loader_path/$name" "$dst"
     fi
 }
 
-is_homebrew_path() {
-    local p="$1"
-    [[ "$p" == /opt/homebrew/* || "$p" == /usr/local/opt/* || "$p" == /usr/local/Cellar/* || "$p" == /usr/local/lib/lib* ]]
+is_staged_openssl_path() {
+    [[ "$1" == "$OPENSSL_LIBDIR"/* ]]
 }
 
-# Pass 1: copy every Homebrew dylib referenced by .so files into DYNLOAD_DIR
+# Pass 1: copy every staged OpenSSL dylib referenced by .so files into DYNLOAD_DIR
 while IFS= read -r so; do
     while IFS= read -r ref; do
-        if is_homebrew_path "$ref"; then
+        if is_staged_openssl_path "$ref"; then
             bundle_openssl_dylib "$ref"
         fi
     done < <(otool -L "$so" 2>/dev/null | awk 'NR>1 {print $1}')
 done < <(find "$DYNLOAD_DIR" -name "*.so")
 
-# Pass 2: rewrite Homebrew references in both .so and the newly copied .dylib files
-# (dylibs like libssl reference libcrypto via their original Homebrew path)
+# Pass 2: rewrite staged-OpenSSL references in both .so and the newly copied .dylib files
+# (libssl references libcrypto via its staged path)
 while IFS= read -r bin; do
     while IFS= read -r ref; do
-        if is_homebrew_path "$ref"; then
+        if is_staged_openssl_path "$ref"; then
             local_name="$(basename "$ref")"
             # If the dependency wasn't already bundled in pass 1, copy it now
             bundle_openssl_dylib "$ref"
@@ -405,6 +453,7 @@ if [ ! -f "${DIR_TO_ARCHIVE}/python/LICENSE.txt" ]; then
       "https://raw.githubusercontent.com/python/cpython/v${PYTHON_VERSION}/LICENSE" \
       -o "${DIR_TO_ARCHIVE}/LICENSES/LICENSE.python"
 fi
+cp "$OPENSSL_SRC/LICENSE.txt" "${DIR_TO_ARCHIVE}/LICENSES/LICENSE.openssl"
 echo "  ✓ Licenses downloaded"
 
 echo "📦 Creating archive…"
@@ -458,6 +507,17 @@ import uuid
 uuid.uuid4()  # exercises _uuid at runtime
 print('✓ dmgbuild dependencies work')
 "
+
+# Test 3b: _ssl/_hashlib load the bundled OpenSSL (not a system or Homebrew copy)
+run_arch "$DIR_TO_ARCHIVE/python/bin/python3" - "$OPENSSL_VERSION" <<'SSL_TEST'
+import sys, ssl, _hashlib, hashlib
+want = sys.argv[1]
+if not ssl.OPENSSL_VERSION.startswith(f"OpenSSL {want} "):
+    sys.exit(f"❌ ssl reports {ssl.OPENSSL_VERSION!r}, expected OpenSSL {want}")
+hashlib.new("sha256", b"dmg-builder").hexdigest()
+hashlib.md5(b"dmg-builder", usedforsecurity=False).hexdigest()
+print(f"✓ {ssl.OPENSSL_VERSION} loaded for _ssl and _hashlib")
+SSL_TEST
 
 # Test 4: dmgbuild CLI
 run_arch "$DIR_TO_ARCHIVE/python/bin/python3" -m dmgbuild --help >/dev/null
