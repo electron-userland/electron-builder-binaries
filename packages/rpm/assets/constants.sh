@@ -116,6 +116,13 @@ install_bundle_skeleton() {
     for f in "${RPM_CONFIGDIR_DROP[@]}"; do
         rm -rf "${bundle:?}/lib/rpm/$f"
     done
+    # rpm records helper tools as absolute paths found at configure time (%__rm /usr/bin/rm,
+    # %__gzip /usr/bin/gzip, ...). Those break on hosts without merged /usr (e.g. Debian 11,
+    # where it is /bin/rm) and point at build-host-only tools, so resolve them via PATH instead.
+    local macros="$bundle/lib/rpm/macros"
+    sed -E 's#^(%__[A-Za-z0-9_]+[[:space:]]+)/(usr/)?(local/)?s?bin/([^[:space:]/]+)[[:space:]]*$#\1\4#' "$macros" >"$macros.tmp"
+    echo "  🔧 Tool macros resolved via PATH: $(diff "$macros" "$macros.tmp" | grep -c '^>' || true)"
+    mv "$macros.tmp" "$macros"
     mkdir -p "$bundle/lib/rpm/electron-builder"
     cp "$assets/electron-builder.macros" "$bundle/lib/rpm/electron-builder/macros"
     for t in rpmbuild rpm; do

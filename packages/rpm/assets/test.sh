@@ -73,6 +73,7 @@ echo "▶ Pinned macros"
 expect_eq "%_rpmformat" "$(rpmbuild --eval '%{_rpmformat}')" "4"
 expect_eq "%_build_id_links" "$(rpmbuild --eval '%{_build_id_links}')" "none"
 expect_eq "%_rpmconfigdir" "$(rpmbuild --eval '%{_rpmconfigdir}')" "$BUNDLE_DIR/lib/rpm"
+expect_eq "tool macros resolve via PATH (no merged-/usr assumption)" "$(rpmbuild --eval '%{__rm}')" "rm"
 expect_eq "--define still overrides pins" "$(rpmbuild --define '_build_id_links compat' --eval '%{_build_id_links}')" "compat"
 
 echo "▶ Building a package with fpm ($FPM)"
