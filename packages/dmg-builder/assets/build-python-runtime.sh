@@ -253,6 +253,19 @@ echo "📝 Creating VERSION.txt…"
 } > "$DIR_TO_ARCHIVE/VERSION.txt"
 
 ###############################################################################
+# TEST-ONLY DEPENDENCIES (never shipped)
+# pytest goes into $TEST_DIR via --target, and the stdlib packages stripped below
+# are copied to $TEST_STDLIB first, so Test 8 can run test_dmg_core.py against the
+# final bundle. This has to happen now: pip itself needs `email`, which is stripped.
+###############################################################################
+TEST_PYDEPS="$TEST_DIR/pydeps"
+TEST_STDLIB="$TEST_DIR/stdlib"
+mkdir -p "$TEST_PYDEPS" "$TEST_STDLIB"
+echo "🧪 Installing pytest into ${TEST_PYDEPS} (test-only)"
+run_arch "$PREFIX/bin/python3" -m pip install --no-warn-script-location --no-cache \
+    --target "$TEST_PYDEPS" "pytest==9.2.0"
+
+###############################################################################
 # MINIMAL SIZE REDUCTION
 ###############################################################################
 
@@ -274,6 +287,9 @@ for mod in asyncio concurrent curses dbm email html http idlelib \
     lib2to3 multiprocessing pydoc_data sqlite3 tkinter turtledemo \
     unittest venv wsgiref xmlrpc distutils ensurepip; do
     echo "Removing stdlib module: $mod"
+    if [ -e "$PYTHON_LIB_DIR/$mod" ]; then
+        cp -R "$PYTHON_LIB_DIR/$mod" "$TEST_STDLIB/"
+    fi
     rm -rf "$PYTHON_LIB_DIR/$mod"
     test_dmgbuild
 done
@@ -286,9 +302,6 @@ for ext in _asyncio _bz2 _crypt \
     find "$PYTHON_LIB_DIR/lib-dynload" -name "${ext}*.so" -delete 2>/dev/null || true
     test_dmgbuild
 done
-
-echo "Installing pytest for Test 8 (before pip is removed)"
-run_arch "$PREFIX/bin/python3" -m pip install --quiet --no-warn-script-location pytest 2>/dev/null || true
 
 echo "Removing pip and setuptools"
 rm -rf "$PREFIX/bin/pip"* "$PREFIX/bin/easy_install"*
@@ -645,15 +658,27 @@ if failures:
 print("✓ Size formula produces valid results for all test cases")
 SIZE_TEST
 
-# Test 8: Full test suite (unit + integration)
-run_arch "$DIR_TO_ARCHIVE/python/bin/python3" -m pip install --quiet --no-warn-script-location pytest 2>/dev/null || true
-if run_arch "$DIR_TO_ARCHIVE/python/bin/python3" -m pytest --version >/dev/null 2>&1; then
+# Test 8: Full test suite (unit + integration) with the bundled interpreter and dmgbuild.
+# pytest and the stripped stdlib packages it and the tests need (unittest, email, ...) come
+# from the test-only dirs prepared before stripping; the bundle itself is not modified.
+# Any failure, error, or skip fails the build, so the suite can't silently stop running.
+PYTEST_LOG="$TEST_DIR/pytest.log"
+set +e
+PYTHONPATH="$TEST_PYDEPS:$TEST_STDLIB" PYTHONDONTWRITEBYTECODE=1 \
     run_arch "$DIR_TO_ARCHIVE/python/bin/python3" -m pytest \
-        "$ROOT/assets/tests/test_dmg_core.py" -v --tb=short
-    echo "✓ Full test suite passed"
-else
-    echo "⚠ pytest not available — skipping full test suite (inline tests above cover critical paths)"
+    "$ROOT/assets/tests/test_dmg_core.py" -v --tb=short -rs \
+    -p no:cacheprovider --basetemp="$TEST_DIR/pytest-tmp" 2>&1 | tee "$PYTEST_LOG"
+PYTEST_STATUS=${PIPESTATUS[0]}
+set -e
+if [ "$PYTEST_STATUS" -ne 0 ]; then
+    echo "❌ test_dmg_core.py failed (pytest exit ${PYTEST_STATUS})"
+    exit 1
 fi
+if grep -Eq '[0-9]+ skipped' "$PYTEST_LOG"; then
+    echo "❌ test_dmg_core.py skipped tests (see above)"
+    exit 1
+fi
+echo "✓ Full test suite passed"
 
 echo "✅ All tests passed!"
 
