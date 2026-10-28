@@ -1,5 +1,11 @@
 # linux-tools-mac
 
+## 1.1.0
+
+### Minor Changes
+
+- [#243](https://github.com/electron-userland/electron-builder-binaries/pull/243) [`b00e099`](https://github.com/electron-userland/electron-builder-binaries/commit/b00e0999aa3055f4cafc6b500e85b7897e6da578) Thanks [@claude](https://github.com/apps/claude)! - feat: trim the macOS bundle to the tools electron-builder and fpm actually run (gtar, lzip, binutils `ar`, with `gar` kept as a symlink to `ar`) plus their dylibs, dropping glib, gettext, libgsf, libtool, pcre and makedepend. Picks up binutils 2.47 from Homebrew. The build now fails unless every bundled binary and dylib resolves its non-system dylibs inside the bundle, requires macOS 15.0 or older, and is validly signed, and the tests exercise the same gtar/ar/lzip invocations fpm and electron-builder use
+
 ## 1.0.1
 
 ### Patch Changes

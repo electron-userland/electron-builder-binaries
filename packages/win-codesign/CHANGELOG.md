@@ -1,5 +1,13 @@
 # win-codesign
 
+## 1.3.2
+
+### Patch Changes
+
+- [#237](https://github.com/electron-userland/electron-builder-binaries/pull/237) [`2ab35a0`](https://github.com/electron-userland/electron-builder-binaries/commit/2ab35a08633afd920c2ef64b5f7b8c9354343b51) Thanks [@claude](https://github.com/apps/claude)! - fix(win-codesign): bundle OpenSSL 3.5 LTS with the Linux `osslsigncode` so it starts on distros without OpenSSL 1.1 (Ubuntu 22.04 and later). The 1.3.x Linux bundles linked the build image's `libcrypto.so.1.1` and `libcurl.so.4` but shipped an empty `lib/`, because `bundle-osslsigncode-libs.sh` copied the libraries next to the output zip instead of into the directory being zipped, so the binary failed with "libcrypto.so.1.1: cannot open shared object file". Linux now uses the same model as macOS: OpenSSL (same pinned version and checksum) built shared with the legacy provider compiled in, libp11's `pkcs11prov` built against it in `lib/ossl-modules`, and `osslsigncode` linked with RUNPATH `$ORIGIN/../lib` (with OpenSSL 3 it no longer needs libcurl). The bundle ships the OpenSSL and libp11 license texts. The build fails if any binary or bundled library needs a non-base-system library that is not in the bundle, has an absolute RUNPATH, or needs glibc newer than 2.31; CI smoke-tests every Linux bundle in a clean `ubuntu:24.04` container (legacy PKCS#12 and PEM file signing, plus SoftHSM-backed PKCS#11 signing on amd64/arm64), and arm64 now builds on a native runner
+
+- [#240](https://github.com/electron-userland/electron-builder-binaries/pull/240) [`c37165b`](https://github.com/electron-userland/electron-builder-binaries/commit/c37165b6b24d8cd99504adc640165b50a0927c20) Thanks [@claude](https://github.com/apps/claude)! - fix(win-codesign): update `osslsigncode` from 2.11 to 2.14 on all platforms and the bundled .NET runtime (used by Azure Trusted Signing under Wine) from 8.0.28 to 8.0.33. osslsigncode 2.12 fixes CVE-2026-39853 (buffer overflow while extracting message digests during `verify`), 2.13 fixes integer overflows and double frees in APPX processing and memory corruption in PE page hash computation (CVE-2026-39855, CVE-2026-39856), and 2.14 fixes an APPX memory leak; the `sign` options electron-builder passes are unchanged (2.14 only drops the verification options from `attach-signature`). .NET 8.0.29 through 8.0.33 are all security releases. The .NET asset is renamed accordingly, from `dotnet-runtime-win-x64-8_0_28.zip` to `dotnet-runtime-win-x64-8_0_33.zip`. The stale `2.9` defaults in the per-platform build scripts and the Linux Dockerfile now match the 2.14 default used by CI
+
 ## 1.3.1
 
 ### Patch Changes
