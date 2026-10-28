@@ -143,6 +143,7 @@ unset PKG_CONFIG_PATH
 #   --prefix   only sets the compiled-in default MODULESDIR/ENGINESDIR, so it must be a path regular users cannot
 #              create (not the build dir); the libs are staged with DESTDIR and never installed there
 #   --openssldir=/private/etc/ssl  root-owned system location for openssl.cnf
+#   -headerpad_max_install_names  room to point the install names at the (long) staging path below
 case "$ARCH" in
     arm64)  OPENSSL_TARGET="darwin64-arm64-cc" ;;
     x86_64) OPENSSL_TARGET="darwin64-x86_64-cc" ;;
@@ -165,6 +166,7 @@ tar -xzf "$SRC_DIR/openssl-${OPENSSL_VERSION}.tar.gz" -C "$SRC_DIR"
     run_arch ./Configure "$OPENSSL_TARGET" \
         shared no-module no-tests no-docs no-apps \
         "-mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}" \
+        -Wl,-headerpad_max_install_names \
         --prefix="$OPENSSL_RUNTIME_PREFIX" \
         --openssldir=/private/etc/ssl \
         --libdir=lib
