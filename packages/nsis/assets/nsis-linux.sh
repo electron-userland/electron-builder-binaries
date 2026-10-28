@@ -14,8 +14,8 @@ BASE_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 OUT_DIR="$BASE_DIR/out/nsis"
 
 # Version configuration
-NSIS_VERSION=${NSIS_VERSION:-3.12}
-NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v312}
+NSIS_VERSION=${NSIS_VERSION:-3.13}
+NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v313}
 
 OUTPUT_ARCHIVE="$OUT_DIR/nsis-bundle-linux-$NSIS_BRANCH.tar.gz"
 
@@ -106,11 +106,25 @@ RUN scons \
 # The binary is now at /build/install/makensis
 RUN chmod +x /build/install/makensis
 
-RUN mkdir -p /output && \
-    cp /build/install/makensis /output/makensis
+# Second build without logging for the default (non-logging) bundle; only makensis reads NSIS_CONFIG_LOG
+RUN scons \
+    SKIPSTUBS=all \
+    SKIPPLUGINS=all \
+    SKIPUTILS=all \
+    SKIPMISC=all \
+    NSIS_CONFIG_CONST_DATA_PATH=no \
+    NSIS_CONFIG_LOG=no \
+    NSIS_MAX_STRLEN=8192 \
+    PREFIX=/build/install-nolog \
+    install-compiler && \
+    chmod +x /build/install-nolog/makensis
+
+RUN mkdir -p /output/nolog && \
+    cp /build/install/makensis /output/makensis && \
+    cp /build/install-nolog/makensis /output/nolog/makensis
 
 FROM scratch
-COPY --from=builder /output/makensis /output/makensis
+COPY --from=builder /output /output
 DOCKERFILE_END
 
 # =============================================================================
@@ -125,6 +139,8 @@ rm -rf "$TEMP_DIR"
 mkdir -p "$TEMP_DIR/docker-out"
 mkdir -p "$TEMP_DIR/nsis-bundle/linux/x64"
 mkdir -p "$TEMP_DIR/nsis-bundle/linux/arm64"
+mkdir -p "$TEMP_DIR/nsis-nolog/linux/x64"
+mkdir -p "$TEMP_DIR/nsis-nolog/linux/arm64"
 
 docker buildx create --name "$BUILDX_BUILDER" --use
 
@@ -146,12 +162,16 @@ echo "📦 Extracting compiled Linux binaries..."
 
 cp "$TEMP_DIR/docker-out/linux_amd64/output/makensis" "$TEMP_DIR/nsis-bundle/linux/x64/makensis"
 cp "$TEMP_DIR/docker-out/linux_arm64/output/makensis" "$TEMP_DIR/nsis-bundle/linux/arm64/makensis"
-chmod +x "$TEMP_DIR/nsis-bundle/linux/x64/makensis" "$TEMP_DIR/nsis-bundle/linux/arm64/makensis"
+# non-logging makensis builds for the default bundle (nsis-nolog/ overlay, see nsis-combine.sh)
+cp "$TEMP_DIR/docker-out/linux_amd64/output/nolog/makensis" "$TEMP_DIR/nsis-nolog/linux/x64/makensis"
+cp "$TEMP_DIR/docker-out/linux_arm64/output/nolog/makensis" "$TEMP_DIR/nsis-nolog/linux/arm64/makensis"
+chmod +x "$TEMP_DIR/nsis-bundle/linux/x64/makensis" "$TEMP_DIR/nsis-bundle/linux/arm64/makensis" \
+    "$TEMP_DIR/nsis-nolog/linux/x64/makensis" "$TEMP_DIR/nsis-nolog/linux/arm64/makensis"
 rm -rf "$TEMP_DIR/docker-out"
 
 echo "  → Verifying binaries..."
-for arch_dir in x64 arm64; do
-    bin="$TEMP_DIR/nsis-bundle/linux/$arch_dir/makensis"
+for bin in "$TEMP_DIR"/nsis-bundle/linux/{x64,arm64}/makensis "$TEMP_DIR"/nsis-nolog/linux/{x64,arm64}/makensis; do
+    arch_dir="${bin#"$TEMP_DIR"/}"
     if [ ! -f "$bin" ]; then
         echo "  ❌ Binary not found: $bin"
         exit 1
@@ -201,7 +221,7 @@ echo ""
 echo "📦 Creating Linux bundle archive..."
 
 cd "$TEMP_DIR"
-tar -czf "${OUTPUT_ARCHIVE}" nsis-bundle
+tar -czf "${OUTPUT_ARCHIVE}" nsis-bundle nsis-nolog
 
 # =============================================================================
 # Cleanup

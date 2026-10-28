@@ -4,10 +4,14 @@ set -euo pipefail
 # =============================================================================
 # NSIS Bundle Test Suite
 # =============================================================================
-# Usage: nsis-test.sh [--bundle-dir PATH] [--full]
+# Usage: nsis-test.sh [--bundle-dir PATH] [--logging yes|no] [--full]
 #
 # --bundle-dir PATH  Path to extracted nsis-bundle directory.
 #                    Defaults to ./out/nsis/nsis-bundle relative to this script.
+#
+# --logging yes|no   Whether the bundle is the -log bundle (makensis and stubs built
+#                    with NSIS_CONFIG_LOG=yes) or the default one (=no). Defaults to
+#                    the "Logging:" line of the bundle's VERSION.txt.
 #
 # --full             Enable the optional end-to-end install + uninstall test (Test 15).
 #                    Requires Windows or Linux+Wine to execute the installer.
@@ -18,16 +22,29 @@ set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 BUNDLE_DIR="$SCRIPT_DIR/../out/nsis/nsis-bundle"
 FULL_TEST=""
+LOGGING=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --bundle-dir) BUNDLE_DIR="${2:-}"; shift 2 ;;
+        --logging)    LOGGING="${2:-}"; shift 2 ;;
         --full)       FULL_TEST="--full"; shift ;;
         *) echo "❌ Unknown option: $1"; exit 1 ;;
     esac
 done
 
 BUNDLE_DIR=$(cd "$BUNDLE_DIR" && pwd)
+
+if [ -z "$LOGGING" ]; then
+    case "$(grep -E '^Logging: NSIS_CONFIG_LOG=' "$BUNDLE_DIR/VERSION.txt" 2>/dev/null || true)" in
+        "Logging: NSIS_CONFIG_LOG=yes"*) LOGGING=yes ;;
+        "Logging: NSIS_CONFIG_LOG=no"*)  LOGGING=no ;;
+    esac
+fi
+if [ "$LOGGING" != "yes" ] && [ "$LOGGING" != "no" ]; then
+    echo "❌ --logging must be yes or no (and VERSION.txt has no Logging: line to default it from)"
+    exit 1
+fi
 
 PASS=0
 FAIL=0
@@ -93,6 +110,7 @@ echo "════════════════════════�
 echo "  NSIS Bundle Test Suite"
 echo "═══════════════════════════════════════════════════════════════"
 echo "  Bundle:   $BUNDLE_DIR"
+echo "  Logging:  NSIS_CONFIG_LOG=$LOGGING"
 echo "  OS:       $(uname -s) / $ARCH"
 E2E_STATUS="disabled (pass --full to enable)"
 [ -n "$FULL_TEST" ] && E2E_STATUS="enabled (--full)"
@@ -264,10 +282,26 @@ for lang in "${LANG_NAMES[@]}"; do
     assert_file "$LANG_DIR/${lang}.nsh" "${lang}.nsh present"
 done
 
-# Verify patch markers for the 5 .nsh-patched languages
-for lang in Finnish Hungarian Korean Thai Turkish; do
+# Verify patch markers for the 4 .nsh-patched languages
+for lang in Finnish Hungarian Thai Turkish; do
     [ -f "$LANG_DIR/${lang}.nsh" ] && assert_patch "$LANG_DIR/${lang}.nsh" "${lang}.nsh"
 done
+
+# Every language file must set each MultiUser string at most once. LANGFILE_SETSTRING (Include/LangFile.nsh) keeps the
+# first definition, so a fix appended after an upstream translation of the same string is silently ignored: once
+# upstream translates a string, drop its fix (NSIS 3.13 translated the Korean MultiUser strings, so Korean.nsh went).
+DUPLICATE_LANGS=()
+for lang in "${LANG_NAMES[@]}"; do
+    nsh="$LANG_DIR/${lang}.nsh"
+    [ -f "$nsh" ] || continue
+    dup=$(grep -oE 'LangFileString\} MULTIUSER_[A-Z_]+' "$nsh" | sort | uniq -d | head -1 || true)
+    [ -n "$dup" ] && DUPLICATE_LANGS+=("$lang (${dup#LangFileString\} })")
+done
+if [ ${#DUPLICATE_LANGS[@]} -eq 0 ]; then
+    pass "Language files: no MultiUser string set twice"
+else
+    fail "Language files: MultiUser string set twice in ${DUPLICATE_LANGS[*]}"
+fi
 
 # Verify patch marker for the 1 .nlf-patched language
 [ -f "$LANG_DIR/SimpChinese.nlf" ] && assert_patch "$LANG_DIR/SimpChinese.nlf" "SimpChinese.nlf"
@@ -358,7 +392,7 @@ echo ""
 echo "── Test 7: Version flag ────────────────────────────────────────"
 
 if VERSION_OUT=$(run_wrapper "$WRAPPER" -VERSION 2>&1); then
-    # Accept release tags (v3.12) and CVS date strings from source builds (20-May-2026.cvs)
+    # Accept release tags (v3.13) and CVS date strings from source builds (20-May-2026.cvs)
     if echo "$VERSION_OUT" | grep -qiE "v?3\.[0-9]|[0-9]+-[A-Za-z]+-[0-9]{4}"; then
         pass "Version flag: $(echo "$VERSION_OUT" | tr -d '\r\n')"
     else
@@ -654,6 +688,60 @@ NSI
     fi
 else
     skip "makensis.ps1: not Windows"
+fi
+
+# =============================================================================
+# TEST 16 — Logging (NSIS_CONFIG_LOG): the -log bundle accepts LogSet, the default one rejects it
+# =============================================================================
+
+echo ""
+echo "── Test 16: Logging (NSIS_CONFIG_LOG=$LOGGING) ──────────────────────"
+
+cd "$TMPDIR_TEST"
+
+# /HDRINFO lists the compile-time defines of the makensis the wrapper runs on this host
+HDRINFO_OUT=$(run_wrapper "$WRAPPER" -HDRINFO 2>&1 || true)
+if echo "$HDRINFO_OUT" | tr ', \r' '\n\n\n' | grep -x "NSIS_CONFIG_LOG" >/dev/null; then HDR_LOG=yes; else HDR_LOG=no; fi
+if ! echo "$HDRINFO_OUT" | grep -q "NSIS_MAX_STRLEN"; then
+    fail "HDRINFO: unexpected output: $(echo "$HDRINFO_OUT" | head -5 | tr -d '\r')"
+elif [ "$HDR_LOG" = "$LOGGING" ]; then
+    pass "HDRINFO: NSIS_CONFIG_LOG defined=$HDR_LOG"
+else
+    fail "HDRINFO: NSIS_CONFIG_LOG defined=$HDR_LOG, expected $LOGGING"
+fi
+
+cat > "$TMPDIR_TEST/logset.nsi" <<'NSI'
+Name "LogSet Test"
+OutFile "logset.exe"
+InstallDir "$TEMP\LogSetTest"
+Section
+  SetOutPath "$INSTDIR"
+  LogSet on
+  LogText "logged"
+SectionEnd
+NSI
+
+rm -f logset.exe
+if LOGSET_OUT=$(run_wrapper "$WRAPPER" logset.nsi 2>&1) && [ -f logset.exe ]; then LOGSET_OK=yes; else LOGSET_OK=no; fi
+if [ "$LOGGING" = "yes" ]; then
+    [ "$LOGSET_OK" = "yes" ] && pass "LogSet compiles with the -log bundle" \
+        || fail "LogSet: -log bundle rejected it: $(echo "$LOGSET_OUT" | tail -3 | tr -d '\r')"
+else
+    if [ "$LOGSET_OK" = "no" ] && echo "$LOGSET_OUT" | grep -q "NSIS_CONFIG_LOG not defined"; then
+        pass "LogSet rejected by the default bundle (NSIS_CONFIG_LOG not defined)"
+    else
+        fail "LogSet: the default bundle should reject it with \"NSIS_CONFIG_LOG not defined\" (compiled=$LOGSET_OK)"
+    fi
+fi
+
+# windows/makensis.exe (and the stubs, see the E2E install job) must match on every host, not only the one running the wrapper.
+# (grep without -q: under pipefail, -q exiting early would fail strings with SIGPIPE.) Its define list is UTF-16LE; a build without logging has only the "...NSIS_CONFIG_LOG not defined" message, never the bare name.
+if ! $IS_WINDOWS && strings -a -el /dev/null >/dev/null 2>&1; then
+    if strings -a -el "$BUNDLE_DIR/windows/makensis.exe" | grep -x "NSIS_CONFIG_LOG" >/dev/null; then WIN_LOG=yes; else WIN_LOG=no; fi
+    [ "$WIN_LOG" = "$LOGGING" ] && pass "windows/makensis.exe: NSIS_CONFIG_LOG defined=$WIN_LOG" \
+        || fail "windows/makensis.exe: NSIS_CONFIG_LOG defined=$WIN_LOG, expected $LOGGING"
+else
+    skip "windows/makensis.exe define check: needs GNU strings on a non-Windows host"
 fi
 
 # =============================================================================

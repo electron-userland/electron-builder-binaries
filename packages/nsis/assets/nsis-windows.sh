@@ -6,6 +6,8 @@ set -euo pipefail
 # =============================================================================
 # Builds makensis.exe AND stubs from source using Docker + MinGW-w64.
 # Consistent flags across all components: NSIS_CONFIG_LOG=yes + NSIS_MAX_STRLEN=8192
+# makensis.exe and the stubs are built a second time with NSIS_CONFIG_LOG=no into the
+# nsis-nolog/ overlay of the archive (for the default, non-logging bundle).
 # Downloads third-party plugins and applies language file patches.
 # Runs on Linux or macOS (Docker required).
 # =============================================================================
@@ -15,14 +17,15 @@ BASE_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 OUT_DIR="$BASE_DIR/out/nsis"
 
 # Version configuration
-NSIS_VERSION=${NSIS_VERSION:-3.12}
-NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v312}
+NSIS_VERSION=${NSIS_VERSION:-3.13}
+NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v313}
 
 # Docker configuration
 IMAGE_NAME="nsis-windows-builder:${NSIS_BRANCH}"
 CONTAINER_NAME="nsis-windows-build-$$"
 
 BUNDLE_DIR="$OUT_DIR/nsis-bundle"
+NOLOG_DIR="$OUT_DIR/nsis-nolog"
 OUTPUT_ARCHIVE="$OUT_DIR/nsis-bundle-base-$NSIS_BRANCH.tar.gz"
 
 echo "Building NSIS Base Bundle (Docker, MinGW cross-compile, LOG + STRLEN=8192)..."
@@ -164,7 +167,7 @@ WORKDIR /build/nsis
 # Replace with offsetof(struct, fixed_field) + runtime arithmetic, which is valid C++.
 RUN sed -i 's|FIELD_OFFSET(postbuild_cmd, cmd\[_tcsclen(cmdstr)+!0\])|offsetof(postbuild_cmd, cmd) + (_tcsclen(cmdstr) + 1) * sizeof(TCHAR)|' Source/build.cpp
 
-# Build halibut natively from NSIS source. The apt halibut is too old to parse NSIS v312's
+# Build halibut natively from NSIS source. The apt halibut is too old to parse NSIS v312+'s
 # .but documentation syntax. The NSIS-bundled halibut sources are the correct newer version.
 # We build a native Linux binary here; the gcc wrapper below redirects the cross-compiled
 # (Windows PE) halibut link step to this native binary instead.
@@ -241,6 +244,28 @@ RUN scons \
 # Rename to makensis.exe for Windows compatibility.
 RUN mv /build/install/makensis /build/install/makensis.exe
 
+# Second build without logging (NSIS_CONFIG_LOG=no) for the default bundle; the logging build above is the -log bundle.
+# Only makensis and the exehead stubs read NSIS_CONFIG_LOG, so scons rebuilds just those in the same tree. The plugins are
+# installed again and must be byte-identical to the logging build (all NSIS outputs are built reproducibly), which shows
+# the two bundles can share every file except makensis.exe and Stubs/.
+RUN scons \
+    CC=i686-w64-mingw32-gcc \
+    CXX=i686-w64-mingw32-g++ \
+    RANLIB=i686-w64-mingw32-ranlib \
+    AR=i686-w64-mingw32-ar \
+    SKIPUTILS="NSIS Menu" \
+    NSIS_CONFIG_CONST_DATA_PATH=no \
+    NSIS_CONFIG_LOG=no \
+    NSIS_MAX_STRLEN=8192 \
+    ZLIB_W32=/usr/i686-w64-mingw32 \
+    PREFIX=/build/install-nolog \
+    install-compiler install-stubs install-plugins && \
+    mv /build/install-nolog/makensis /build/install-nolog/makensis.exe && \
+    diff -r /build/install/Plugins /build/install-nolog/Plugins && \
+    ! cmp -s /build/install/makensis.exe /build/install-nolog/makensis.exe && \
+    ! cmp -s /build/install/Stubs/zlib-x86-unicode /build/install-nolog/Stubs/zlib-x86-unicode && \
+    tar -czf /install-nolog.tar.gz -C /build/install-nolog makensis.exe Stubs
+
 # Tar the install tree so that directory names with spaces survive extraction on all hosts.
 # docker cp on macOS Docker Desktop silently drops directories whose names contain spaces,
 # which would corrupt Contrib/Language files/, Contrib/Modern UI 2/, etc.
@@ -274,6 +299,19 @@ docker cp "$CONTAINER_NAME:/install.tar.gz" "$TEMP_DIR/install.tar.gz"
 mkdir -p "$BUNDLE_DIR/windows"
 tar -xzf "$TEMP_DIR/install.tar.gz" -C "$BUNDLE_DIR/windows"
 rm -f "$TEMP_DIR/install.tar.gz"
+
+# The non-logging makensis.exe and stubs go to the nsis-nolog/ overlay, which nsis-combine.sh lays over a copy of
+# the logging bundle to make the default (non-logging) bundle.
+docker cp "$CONTAINER_NAME:/install-nolog.tar.gz" "$TEMP_DIR/install-nolog.tar.gz"
+rm -rf "$NOLOG_DIR"
+mkdir -p "$NOLOG_DIR/windows"
+tar -xzf "$TEMP_DIR/install-nolog.tar.gz" -C "$NOLOG_DIR/windows"
+rm -f "$TEMP_DIR/install-nolog.tar.gz"
+if [ ! -f "$NOLOG_DIR/windows/makensis.exe" ] || [ ! -d "$NOLOG_DIR/windows/Stubs" ]; then
+    echo "❌ non-logging makensis.exe / Stubs not found in Docker output"
+    exit 1
+fi
+echo "  ✓ non-logging makensis.exe + $(find "$NOLOG_DIR/windows/Stubs" -type f | wc -l | xargs) stubs extracted"
 
 # Strip Bin/ tools that electron-builder's headless makensis pipeline never uses.
 # makensis.exe lives at windows/makensis.exe (not Bin/) and reads none of these.
@@ -627,7 +665,8 @@ echo ""
 echo "📦 Creating base bundle archive..."
 
 cd "$OUT_DIR"
-tar -czf "${OUTPUT_ARCHIVE}" nsis-bundle
+tar -czf "${OUTPUT_ARCHIVE}" nsis-bundle nsis-nolog
+rm -rf "$NOLOG_DIR"
 
 # =============================================================================
 # Cleanup

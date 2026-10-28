@@ -6,9 +6,14 @@ set -euo pipefail
 # =============================================================================
 # Usage: nsis-e2e-install.sh [--installers-dir PATH]
 #
-# --installers-dir PATH  Directory containing nsis-e2e-installer-{platform}/ subdirs,
-#                        each holding an e2e-installer.exe compiled by that platform.
+# --installers-dir PATH  Directory containing nsis-e2e-installer-{platform}-{variant}/ subdirs,
+#                        each holding an e2e-installer.exe compiled by that platform with the
+#                        default bundle (variant "default") or the -log bundle (variant "log").
 #                        Defaults to ./installers
+#
+# A -log installer runs `LogSet on`, so its install must also write install.log: that checks the
+# log-enabled stubs and makensis agree (a makensis built without NSIS_CONFIG_LOG numbers the
+# opcodes after EW_LOG differently from log-enabled stubs, and the other way around).
 #
 # Runs install + uninstall for every installer found. Exits with the total
 # number of failures (0 = all passed).
@@ -74,6 +79,24 @@ for dir in "${dirs[@]}"; do
     else
         echo "[FAIL] $platform: INSTALLED.txt not found at $install_dir"
         FAIL=$((FAIL + 1))
+    fi
+
+    # Only the -log installer writes install.log
+    if [[ "$platform" == *-log ]]; then
+        # install.log is UTF-16LE in Unicode installers: drop the NUL bytes before matching
+        if [ -f "$install_dir/install.log" ] && tr -d '\000' < "$install_dir/install.log" | grep -a "nsis-e2e-logged" >/dev/null; then
+            echo "[PASS] $platform: install.log written (LogSet on)"
+            PASS=$((PASS + 1))
+        else
+            echo "[FAIL] $platform: install.log missing or without the LogText line at $install_dir"
+            FAIL=$((FAIL + 1))
+        fi
+    elif [ -f "$install_dir/install.log" ]; then
+        echo "[FAIL] $platform: install.log written by an installer built without logging"
+        FAIL=$((FAIL + 1))
+    else
+        echo "[PASS] $platform: no install.log (built without logging)"
+        PASS=$((PASS + 1))
     fi
 
     # Uninstall

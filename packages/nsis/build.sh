@@ -19,8 +19,8 @@ ASSETS_DIR="$SCRIPT_DIR/assets"
 OUT_DIR="$SCRIPT_DIR/out"
 
 # Build configuration
-export NSIS_VERSION="3.12"
-export NSIS_BRANCH_OR_COMMIT="e3f60402bcdf7be822d159b531c6e38ddf32de12" # v3.12 stable release
+export NSIS_VERSION="3.13"
+export NSIS_BRANCH_OR_COMMIT="a4ba28e60bd9e7c271cd2bfc1558889ce3355653" # v3.13 stable release
 
 # Detect current OS
 OS_TYPE=${TARGET:-$(uname -s | tr '[:upper:]' '[:lower:]')}
@@ -90,10 +90,13 @@ combine() {
 }
 
 run_tests() {
-    BUNDLE_DIR="$OUT_DIR/nsis/nsis-bundle"
-    echo "🧪 Running test suite..."
+    # nsis-combine.sh leaves the default (NSIS_CONFIG_LOG=no) bundle in nsis-bundle/ and the -log bundle in nsis-bundle-log/
+    echo "🧪 Running test suite (default bundle, NSIS_CONFIG_LOG=no)..."
     echo ""
-    bash "$ASSETS_DIR/nsis-test.sh" --bundle-dir "$BUNDLE_DIR" ${TEST_ARGS[@]+"${TEST_ARGS[@]}"}
+    bash "$ASSETS_DIR/nsis-test.sh" --bundle-dir "$OUT_DIR/nsis/nsis-bundle" --logging no ${TEST_ARGS[@]+"${TEST_ARGS[@]}"}
+    echo "🧪 Running test suite (-log bundle, NSIS_CONFIG_LOG=yes)..."
+    echo ""
+    bash "$ASSETS_DIR/nsis-test.sh" --bundle-dir "$OUT_DIR/nsis/nsis-bundle-log" --logging yes ${TEST_ARGS[@]+"${TEST_ARGS[@]}"}
 }
 
 show_usage() {
