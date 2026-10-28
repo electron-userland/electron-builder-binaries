@@ -4,8 +4,10 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 usage() {
-    echo "Usage: $0 --src <path-to-osslsigncode> [--lib-dir <dir>] [--output-dir <dir>] [--platform-arch <arch>]" >&2
+    echo "Usage: $0 --src <path-to-osslsigncode> --licenses-dir <dir> [--lib-dir <dir>] [--output-dir <dir>] [--platform-arch <arch>]" >&2
     echo "  --src           Path to the compiled osslsigncode binary (required)" >&2
+    echo "  --licenses-dir  Staged LICENSES/ directory (MANIFEST.tsv + per-component license files, see licenses.sh)" >&2
+    echo "                  copied into the bundle as LICENSES/ (required)" >&2
     echo "  --lib-dir       Directory whose contents are copied into the bundle's lib/" >&2
     echo "  --output-dir    Directory to write the final ZIP bundle (default: \$ROOT/out/osslsigncode)" >&2
     echo "  --platform-arch Target architecture label, e.g. amd64, arm64, i386 (default: \$(uname -m))" >&2
@@ -14,6 +16,7 @@ usage() {
 
 OSSLSIGNCODE_SRC="${OSSLSIGNCODE_SRC:-}"
 EXTRA_LIB_DIR=""
+LICENSES_SRC=""
 OUTPUT_DIR="${OUTPUT_DIR:-$ROOT/out/osslsigncode}"
 PLATFORM_ARCH="${PLATFORM_ARCH:-$(uname -m)}"
 
@@ -21,6 +24,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --src)           OSSLSIGNCODE_SRC="$2"; shift 2 ;;
         --lib-dir)       EXTRA_LIB_DIR="$2";    shift 2 ;;
+        --licenses-dir)  LICENSES_SRC="$2";     shift 2 ;;
         --output-dir)    OUTPUT_DIR="$2";        shift 2 ;;
         --platform-arch) PLATFORM_ARCH="$2";     shift 2 ;;
         -h|--help) usage ;;
@@ -30,6 +34,11 @@ done
 
 if [[ -z "$OSSLSIGNCODE_SRC" ]]; then
     echo "❌ Error: --src is required" >&2
+    usage
+fi
+
+if [[ -z "$LICENSES_SRC" || ! -f "$LICENSES_SRC/MANIFEST.tsv" ]]; then
+    echo "❌ Error: --licenses-dir must point to a staged LICENSES/ directory with a MANIFEST.tsv" >&2
     usage
 fi
 
@@ -137,12 +146,13 @@ echo "  - Or run: LD_LIBRARY_PATH=$LIB_DIR OPENSSL_MODULES=$LIB_DIR/ossl-modules
 
 # ── Packaging ─────────────────────────────────────────────────────────────────
 ARCHIVE_ARCH_SUFFIX=$(echo "${PLATFORM_ARCH}" | tr -d '/' | tr '[:upper:]' '[:lower:]')
-ARCHIVE_NAME="win-codesign-$(uname -s | tr 'A-Z' 'a-z')-$ARCHIVE_ARCH_SUFFIX.zip"
+ARCHIVE_NAME="win-codesign-$(uname -s | tr '[:upper:]' '[:lower:]')-$ARCHIVE_ARCH_SUFFIX.zip"
 
-echo "📄 Downloading osslsigncode LICENSE..."
-curl -fsSL --retry 3 --retry-delay 2 --max-time 60 \
-    "https://raw.githubusercontent.com/mtrojnar/osslsigncode/master/LICENSE.txt" \
-    -o "$INSTALL_DIR/LICENSE"
+# ── Licenses ──────────────────────────────────────────────────────────────────
+# Staged by the caller from the pinned sources (osslsigncode tag, OpenSSL / libp11 tarballs); copied after
+# stripping so the strip loop never touches them. The caller checks the zip with scripts/verify-licenses.sh.
+echo "📄 Adding LICENSES/"
+cp -R "$LICENSES_SRC" "$INSTALL_DIR/LICENSES"
 
 echo "📦 Creating ZIP bundle: $ARCHIVE_NAME"
 (

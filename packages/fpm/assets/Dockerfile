@@ -46,5 +46,9 @@ COPY ./assets/constants.sh /tmp/assets/constants.sh
 COPY ./assets/compile-portable-ruby.sh /tmp/assets/compile-portable-ruby.sh
 RUN bash /tmp/assets/compile-portable-ruby.sh
 
+# The shared license guard (scripts/verify-licenses.sh, passed by build.sh as the "repo-scripts" build context)
+# and the collector that lays out LICENSES/ for it
+COPY --from=repo-scripts verify-licenses.sh /tmp/assets/verify-licenses.sh
+COPY ./assets/collect-licenses.sh /tmp/assets/collect-licenses.sh
 COPY ./assets/patch-portable-ruby.sh /tmp/assets/patch-portable-ruby.sh
 RUN bash /tmp/assets/patch-portable-ruby.sh

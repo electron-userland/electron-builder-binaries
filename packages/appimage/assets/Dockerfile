@@ -73,6 +73,9 @@ RUN set -eux; \
         mkdir -p /tmp/appind /tmp/ind; \
         dpkg -x libappindicator1_12.10.1+18.04.20180322.1-0ubuntu1_i386.deb /tmp/appind; \
         dpkg -x libindicator7_16.10.0+18.04.20180321.1-0ubuntu1_i386.deb /tmp/ind; \
+        # control files (package, version, source) for the bundle LICENSES/SOURCES (collect-licenses.sh)
+        dpkg-deb -e libappindicator1_12.10.1+18.04.20180322.1-0ubuntu1_i386.deb /tmp/appind/DEBIAN; \
+        dpkg-deb -e libindicator7_16.10.0+18.04.20180321.1-0ubuntu1_i386.deb /tmp/ind/DEBIAN; \
         echo "   ✅ i386 libappindicator packages extracted"; \
         ;; \
       *) \
@@ -108,7 +111,9 @@ ENV SQUASHFS_TOOLS_VERSION_TAG=${SQUASHFS_TOOLS_VERSION_TAG}
 ARG OPENJPEG_VERSION="2.5.4"
 ENV OPENJPEG_VERSION=${OPENJPEG_VERSION}
 
-COPY ./assets/build-appimage.sh /project/build/build-appimage.sh
+COPY ./assets/build-appimage.sh ./assets/collect-licenses.sh /project/build/
+# The shared license guard, from the repo's scripts/ (named build context "repo-scripts", see appimage-linux.sh)
+COPY --from=repo-scripts verify-licenses.sh /project/build/verify-licenses.sh
 RUN DEST=/ bash /project/build/build-appimage.sh
 
 # Final stage - create minimal output image for caching (specifically for local dev)

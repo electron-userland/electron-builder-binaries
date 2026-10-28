@@ -113,8 +113,14 @@ if [ ! -f "$TEMP_ELEVATE/nsis-bundle/elevate.exe" ]; then
     exit 1
 fi
 cp "$TEMP_ELEVATE/nsis-bundle/elevate.exe" "$BUILD_DIR/nsis-bundle/elevate.exe"
+if [ ! -d "$TEMP_ELEVATE/nsis-bundle/LICENSES/elevate" ]; then
+    echo "❌ elevate license files not found in bundle: $TEMP_ELEVATE/nsis-bundle/LICENSES/elevate"
+    exit 1
+fi
+mkdir -p "$BUILD_DIR/nsis-bundle/LICENSES"
+cp -R "$TEMP_ELEVATE/nsis-bundle/LICENSES/elevate" "$BUILD_DIR/nsis-bundle/LICENSES/"
 rm -rf "$TEMP_ELEVATE" "$ELEVATE_BUNDLE"
-echo "  ✓ elevate.exe injected"
+echo "  ✓ elevate.exe (and its license files) injected"
 
 # =============================================================================
 # Inject Linux Binary
@@ -346,6 +352,7 @@ This bundle contains NSIS (Nullsoft Scriptable Install System) binaries for mult
 - **Elevate**: \`elevate.exe\` (Windows privilege elevation utility, compiled from source)
 - **NSIS Data**: \`windows/\` (Contrib, Include, Plugins, Stubs)
 - **Universal Wrapper**: \`makensis\` (auto-detects platform, sets \`NSISDIR\`) [.cmd and .ps1 versions for Windows]
+- **Licenses**: \`LICENSE\` (NSIS, including its own plugins) and \`LICENSES/\` (each community plugin and elevate.exe; see \`LICENSES/README.md\`)
 
 ## Quick Start
 
@@ -447,6 +454,9 @@ curl -fsSL --retry 3 --retry-delay 2 --max-time 60 \
   "https://raw.githubusercontent.com/NSIS-Dev/nsis/${NSIS_BRANCH}/COPYING" \
   -o "$BUILD_DIR/nsis-bundle/LICENSE"
 echo "  ✓ LICENSE downloaded"
+
+echo "🔍 Checking every plugin DLL has license terms..."
+bash "$SCRIPT_DIR/nsis-plugin-licenses.sh" verify "$BUILD_DIR/nsis-bundle"
 
 # =============================================================================
 # Create the default (non-logging) and -log bundles

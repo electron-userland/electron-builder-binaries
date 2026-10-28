@@ -147,11 +147,10 @@ cp -L "$PKCS11PROV" "$STAGE_LIB/ossl-modules/pkcs11prov.so"
 chmod 644 "$STAGE_LIB"/*.so.3 "$STAGE_LIB/ossl-modules/pkcs11prov.so"
 strip --strip-unneeded "$STAGE_LIB"/*.so.3 "$STAGE_LIB/ossl-modules/pkcs11prov.so"
 # libssl -> libcrypto next to it; pkcs11prov -> libcrypto one level up.
+# shellcheck disable=SC2016 # $ORIGIN is expanded by the dynamic loader, not the shell
 patchelf --set-rpath '$ORIGIN' "$STAGE_LIB/libssl.so.3"
+# shellcheck disable=SC2016 # $ORIGIN is expanded by the dynamic loader, not the shell
 patchelf --set-rpath '$ORIGIN/..' "$STAGE_LIB/ossl-modules/pkcs11prov.so"
-# Licenses of the bundled libraries (OpenSSL: Apache-2.0, libp11: LGPL-2.1+).
-cp "$TMP_DIR/openssl-$OPENSSL_VER/LICENSE.txt" "$STAGE_LIB/LICENSE.openssl.txt"
-cp "$TMP_DIR/libp11-$LIBP11_VER/COPYING" "$STAGE_LIB/LICENSE.libp11.txt"
 
 # ── osslsigncode ──────────────────────────────────────────────────────────────
 git clone --depth 1 --branch "$OSSLSIGNCODE_VER" https://github.com/mtrojnar/osslsigncode.git "$TMP_DIR/osslsigncode"
@@ -167,16 +166,27 @@ cmake -S "$TMP_DIR/osslsigncode" -B "$TMP_DIR/osslsigncode/build" \
 make -C "$TMP_DIR/osslsigncode/build" -j"$NCPU"
 OSSLSIGNCODE_BIN="$TMP_DIR/osslsigncode/build/osslsigncode"
 strip --strip-unneeded "$OSSLSIGNCODE_BIN"
+# shellcheck disable=SC2016 # $ORIGIN is expanded by the dynamic loader, not the shell
 patchelf --set-rpath '$ORIGIN/../lib' "$OSSLSIGNCODE_BIN"
 
 bash "$ASSETS_DIR/verify-linux-linkage.sh" --lib-dir "$STAGE_LIB" --max-glibc "$MAX_GLIBC" \
     "$OSSLSIGNCODE_BIN" "$STAGE_LIB"/*.so.3 "$STAGE_LIB/ossl-modules/pkcs11prov.so"
+
+# ── Licenses ──────────────────────────────────────────────────────────────────
+# osslsigncode (GPL-3.0-or-later), OpenSSL (Apache-2.0) and libp11 (LGPL-2.1+), from the sources built above.
+# The guard itself (scripts/verify-licenses.sh) is outside the Docker build context: build-linux.sh runs it on the zip.
+# shellcheck source=licenses.sh
+source "$ASSETS_DIR/licenses.sh"
+STAGE_LICENSES="$TMP_DIR/stage-licenses"
+osslsigncode_unix_licenses "$STAGE_LICENSES" "$TMP_DIR/osslsigncode" \
+    "$TMP_DIR/openssl-$OPENSSL_VER" "$TMP_DIR/libp11-$LIBP11_VER"
 
 # ── Bundle ────────────────────────────────────────────────────────────────────
 mkdir -p "$OUTPUT_DIR"
 bash "$ASSETS_DIR/bundle-osslsigncode.sh" \
     --src "$OSSLSIGNCODE_BIN" \
     --lib-dir "$STAGE_LIB" \
+    --licenses-dir "$STAGE_LICENSES" \
     --output-dir "$OUTPUT_DIR" \
     --platform-arch "$PLATFORM_ARCH"
 
@@ -185,8 +195,9 @@ ZIP="$OUTPUT_DIR/win-codesign-linux-$PLATFORM_ARCH.zip"
 CHECK_DIR="$TMP_DIR/zip-check"
 mkdir -p "$CHECK_DIR"
 unzip -q "$ZIP" -d "$CHECK_DIR"
-for f in libcrypto.so.3 libssl.so.3 ossl-modules/pkcs11prov.so; do
-    [[ -f "$CHECK_DIR/lib/$f" ]] || { echo "❌ $ZIP is missing lib/$f" >&2; exit 3; }
+for f in lib/libcrypto.so.3 lib/libssl.so.3 lib/ossl-modules/pkcs11prov.so LICENSES/MANIFEST.tsv \
+    LICENSES/osslsigncode/COPYING.txt LICENSES/openssl/LICENSE.txt LICENSES/libp11/COPYING; do
+    [[ -f "$CHECK_DIR/$f" ]] || { echo "❌ $ZIP is missing $f" >&2; exit 3; }
 done
 bash "$ASSETS_DIR/verify-linux-linkage.sh" --lib-dir "$CHECK_DIR/lib" --max-glibc "$MAX_GLIBC" \
     "$CHECK_DIR/bin/osslsigncode" "$CHECK_DIR"/lib/*.so.3 "$CHECK_DIR/lib/ossl-modules/pkcs11prov.so"

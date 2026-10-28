@@ -403,6 +403,44 @@ else
 fi
 
 # =============================================================================
+# TEST 6b — Licenses: NSIS, every community plugin and elevate.exe
+# =============================================================================
+
+echo ""
+echo "── Test 6b: Licenses ───────────────────────────────────────────"
+
+for f in LICENSE windows/COPYING; do
+    if grep -q 'ZLIB/LIBPNG LICENSE' "$BUNDLE_DIR/$f" 2>/dev/null; then
+        pass "$f is the NSIS license"
+    else
+        fail "$f missing or not the NSIS license"
+    fi
+done
+
+# One LICENSES/<name>/ directory for elevate.exe and for every community plugin a shipped DLL came from
+# (LICENSES/plugin-dlls.tsv). A plugin whose DLLs are all replaced by another plugin's ships nothing to license.
+LICENSE_OWNERS=$(awk -F'\t' '{o[$1] = $2} END {for (d in o) if (o[d] != "NSIS") print o[d]}' \
+    "$BUNDLE_DIR/LICENSES/plugin-dlls.tsv" 2>/dev/null | sort -u | xargs)
+if [ -n "$LICENSE_OWNERS" ]; then
+    pass "LICENSES/plugin-dlls.tsv names the plugins: $LICENSE_OWNERS"
+else
+    fail "LICENSES/plugin-dlls.tsv missing or names no community plugin"
+fi
+for name in $LICENSE_OWNERS elevate; do
+    if [ -n "$(find "$BUNDLE_DIR/LICENSES/$name" -type f 2>/dev/null | head -1)" ]; then
+        pass "LICENSES/$name has license files"
+    else
+        fail "LICENSES/$name missing or empty"
+    fi
+done
+
+if LICENSE_CHECK=$(bash "$SCRIPT_DIR/nsis-plugin-licenses.sh" verify "$BUNDLE_DIR" 2>&1); then
+    pass "Every plugin DLL has license terms"
+else
+    fail "Plugin DLLs without license terms: $LICENSE_CHECK"
+fi
+
+# =============================================================================
 # Set up the wrapper for compile tests 7-15
 # =============================================================================
 

@@ -14,6 +14,25 @@ The goals of this repo are:
 
 All toolsets collected/stored/distributed from this repo retain their original licensing; their LICENSE or COPYING file(s) are downloaded and included within each toolset bundle within `artifacts` dir.
 
+#### License guard (`scripts/verify-licenses.sh`)
+
+Every binary a toolset bundle ships must come with the license of the component(s) it was built from. A bundle records this in a `LICENSES/` directory at its root:
+
+| Path | Contents |
+| --- | --- |
+| `LICENSES/MANIFEST.tsv` | `<relative path><TAB><component>` for every binary. A path may be a glob (`*`, `?`, `[...]`; `*` also matches `/`). A binary built from several components (e.g. statically linked libraries) is listed once per component. |
+| `LICENSES/<component>/` | That component's license files (at least one non-empty file), taken from its pinned upstream source / tag, the build image's `/usr/share/doc/<pkg>/copyright`, the package's own metadata, etc. Never written by hand. |
+| `LICENSES/EXEMPT.tsv` | Optional. `<relative path or glob><TAB><reason>` for binaries deliberately shipped without license files while a decision is pending. Every exemption is printed on every run (and raised as a warning annotation in GitHub Actions). |
+
+Blank lines and lines starting with `#` are ignored in both TSV files.
+
+```sh
+bash scripts/verify-licenses.sh <bundle-dir>          # check a bundle (run it at the end of a package's build)
+bash scripts/verify-licenses.sh --list <bundle-dir>   # print the binaries it finds, to start a MANIFEST.tsv
+```
+
+Binaries are found by their magic bytes, whatever their name: ELF, Mach-O (including fat/universal) and PE/DOS (`MZ`, i.e. `.exe`/`.dll`). The check exits non-zero, naming every offending path, when a binary is neither listed nor exempted, when a listed component has no license files, or when a `MANIFEST.tsv` entry does not exist in the bundle (a glob: matches no binary). It is plain bash (Linux, macOS's bash 3.2, Git Bash on Windows) with no extra dependencies. Its tests run in CI on all three: `bash scripts/tests/verify-licenses-test.sh` (or `pnpm test:license-guard`).
+
 ### Repo License
 This applies to configurations/scripts that compile and/or bundle toolsets.
 

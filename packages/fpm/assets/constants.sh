@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
+# Sourced by compile-portable-ruby.sh and patch-portable-ruby.sh, which use these variables
+# shellcheck disable=SC2034
 
 set -euo pipefail
 
-BASEDIR=$(cd "$(dirname "$BASH_SOURCE")/.." && pwd)
+BASEDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 if [[ ${BASEDIR: -1} == "/" ]]; then
     BASEDIR="."
 fi
@@ -16,7 +18,7 @@ OUTPUT_DIR="$BASEDIR/out/fpm"
 mkdir -p "$OUTPUT_DIR"
 
 # ===== Configuration =====
-RUBY_VERSION=$RUBY_VERSION # e.g. 3.4.12 (set in build.sh)
+RUBY_VERSION="${RUBY_VERSION:-}" # e.g. 3.4.12 (set in build.sh)
 # Check if RUBY_VERSION is set
 if [ -z "$RUBY_VERSION" ]; then
     echo "RUBY_VERSION is not set. Please set it to the desired Ruby version."

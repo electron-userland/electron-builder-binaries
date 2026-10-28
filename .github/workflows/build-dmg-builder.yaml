@@ -24,6 +24,9 @@ jobs:
       - name: Test bundle verifier
         run: |
           bash ./packages/dmg-builder/assets/tests/verify-bundle-test.sh
+      - name: Test license collection
+        run: |
+          bash ./packages/dmg-builder/assets/tests/collect-licenses-test.sh
       - name: Build
         run: |
           bash ./packages/dmg-builder/build.sh

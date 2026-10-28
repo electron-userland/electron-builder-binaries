@@ -5,10 +5,19 @@ param (
 
 $ErrorActionPreference = "Stop"
 
+# Get-PinnedFile, Get-NuGetCommandLine, Install-BundleLicenses, Install-UpstreamLicenses, Invoke-LicenseGuard
+. (Join-Path $PSScriptRoot "build-helpers.ps1")
+
+# Fail now, not after the build, when licenses/UPSTREAM.tsv is malformed or pinned to another Squirrel.Windows version
+Read-UpstreamLicenses -Manifest (Join-Path $PSScriptRoot "licenses\UPSTREAM.tsv") -SquirrelVersion $SquirrelVersion | Out-Null
+
 # --- Configuration
 $repoRoot      = "C:\s\Squirrel.Windows"
 $artifactDir   = Join-Path $PSScriptRoot "out\squirrel.windows"
-$outputDir     = Join-Path $repoRoot "build\artifacts"
+# Everything in $bundleDir, and nothing else, goes into the zip: electron-winstaller\vendor and LICENSES.
+# It is kept apart from build\artifacts, where `nuget pack` writes the Squirrel nupkg that
+# electron-builder does not use (earlier releases zipped build\artifacts and shipped that nupkg).
+$bundleDir     = Join-Path $repoRoot "build\bundle"
 $archivePath   = Join-Path $artifactDir "squirrel.windows-$SquirrelVersion-patched.zip"
 if (-not $PatchPath) {
     $PatchPath = Join-Path $PSScriptRoot "patches"
@@ -65,12 +74,16 @@ nuget pack .\src\Squirrel.nuspec -OutputDirectory .\build\artifacts
 if ($LASTEXITCODE -ne 0) { Write-Error "nuget pack failed (exit $LASTEXITCODE)"; exit $LASTEXITCODE }
 
 # --- Layout electron-winstaller vendor folder
-$vendorDir = Join-Path $outputDir "electron-winstaller\vendor"
+if (Test-Path $bundleDir) {
+    Remove-Item $bundleDir -Recurse -Force
+}
+$vendorDir = Join-Path $bundleDir "electron-winstaller\vendor"
 New-Item -ItemType Directory -Force -Path $vendorDir | Out-Null
 
+# update.com (shipped by earlier releases as Squirrel.com) is not copied: it is a renamed Visual Studio
+# devenv.com that neither electron-builder nor Squirrel.exe ever runs.
 $copyMap = @{
     ".\build\Release\net45\Update.exe"          = "Squirrel.exe"
-    ".\build\Release\net45\update.com"          = "Squirrel.com"
     ".\build\Release\net45\Update.pdb"          = "Squirrel.pdb"
     ".\build\Release\Win32\Setup.exe"           = "Setup.exe"
     ".\build\Release\Win32\Setup.pdb"           = "Setup.pdb"
@@ -88,38 +101,6 @@ foreach ($src in $copyMap.Keys) {
 }
 Write-Host "`n✅ Squirrel executables copied."
 
-# --- Pinned downloads
-# Download a file and fail unless its SHA-256 matches the pinned value. Retries transient network
-# failures (connection resets, timeouts) — these throw rather than returning an HTTP status, so
-# Invoke-WebRequest's own -MaximumRetryCount would not cover them.
-function Get-PinnedFile {
-    param (
-        [Parameter(Mandatory)][string]$Url,
-        [Parameter(Mandatory)][string]$Sha256,
-        [Parameter(Mandatory)][string]$OutFile
-    )
-    $maxAttempts = 3
-    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
-        try {
-            Invoke-WebRequest -Uri $Url -OutFile $OutFile -UseBasicParsing
-            break
-        } catch {
-            if ($attempt -eq $maxAttempts) {
-                Write-Error "Failed to download $Url after $maxAttempts attempts: $_"
-                exit 1
-            }
-            Write-Warning "Download attempt $attempt/$maxAttempts for $Url failed: $_. Retrying in 5s..."
-            Start-Sleep -Seconds 5
-        }
-    }
-    $actualSha = (Get-FileHash -Path $OutFile -Algorithm SHA256).Hash
-    if ($actualSha -ne $Sha256) {
-        Write-Error "Checksum mismatch for ${Url}: expected $Sha256, got $actualSha"
-        exit 1
-    }
-    Write-Host "  Source: $Url (sha256 verified)"
-}
-
 # Read the COFF Machine field from a PE image (0x8664 = x64, 0xAA64 = arm64, 0x014C = x86).
 function Get-PeMachine {
     param ([Parameter(Mandatory)][string]$Path)
@@ -134,11 +115,16 @@ function Get-PeMachine {
 # so the standalone NuGet.CommandLine exe is required. Pinning the download — rather than copying
 # whatever version the runner happens to have installed — keeps the bundled binary reproducible and
 # in lockstep with the version electron-builder provisions at runtime.
-$nugetVersion = "7.9.0"
-$nugetSha256  = "992D70CAC5B06C38EFEC91806CABA64CDCC07E6D963A0959DBBBAF264D33B800"
-Write-Host "`n📦 Downloading pinned nuget.exe v$nugetVersion..."
-Get-PinnedFile -Url "https://dist.nuget.org/win-x86-commandline/v$nugetVersion/nuget.exe" `
-    -Sha256 $nugetSha256 -OutFile (Join-Path $vendorDir "nuget.exe")
+# It is taken from the NuGet.CommandLine package rather than dist.nuget.org's bare nuget.exe (the same
+# file) because the package also carries NOTICES.txt for the third-party code built into nuget.exe.
+$nugetVersion       = "7.9.0"
+$nugetPackageSha256 = "FB2074E4427BBF8105F9A5C3DF6DD77105FB82D696C0FC72FC25DA903D1A63B2"
+$nugetSha256        = "992D70CAC5B06C38EFEC91806CABA64CDCC07E6D963A0959DBBBAF264D33B800"  # tools\NuGet.exe
+Write-Host "`n📦 Downloading pinned NuGet.CommandLine v$nugetVersion..."
+$nugetWork = Join-Path $env:TEMP "nuget-commandline-$nugetVersion"
+$nuget = Get-NuGetCommandLine -Version $nugetVersion -PackageSha256 $nugetPackageSha256 -ExeSha256 $nugetSha256 `
+    -WorkDir $nugetWork
+Copy-Item $nuget.Exe (Join-Path $vendorDir "nuget.exe") -Force
 
 # --- 7-Zip binaries
 # Squirrel shells out to the full 7-Zip console build (7z.exe + 7z.dll) sitting next to Squirrel.exe
@@ -221,6 +207,21 @@ if (-not $licenseSrc) {
 Copy-Item $licenseSrc (Join-Path $vendorDir "LICENSE") -Force
 Write-Host "`n✅ LICENSE copied."
 
+# --- LICENSES (every binary in the bundle; see packages/squirrel.windows/licenses/MANIFEST.tsv)
+# The third-party license texts are not in the repo: they are downloaded from the pinned sources in
+# licenses/UPSTREAM.tsv, checked against their SHA-256 and written only into the bundle.
+Write-Host "`n📜 Laying out LICENSES..."
+Install-BundleLicenses -BundleDir $bundleDir `
+    -SquirrelVersion $SquirrelVersion `
+    -WorkDir (Join-Path $env:TEMP "squirrel-upstream-licenses") `
+    -SquirrelLicense $licenseSrc `
+    -SemverLicense (Join-Path $repoRoot "src\StubExecutable\LICENSE.md") `
+    -SevenZipLicense (Join-Path $vendorDir "7z-LICENSE.txt") `
+    -NuGetNotices $nuget.Notices
+Remove-Item $nugetWork -Recurse -Force -ErrorAction SilentlyContinue
+Invoke-LicenseGuard -BundleDir $bundleDir
+Write-Host "✅ Every binary has its license files."
+
 # --- Compress
 if (-not (Test-Path $artifactDir)) {
     New-Item -ItemType Directory -Path $artifactDir -Force | Out-Null
@@ -231,7 +232,7 @@ if (Test-Path $archivePath) {
 
 Set-Location $PSScriptRoot
 Write-Host "`n📦 Compressing to: $archivePath"
-& 7z a -tzip $archivePath "$outputDir\*" | Out-Null
+& 7z a -tzip $archivePath "$bundleDir\*" | Out-Null
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Compression failed (exit $LASTEXITCODE)"
     exit $LASTEXITCODE

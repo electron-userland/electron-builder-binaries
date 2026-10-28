@@ -3,7 +3,10 @@ name: Build AppImage
 on:
   workflow_call:
   workflow_dispatch:
-    
+
+permissions:
+  contents: read
+
 jobs:
   mac:
     runs-on: ${{ matrix.node }}
@@ -19,6 +22,8 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a
@@ -26,6 +31,10 @@ jobs:
 
       - name: Install dependencies
         run: pnpm i --frozen-lockfile
+
+      - name: Test license collection (collect-licenses.sh)
+        run: bash packages/appimage/assets/tests/collect-licenses-test.sh
+        shell: bash
 
       - name: Build for macOS
         run: bash ./build.sh
@@ -57,12 +66,18 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a
         with: { node-version: '22', check-latest: true }
       - name: Install dependencies
         run: pnpm i --frozen-lockfile
+
+      - name: Test license collection (collect-licenses.sh)
+        run: bash packages/appimage/assets/tests/collect-licenses-test.sh
+        shell: bash
 
       - name: Build for Linux
         run: bash ./build.sh
@@ -95,6 +110,8 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
      
       - name: Setup Node.js
         uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a

@@ -115,6 +115,9 @@ OUTPUT_FILE="$OUTPUT_DIR/win-codesign-linux-$ARCHIVE_ARCH_SUFFIX.zip"
 
 cleanup
 
+# Every binary in the zip must ship its license (scripts/verify-licenses.sh is outside the Docker build context).
+bash "$SCRIPT_DIR/assets/verify-bundle-licenses.sh" "$OUTPUT_FILE"
+
 echo ""
 echo "✅ Build completed successfully!"
 echo "📦 Bundle: $OUTPUT_FILE"

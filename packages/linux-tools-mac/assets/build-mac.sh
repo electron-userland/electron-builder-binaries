@@ -289,33 +289,53 @@ done
 ### ================================
 ### LICENSES
 ### ================================
+# License texts come from each formula's pinned upstream source tarball, not the keg: Homebrew only installs
+# files named COPYING / LICENSE* / ... into the keg, so e.g. binutils' COPYING3 (the GPLv3 ar/libbfd/libsframe
+# are under) never reaches it. collect-licenses.sh fails the build if a required text (license-files.tsv) is
+# missing, and writes LICENSES/MANIFEST.tsv and LICENSES/SOURCES.txt (GPL corresponding-source pointer).
 echo ""
-echo "📄 Copying license files..."
-mkdir -p "$BUNDLE_DIR/LICENSES"
+echo "📄 Collecting licenses from the formulas' source tarballs..."
+
+if ! command -v jq > /dev/null 2>&1; then
+    echo "❌ jq is required (brew install jq)"
+    exit 1
+fi
 
 ALL_FORMULAS=()
 while read -r formula; do
     [[ -n "$formula" ]] && ALL_FORMULAS+=("$formula")
 done < <({ printf '%s\n' "${FORMULAS[@]}"; sort -u "$DEP_FORMULAS_FILE"; } | awk '!seen[$0]++')
 
+# "<formula> <version> <url> <sha256> <tarball> <license> <formula url>", tab-separated (see collect-licenses.sh)
+SOURCES_FILE="${TMP_DIR}/sources.tsv"
+: > "$SOURCES_FILE"
 for formula in "${ALL_FORMULAS[@]}"; do
-    license_prefix="$(brew --prefix "$formula")"
-    license_dir="$BUNDLE_DIR/LICENSES/$formula"
-    mkdir -p "$license_dir"
-
-    found=0
-    for name in COPYING COPYING.LIB COPYING.LESSER COPYING3 COPYING3.LIB LICENSE LICENCE LICENSE.md AUTHORS; do
-        src="$license_prefix/$name"
-        if [[ -f "$src" ]]; then
-            cp "$src" "$license_dir/$name"
-            echo "  📄 $formula/$name"
-            found=1
-        fi
-    done
-    if [[ "$found" -eq 0 ]]; then
-        echo "  ⚠️  No license file found for $formula in $license_prefix"
+    info="$(brew info --json=v2 "$formula")"
+    src_version="$(jq -r '.formulae[0].versions.stable // empty' <<< "$info")"
+    src_url="$(jq -r '.formulae[0].urls.stable.url // empty' <<< "$info")"
+    src_sha256="$(jq -r '.formulae[0].urls.stable.checksum // empty' <<< "$info")"
+    src_license="$(jq -r '.formulae[0].license // empty | if type == "string" then . else tojson end' <<< "$info")"
+    tap_head="$(jq -r '.formulae[0].tap_git_head // empty' <<< "$info")"
+    rb_path="$(jq -r '.formulae[0].ruby_source_path // empty' <<< "$info")"
+    if [[ -z "$src_version" || -z "$src_url" || ! "$src_sha256" =~ ^[0-9a-f]{64}$ ]]; then
+        echo "  ❌ $formula: brew info has no stable source url / sha256"
+        exit 1
     fi
+    formula_url="unknown"
+    if [[ -n "$tap_head" && -n "$rb_path" ]]; then
+        formula_url="https://github.com/Homebrew/homebrew-core/blob/${tap_head}/${rb_path}"
+    fi
+    # Downloads the source tarball and checks it against the formula's sha256
+    brew fetch --build-from-source "$formula"
+    tarball="$(brew --cache --build-from-source "$formula")"
+    echo "  📦 $formula $src_version: $src_url"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$formula" "$src_version" "$src_url" "$src_sha256" "$tarball" \
+        "$src_license" "$formula_url" >> "$SOURCES_FILE"
 done
+
+bash "$ROOT/assets/collect-licenses.sh" --bundle-dir "$BUNDLE_DIR" --origins "$ORIGINS_FILE" --sources "$SOURCES_FILE"
+# Fail before archiving if any binary lacks its license (the test step runs this again on the archive)
+bash "$ROOT/assets/verify-bundle-licenses.sh" --bundle-dir "$BUNDLE_DIR"
 
 ### ================================
 ### VERSION.txt

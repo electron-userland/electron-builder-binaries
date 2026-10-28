@@ -6,7 +6,11 @@ SQUASHFS_TOOLS_VERSION_TAG=${SQUASHFS_TOOLS_VERSION_TAG:-"4.7.5"}
 DESKTOP_UTILS_DEPS_VERSION_TAG=${DESKTOP_UTILS_DEPS_VERSION_TAG:-"0.28"}
 OPENJPEG_VERSION=${OPENJPEG_VERSION:-"2.5.4"}
 
-ROOT=$(cd "$(dirname "$BASH_SOURCE")/.." && pwd)
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+REPO_SCRIPTS="$ROOT/../../scripts"
+VERIFY_LICENSES="$REPO_SCRIPTS/verify-licenses.sh"
+# shellcheck source=SCRIPTDIR/collect-licenses.sh
+source "$ROOT/assets/collect-licenses.sh"
 
 # Check if buildx is available
 if ! docker buildx version &> /dev/null; then
@@ -22,8 +26,9 @@ TEMP_DIR="/tmp/appimage-build-linux"
 cleanup() {
     docker buildx rm appimage-builder || true
     echo "Cleaning up temporary directories..."
-    rm -rf "$TEMP_DIR" "$TMP_DOCKER_CONTEXT"
+    rm -rf "$TEMP_DIR" "$TEMP_DIR.staging" "$TMP_DOCKER_CONTEXT"
 }
+# shellcheck disable=SC2154 # errorCode is assigned inside the trap
 trap 'errorCode=$?; echo "Error $errorCode at command: $BASH_COMMAND"; cleanup; exit $errorCode' ERR
 
 echo "🏗️  Preparing build environment..."
@@ -46,18 +51,35 @@ docker buildx build \
     --cache-from type=local,src=.buildx-cache \
     --cache-to   type=local,dest=.buildx-cache,mode=max \
     --output     type=local,dest="${TMP_DOCKER_CONTEXT}" \
+    --build-context repo-scripts="$REPO_SCRIPTS" \
     -f           "$ROOT/assets/Dockerfile" \
-    $ROOT
+    "$ROOT"
 
 echo ""
 echo "📦 Extracting all tarballs..."
 
-# Find and extract all .tar.gz files to TMP_DIR root
-find "${TMP_DOCKER_CONTEXT}" -name "*.tar.gz" -type f | while read -r tarfile; do
-    echo "  Extracting $(basename "$tarfile")..."
-    tar -xzf "$tarfile" -C "${TEMP_DIR}"
+# Extract every architecture's tarball on its own, check its licenses, then merge them into TEMP_DIR (the
+# LICENSES/MANIFEST.tsv files are concatenated; shared license files must be identical)
+STAGING_DIR="$TEMP_DIR.staging"
+rm -rf "$STAGING_DIR"
+mkdir -p "$STAGING_DIR"
+tarballs=0
+while IFS= read -r tarfile; do
+    name=$(basename "$tarfile" .tar.gz)
+    echo "  Extracting $name..."
+    mkdir "$STAGING_DIR/$name"
+    tar -xzf "$tarfile" -C "$STAGING_DIR/$name"
+    bash "$VERIFY_LICENSES" "$STAGING_DIR/$name"
+    lic_merge "$TEMP_DIR" "$STAGING_DIR/$name"
     rm -f "$tarfile"
-done
+    tarballs=$((tarballs + 1))
+done < <(find "${TMP_DOCKER_CONTEXT}" -name "*.tar.gz" -type f | sort)
+rm -rf "$STAGING_DIR"
+if [ "$tarballs" -ne 4 ]; then
+    echo "❌ Expected 4 Linux tarballs (amd64, arm64, armv7, 386), found $tarballs"
+    exit 1
+fi
+bash "$VERIFY_LICENSES" "$TEMP_DIR"
 
 
 echo "✅ All builds completed and extracted"
@@ -85,7 +107,7 @@ echo ""
 echo "✨ Extraction complete!"
 echo ""
 echo "📂 Directory structure:"
-tree $TEMP_DIR -L 4 2>/dev/null || find $TEMP_DIR -type f -maxdepth 4
+tree "$TEMP_DIR" -L 4 2>/dev/null || find "$TEMP_DIR" -maxdepth 4 -type f
 
 echo ""
 echo "Creating tar.gz archive of all builds..."

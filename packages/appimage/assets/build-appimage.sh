@@ -1,7 +1,25 @@
 #!/usr/bin/env bash
 set -exuo pipefail
 
-CWD=$(cd "$(dirname "$BASH_SOURCE")/.." && pwd)
+CWD=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+
+# LICENSES/ layout helpers (lic_*), next to this script (in the repo and in the Docker build)
+# shellcheck source=SCRIPTDIR/collect-licenses.sh
+source "$SCRIPT_DIR/collect-licenses.sh"
+
+# The shared license guard: <repo>/scripts/verify-licenses.sh, or next to this script in the Docker build
+VERIFY_LICENSES=""
+for candidate in "$SCRIPT_DIR/verify-licenses.sh" "$CWD/../../scripts/verify-licenses.sh"; do
+    if [ -f "$candidate" ]; then
+        VERIFY_LICENSES="$candidate"
+        break
+    fi
+done
+if [ -z "$VERIFY_LICENSES" ]; then
+    echo "❌ scripts/verify-licenses.sh not found (looked next to $0 and in the repo)"
+    exit 1
+fi
 
 sha256_of() {
     if command -v sha256sum >/dev/null 2>&1; then
@@ -138,7 +156,7 @@ else
     
     if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
         echo "❌ Missing required Homebrew packages: ${MISSING_DEPS[*]}"
-        brew install ${MISSING_DEPS[*]}
+        brew install "${MISSING_DEPS[@]}"
     fi
     echo "   ✅ All required packages installed"
 fi
@@ -166,13 +184,20 @@ LIB_DEST="$LIB_DIR/$ARCH_DIR"
 echo "🏗️  Building for $OS/$ARCH_DIR"
 echo ""
 
+# Every binary below is recorded in $TEMP_DIR/LICENSES/MANIFEST.tsv with the license(s) of what it is built from
+if [ "$OS" = "linux" ]; then
+    # libappindicator1/libindicator7 for i386 are extracted .debs (see Dockerfile), not installed packages
+    LIC_DEB_ROOTS="/tmp/appind /tmp/ind"
+fi
+lic_init "$TEMP_DIR" "$OS-$ARCH_DIR" "$OS/$ARCH_DIR"
+
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 
 echo "   📥 Cloning squashfs-tools..."
 git clone https://github.com/plougher/squashfs-tools.git
-cd $BUILD_DIR/squashfs-tools
-git checkout $SQUASHFS_TOOLS_VERSION_TAG
+cd "$BUILD_DIR/squashfs-tools"
+git checkout "$SQUASHFS_TOOLS_VERSION_TAG"
 SQUASHFS_TOOLS_HEAD=$(git rev-parse HEAD)
 if [ "$SQUASHFS_TOOLS_HEAD" != "$SQUASHFS_TOOLS_COMMIT" ]; then
     echo "❌ squashfs-tools $SQUASHFS_TOOLS_VERSION_TAG resolved to $SQUASHFS_TOOLS_HEAD, expected $SQUASHFS_TOOLS_COMMIT"
@@ -183,12 +208,28 @@ for patch in "${SQUASHFS_TOOLS_PATCHES[@]}"; do
 done
 git -c user.name=electron-builder-binaries -c user.email=noreply@electron.build cherry-pick --no-commit "${SQUASHFS_TOOLS_PATCHES[@]}"
 git --no-pager diff --stat HEAD
+# squashfs-tools is GPL-2.0-or-later and this build modifies it: ship COPYING and say exactly how it was changed
+lic_copy squashfs-tools COPYING
+squashfs_patch_log=$(for patch in "${SQUASHFS_TOOLS_PATCHES[@]}"; do git --no-pager log -1 --date=short --format='  %H (%cd) %s' "$patch"; done)
+lic_write squashfs-tools MODIFICATIONS "The mksquashfs and unsquashfs binaries in this bundle are a MODIFIED build of squashfs-tools.
+
+Base: squashfs-tools $SQUASHFS_TOOLS_VERSION_TAG, commit $SQUASHFS_TOOLS_COMMIT
+      (https://github.com/plougher/squashfs-tools)
+Changes: these upstream squashfs-tools commits were applied on top of the tag, in order, with
+\`git cherry-pick --no-commit\` (commit, commit date, subject):
+$squashfs_patch_log
+
+Nothing else in the source was changed. The binaries are built with GZIP, XZ, LZO, LZ4 and ZSTD support and zstd as the
+default compressor, and are statically linked with zstd $ZSTD_VERSION (see LICENSES/zstd-$ZSTD_VERSION)."
+lic_source "- squashfs-tools $SQUASHFS_TOOLS_VERSION_TAG, commit $SQUASHFS_TOOLS_COMMIT (https://github.com/plougher/squashfs-tools), **modified**: upstream commits ${SQUASHFS_TOOLS_PATCHES[*]} cherry-picked on top (LICENSES/squashfs-tools/MODIFICATIONS)"
 echo "   ✅ squashfs-tools cloned and patched"
 
 cd "$BUILD_DIR"
 git clone https://gitlab.freedesktop.org/xdg/desktop-file-utils.git
-cd $BUILD_DIR/desktop-file-utils
-git checkout $DESKTOP_UTILS_DEPS_VERSION_TAG
+cd "$BUILD_DIR/desktop-file-utils"
+git checkout "$DESKTOP_UTILS_DEPS_VERSION_TAG"
+lic_copy desktop-file-utils COPYING
+lic_source "- desktop-file-utils $DESKTOP_UTILS_DEPS_VERSION_TAG, commit $(git rev-parse HEAD) (https://gitlab.freedesktop.org/xdg/desktop-file-utils)"
 echo "   ✅ desktop-file-utils cloned"
 
 # =============================================================================
@@ -219,15 +260,15 @@ for lib in "$ZSTD_PREFIX"/lib/libzstd*; do
     fi
 done
 # zstd is linked into the shipped binaries, so ship its license with the bundle
-mkdir -p "$TEMP_DIR/LICENSES"
-cp "zstd-${ZSTD_VERSION}/LICENSE" "$TEMP_DIR/LICENSES/LICENSE.zstd"
+lic_copy "zstd-${ZSTD_VERSION}" "zstd-${ZSTD_VERSION}/LICENSE"
+lic_source "- zstd ${ZSTD_VERSION}: https://github.com/facebook/zstd/releases/download/v${ZSTD_VERSION}/zstd-${ZSTD_VERSION}.tar.gz (sha256 ${ZSTD_SHA256}), linked statically into mksquashfs and unsquashfs"
 echo "   ✅ Built static libzstd ${ZSTD_VERSION}"
 
 # =============================================================================
 # BUILD SQUASHFS-TOOLS
 # =============================================================================
 echo "📦 Building squashfs-tools..."
-cd $BUILD_DIR/squashfs-tools/squashfs-tools
+cd "$BUILD_DIR/squashfs-tools/squashfs-tools"
 
 # The static zstd prefix must come first so -lzstd resolves to libzstd.a
 SQUASHFS_EXTRA_CFLAGS="-I${ZSTD_PREFIX}/include"
@@ -266,6 +307,10 @@ cp -aL mksquashfs "$ARCH_OUTPUT_DIR/"
 chmod +x "$ARCH_OUTPUT_DIR/mksquashfs"
 cp -aL unsquashfs "$ARCH_OUTPUT_DIR/"
 chmod +x "$ARCH_OUTPUT_DIR/unsquashfs"
+for tool in mksquashfs unsquashfs; do
+    lic_record "$OS/$ARCH_DIR/$tool" squashfs-tools
+    lic_record "$OS/$ARCH_DIR/$tool" "zstd-${ZSTD_VERSION}"
+done
 
 echo "   ✅ Built mksquashfs unsquashfs"
 
@@ -284,6 +329,7 @@ ninja -C "$BUILD"
 DESTDIR="$BUILD" ninja -C "$BUILD" install
 cp -aL "$BUILD/usr/bin/desktop-file-validate" "$ARCH_OUTPUT_DIR/"
 chmod +x "$ARCH_OUTPUT_DIR/desktop-file-validate"
+lic_record "$OS/$ARCH_DIR/desktop-file-validate" desktop-file-utils
 echo "   ✅ Built desktop-file-validate"
 
 # =============================================================================
@@ -308,6 +354,8 @@ verify_sha256 "v${OPENJPEG_VERSION}.tar.gz" "$OPENJPEG_SHA256"
 # Extract
 tar xzf "v${OPENJPEG_VERSION}.tar.gz"
 cd "openjpeg-${OPENJPEG_VERSION}" || exit 1
+lic_copy openjpeg LICENSE
+lic_source "- OpenJPEG ${OPENJPEG_VERSION}: https://github.com/uclouvain/openjpeg/archive/v${OPENJPEG_VERSION}.tar.gz (sha256 ${OPENJPEG_SHA256})"
 
 # Build
 mkdir build && cd build
@@ -320,6 +368,8 @@ mkdir -p "$ARCH_OUTPUT_DIR/lib"
 cp -a "$INSTALL_DIR/usr/local/lib/libopenjp2."* "$ARCH_OUTPUT_DIR/lib/"
 cp -a "$INSTALL_DIR/usr/local/lib/pkgconfig" "$ARCH_OUTPUT_DIR/lib/"
 cp -aL "$INSTALL_DIR/usr/local/bin/opj_decompress" "$ARCH_OUTPUT_DIR/"
+lic_record "$OS/$ARCH_DIR/opj_decompress" openjpeg
+lic_record "$OS/$ARCH_DIR/lib/libopenjp2*" openjpeg
 
 echo "   ✅ Built OpenJPEG and opj_decompress"
 
@@ -345,9 +395,11 @@ copy_lib_recursive() {
     local real_file
     real_file=$(readlink -f "$lib_path")
     
-    # Copy real file
-    cp -a "$real_file" "$dest_dir/"
-    echo "      ✅ $libname"
+    # Copy real file, with the license of the package (Linux) or Homebrew keg (macOS) it comes from
+    cp -a "$real_file" "$dest_dir/" || return 1
+    lic_system_lib "$real_file" || return 1
+    lic_record "${dest_dir#"$TEMP_DIR"/}/$(basename "$real_file")" "$LIC_COMPONENT" || return 1
+    echo "      ✅ $libname ($LIC_COMPONENT)"
     
     # Recreate symlink if this is one
     if [ -L "$lib_path" ]; then
@@ -361,7 +413,7 @@ copy_lib_recursive() {
             if [[ "$next_target" != /* ]]; then
                 next_target="$(dirname "$lib_path")/$next_target"
             fi
-            copy_lib_recursive "$next_target" "$dest_dir"
+            copy_lib_recursive "$next_target" "$dest_dir" || return 1
         fi
     fi
 }
@@ -416,6 +468,7 @@ find "$ARCH_OUTPUT_DIR" -type f -perm -111 | while read -r binary; do
         
         # Make the binary hermetic
         patchelf --remove-rpath "$binary" 2>/dev/null || true
+        # shellcheck disable=SC2016 # a literal $ORIGIN for the dynamic loader
         patchelf --force-rpath --set-rpath '$ORIGIN/lib' "$binary"
     fi
 done
@@ -530,9 +583,11 @@ echo ""
 echo "🔍 Verifying binaries and recording versions..."
 : > "$VERSION_FILE"
 
-echo "AppImage Tools Versions for $OS/$ARCH_DIR" >> "$VERSION_FILE"
-echo "----------------------------------------" >> "$VERSION_FILE"
-echo "openjpeg: $OPENJPEG_VERSION" >> "$VERSION_FILE"
+{
+    echo "AppImage Tools Versions for $OS/$ARCH_DIR"
+    echo "----------------------------------------"
+    echo "openjpeg: $OPENJPEG_VERSION"
+} >> "$VERSION_FILE"
 
 verify_binary() {
   local name="$1"
@@ -540,7 +595,7 @@ verify_binary() {
   local args="$3"
 
 output=""
-if ! output=$(LD_LIBRARY_PATH= "$path" "$args" 2>&1); then
+if ! output=$(LD_LIBRARY_PATH='' "$path" "$args" 2>&1); then
   # Only fail if there's ALSO no usable output
   if [[ -z "$output" ]]; then
     echo "❌ $name failed with no output"
@@ -558,13 +613,13 @@ echo "✅ $name verified: $first_line"
 # Asserts the image's compressor and that extracting it reproduces the source tree.
 squashfs_check_image() {
     local dir="$1" src="$2" img="$3" comp="$4" out
-    out=$(LD_LIBRARY_PATH= "$dir/unsquashfs" -s "$img")
+    out=$(LD_LIBRARY_PATH='' "$dir/unsquashfs" -s "$img")
     if ! grep -qx "Compression $comp" <<< "$out"; then
         echo "❌ $(basename "$img"): unsquashfs -s did not report 'Compression $comp':"
         echo "$out"
         return 1
     fi
-    LD_LIBRARY_PATH= "$dir/unsquashfs" -no-progress -quiet -d "$img.extracted" "$img"
+    LD_LIBRARY_PATH='' "$dir/unsquashfs" -no-progress -quiet -d "$img.extracted" "$img"
     diff -r "$src" "$img.extracted"
     echo "✅ $(basename "$img"): Compression $comp, round trip matches"
 }
@@ -590,7 +645,7 @@ squashfs_selftest() {
 
     for tool in mksquashfs unsquashfs; do
         # unsquashfs -version exits non-zero, so only the output is checked
-        out=$(LD_LIBRARY_PATH= "$dir/$tool" -version 2>&1 || true)
+        out=$(LD_LIBRARY_PATH='' "$dir/$tool" -version 2>&1 || true)
         if [[ "$out" != "$tool version $SQUASHFS_TOOLS_VERSION_TAG "* ]]; then
             echo "❌ $tool -version does not start with '$tool version $SQUASHFS_TOOLS_VERSION_TAG ':"
             echo "$out"
@@ -601,13 +656,13 @@ squashfs_selftest() {
 
     # Same flags electron-builder passes to mksquashfs
     for c in "${SQUASHFS_COMPRESSORS[@]}"; do
-        SOURCE_DATE_EPOCH=0 LD_LIBRARY_PATH= "$dir/mksquashfs" "$work/src" "$work/$c.squashfs" \
+        SOURCE_DATE_EPOCH=0 LD_LIBRARY_PATH='' "$dir/mksquashfs" "$work/src" "$work/$c.squashfs" \
             -comp "$c" -noappend -no-progress -quiet -all-root -no-xattrs -no-fragments
         squashfs_check_image "$dir" "$work/src" "$work/$c.squashfs" "$c"
     done
 
     # Without -comp, mksquashfs must default to zstd
-    SOURCE_DATE_EPOCH=0 LD_LIBRARY_PATH= "$dir/mksquashfs" "$work/src" "$work/default.squashfs" \
+    SOURCE_DATE_EPOCH=0 LD_LIBRARY_PATH='' "$dir/mksquashfs" "$work/src" "$work/default.squashfs" \
         -noappend -no-progress -quiet -all-root -no-xattrs
     squashfs_check_image "$dir" "$work/src" "$work/default.squashfs" zstd
 
@@ -648,13 +703,15 @@ if [ "$OS" = "linux" ]; then
     # Helper function to find and copy library
     copy_lib() {
         local libname=$1
+        # shellcheck disable=SC2034 # known issue, not fixed here: outname is ignored, so non-ia32 builds ship
+        # libappindicator3.so.1 / libindicator3.so.7 rather than the libappindicator.so.1 / libindicator.so.7 names
         local outname=${2:-$libname}
         
         # For i386 appindicator, check extracted .deb first
         if is_ia32 && [[ "$libname" == "libappindicator"* || "$libname" == "libindicator"* ]]; then
             for deb_dir in /tmp/appind /tmp/ind; do
                 if [ -f "$deb_dir/usr/lib/i386-linux-gnu/$libname" ]; then
-                    copy_lib_recursive "$deb_dir/usr/lib/i386-linux-gnu/$libname" "$LIB_DEST"
+                    copy_lib_recursive "$deb_dir/usr/lib/i386-linux-gnu/$libname" "$LIB_DEST" || return 1
                     echo "   ✅ $libname"
                     return 0
                 fi
@@ -672,7 +729,7 @@ if [ "$OS" = "linux" ]; then
         
         for dir in "${search_dirs[@]}"; do
             if [ -f "$dir/$libname" ]; then
-                copy_lib_recursive "$dir/$libname" "$LIB_DEST"
+                copy_lib_recursive "$dir/$libname" "$LIB_DEST" || return 1
                 echo "   ✅ $libname"
                 return 0
             fi
@@ -702,6 +759,13 @@ fi
 echo "   ✅ All libraries copied successfully"
 
 # =============================================================================
+# LICENSE CHECK
+# =============================================================================
+# Every binary in this platform's bundle must be in LICENSES/MANIFEST.tsv with a license
+echo ""
+bash "$VERIFY_LICENSES" "$TEMP_DIR"
+
+# =============================================================================
 # CREATE ARCHIVE
 # =============================================================================
 echo ""
@@ -725,6 +789,6 @@ echo "🎉 Build complete!"
 echo "   Archive: $DEST/$ARCHIVE_NAME"
 echo ""
 echo "Files created:"
-tree $ARCH_OUTPUT_DIR -L 6 2>/dev/null || find $ARCH_OUTPUT_DIR -type f -maxdepth 6
+tree "$ARCH_OUTPUT_DIR" -L 6 2>/dev/null || find "$ARCH_OUTPUT_DIR" -maxdepth 6 -type f
 
 rm -rf "$TEMP_DIR" "$BUILD_DIR"

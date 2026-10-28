@@ -13,7 +13,32 @@ on:
         required: false
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
+  # Unit tests of the bundle scripts (license layout, ATS, Windows Kits, rcedit) with mocked downloads
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - name: Test the LICENSES/ layout helpers
+        run: bash ./packages/win-codesign/test/licenses-test.sh
+
+      - name: Test the ATS bundle script
+        run: bash ./packages/win-codesign/test/build-win-ats-test.sh
+
+      - name: Test the Windows Kits bundle script
+        run: bash ./packages/win-codesign/test/build-win-kits-test.sh
+
+      - name: Test the rcedit bundle script
+        run: bash ./packages/win-codesign/test/build-win-rcedit-test.sh
+
   linux:
     # arm64 builds natively: OpenSSL is built from source, which is too slow under QEMU.
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
@@ -32,19 +57,27 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
 
       - name: Build win-codesign Linux (${{ matrix.arch }})
+        env:
+          ARCH: ${{ matrix.arch }}
+          OSSLSIGNCODE_VER: ${{ inputs.osslsigncode_ver || '2.14' }}
         run: |
           bash ./packages/win-codesign/build.sh \
-            --arch ${{ matrix.arch }} \
-            --osslsigncode-ver ${{ inputs.osslsigncode_ver || '2.14' }}
+            --arch "$ARCH" \
+            --osslsigncode-ver "$OSSLSIGNCODE_VER"
 
-      # Clean ubuntu:24.04 (no OpenSSL 1.1): linkage, file signing and SoftHSM PKCS#11 signing.
+      # Licenses (scripts/verify-licenses.sh), then a clean ubuntu:24.04 (no OpenSSL 1.1): linkage, file signing and
+      # SoftHSM PKCS#11 signing.
       - name: Test win-codesign Linux bundle (${{ matrix.arch }})
+        env:
+          ARCH: ${{ matrix.arch }}
         run: |
           bash ./packages/win-codesign/test/build-linux-docker-test.sh \
-            ./packages/win-codesign/out/win-codesign/win-codesign-linux-${{ matrix.arch }}.zip \
-            ${{ matrix.arch }}
+            "./packages/win-codesign/out/win-codesign/win-codesign-linux-$ARCH.zip" \
+            "$ARCH"
 
       - name: Upload win-codesign Linux artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
@@ -69,6 +102,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
 
       - name: Setup MSYS2
         uses: msys2/setup-msys2@fb197b72ce45fb24f17bf3f807a388985654d1f2 # v2.29.0
@@ -90,11 +125,21 @@ jobs:
             pkgconf:p
 
       - name: Build osslsigncode for Windows (${{ matrix.arch }})
+        env:
+          ARCH: ${{ matrix.arch }}
+          OSSLSIGNCODE_VER: ${{ inputs.osslsigncode_ver || '2.14' }}
         run: |
           bash ./packages/win-codesign/build.sh \
-            --arch ${{ matrix.arch }} \
-            --osslsigncode-ver ${{ inputs.osslsigncode_ver || '2.14' }} \
+            --arch "$ARCH" \
+            --osslsigncode-ver "$OSSLSIGNCODE_VER" \
             --target ossl
+
+      - name: Check osslsigncode bundle licenses (${{ matrix.arch }})
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          bash ./packages/win-codesign/assets/verify-bundle-licenses.sh \
+            "./packages/win-codesign/out/win-codesign/win-codesign-windows-$ARCH.zip"
 
       - name: Upload artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
@@ -113,6 +158,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
 
       - name: Setup MSYS2
         uses: msys2/setup-msys2@fb197b72ce45fb24f17bf3f807a388985654d1f2 # v2.29.0
@@ -134,13 +181,20 @@ jobs:
             pkgconf:p
 
       - name: Build Windows kits + ats + rcedit (x64 only)
+        env:
+          RCEDIT_VERSION: ${{ inputs.rcedit_version || '2.0.0' }}
         run: |
           bash ./packages/win-codesign/build.sh \
             --arch x64 \
-            --rcedit-version ${{ inputs.rcedit_version || '2.0.0' }} \
+            --rcedit-version "$RCEDIT_VERSION" \
             --target kits \
             --target ats \
             --target rcedit
+
+      # The Windows SDK binaries ship with the installed SDK's license terms (LICENSES/windows-sdk/).
+      - name: Check Windows kits + ats + rcedit bundle licenses
+        run: |
+          bash ./packages/win-codesign/assets/verify-bundle-licenses.sh ./packages/win-codesign/out/win-codesign/*.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
@@ -156,6 +210,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
 
       - name: Install Wine and Xvfb
         run: sudo apt-get install -y wine64 xvfb
@@ -163,7 +219,7 @@ jobs:
       - name: Build dotnet runtime bundle
         run: bash ./packages/win-codesign/assets/build-win-dotnet.sh
 
-      - name: Run dotnet test suite (unit + Wine smoke test)
+      - name: Run dotnet test suite (unit + license check + Wine smoke test)
         run: xvfb-run --auto-servernum bash ./packages/win-codesign/test/build-win-dotnet-test.sh
 
       - name: Upload artifact
@@ -189,28 +245,38 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
 
       - name: Build win-codesign macOS (${{ matrix.arch }})
         shell: bash
+        env:
+          ARCH: ${{ matrix.arch }}
+          OSSLSIGNCODE_VER: ${{ inputs.osslsigncode_ver || '2.14' }}
         run: |
           bash packages/win-codesign/build.sh \
-            --arch ${{ matrix.arch }} \
-            --osslsigncode-ver ${{ inputs.osslsigncode_ver || '2.14' }}
+            --arch "$ARCH" \
+            --osslsigncode-ver "$OSSLSIGNCODE_VER"
 
+      # Licenses (scripts/verify-licenses.sh), linkage, file signing.
       - name: Test win-codesign macOS bundle (${{ matrix.arch }})
         shell: bash
+        env:
+          ARCH: ${{ matrix.arch }}
         run: |
           bash packages/win-codesign/test/build-mac-test.sh \
-            packages/win-codesign/out/win-codesign/win-codesign-darwin-${{ matrix.arch }}.zip
+            "packages/win-codesign/out/win-codesign/win-codesign-darwin-$ARCH.zip"
 
       - name: Install SoftHSM for the PKCS#11 test
         run: brew install softhsm
 
       - name: PKCS#11 signing test (${{ matrix.arch }})
         shell: bash
+        env:
+          ARCH: ${{ matrix.arch }}
         run: |
           bash packages/win-codesign/test/pkcs11-sign-test.sh \
-            packages/win-codesign/out/win-codesign/win-codesign-darwin-${{ matrix.arch }}.zip
+            "packages/win-codesign/out/win-codesign/win-codesign-darwin-$ARCH.zip"
 
       - name: Upload win-codesign macOS artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1

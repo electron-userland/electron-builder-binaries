@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Runs the Linux bundle tests in a clean ubuntu:24.04 container, which has no OpenSSL 1.1
 # (the 1.3.x bundles failed there with "libcrypto.so.1.1: cannot open shared object file"):
-#   - build-linux-test.sh: contents, linkage, RUNPATH, legacy PKCS#12 / PEM sign + verify
+#   - verify-bundle-licenses.sh (on the host): every binary ships its license
+#   - build-linux-test.sh: contents, licenses, linkage, RUNPATH, legacy PKCS#12 / PEM sign + verify
 #   - pkcs11-sign-test.sh: SoftHSM-backed PKCS#11 signing (amd64 / arm64; Ubuntu 24.04 has
 #     no i386 softhsm2 package)
 #
@@ -27,6 +28,9 @@ case "$ARCH" in
     i386)  PLATFORM="linux/amd64"; PKCS11=0 ;;
     *) echo "❌ Unsupported arch: $ARCH" >&2; exit 2 ;;
 esac
+
+# Every binary in the zip ships its license (the guard, scripts/verify-licenses.sh, is not mounted in the container).
+bash "$PKG_DIR/assets/verify-bundle-licenses.sh" "$ZIP"
 
 docker run --rm --platform "$PLATFORM" \
     -e ARCH="$ARCH" -e PKCS11="$PKCS11" \

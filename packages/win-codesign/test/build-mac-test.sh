@@ -2,13 +2,15 @@
 # Smoke tests for the macOS osslsigncode bundle produced by build-mac.sh.
 #   - the binary and its bundled OpenSSL / pkcs11prov dylibs link only against macOS system
 #     libraries and each other (no Homebrew OpenSSL), embed no Homebrew paths and target
-#     macOS <= $EXPECTED_MIN_MACOS (default 11.0); the bundled libraries' licenses ship too
+#     macOS <= $EXPECTED_MIN_MACOS (default 11.0)
+#   - every binary ships its license in LICENSES/ (scripts/verify-licenses.sh), including osslsigncode's full GPLv3 text
 #   - it reports the bundled OpenSSL version
 #   - it can sign and verify with a legacy (RC2/3DES) PKCS#12 file, which needs the
 #     legacy provider compiled into libcrypto, and with PEM key + certificate
 #
 # Run: bash packages/win-codesign/test/build-mac-test.sh <win-codesign-darwin-*.zip | extracted bundle dir>
-# The linkage check only runs on macOS; the signing checks run anywhere.
+# The linkage check only runs on macOS; the license and signing checks run anywhere.
+# shellcheck disable=SC2001 # sed indents every line of multi-line output; ${var//...} cannot anchor at line starts
 set -uo pipefail
 
 PASS=0
@@ -42,7 +44,7 @@ echo "🧪 Testing bundle at $BUNDLE"
 
 # ── Linkage ───────────────────────────────────────────────────────────────────
 if [[ "$(uname -s)" == "Darwin" ]]; then
-    for f in libcrypto.3.dylib libssl.3.dylib ossl-modules/pkcs11prov.dylib LICENSE.openssl.txt LICENSE.libp11.txt; do
+    for f in libcrypto.3.dylib libssl.3.dylib ossl-modules/pkcs11prov.dylib; do
         if [[ -f "$BUNDLE/lib/$f" ]]; then
             pass "bundle ships lib/$f"
         else
@@ -63,6 +65,35 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
     fi
 else
     echo "  ⏭  linkage check skipped (not macOS)"
+fi
+
+# ── Licenses ──────────────────────────────────────────────────────────────────
+for f in LICENSES/MANIFEST.tsv LICENSES/SOURCES.tsv LICENSES/osslsigncode/LICENSE.txt LICENSES/osslsigncode/COPYING.txt \
+    LICENSES/openssl/LICENSE.txt LICENSES/libp11/COPYING; do
+    if [[ -s "$BUNDLE/$f" ]]; then
+        pass "bundle ships $f"
+    else
+        fail "bundle is missing $f"
+    fi
+done
+if grep -q "GNU GENERAL PUBLIC LICENSE" "$BUNDLE/LICENSES/osslsigncode/COPYING.txt" 2>/dev/null \
+    && grep -q "Version 3" "$BUNDLE/LICENSES/osslsigncode/COPYING.txt"; then
+    pass "LICENSES/osslsigncode/COPYING.txt is the full GPLv3 text"
+else
+    fail "LICENSES/osslsigncode/COPYING.txt is not the GPLv3 text"
+fi
+if [[ -f "$ASSETS_DIR/../../../scripts/verify-licenses.sh" ]]; then
+    if bash "$ASSETS_DIR/verify-bundle-licenses.sh" "$BUNDLE"; then
+        pass "every binary ships its license (scripts/verify-licenses.sh)"
+    else
+        fail "binaries without license files (scripts/verify-licenses.sh)"
+    fi
+elif [[ "${LICENSE_GUARD_RUN_BY_CALLER:-0}" == 1 ]]; then
+    # build-linux-test.sh in the Docker test, where the repository root is not mounted:
+    # build-linux-docker-test.sh runs the guard on the zip on the host.
+    echo "  ⏭  license guard not available here (the caller runs it)"
+else
+    fail "license guard scripts/verify-licenses.sh not found"
 fi
 
 # ── Version ───────────────────────────────────────────────────────────────────

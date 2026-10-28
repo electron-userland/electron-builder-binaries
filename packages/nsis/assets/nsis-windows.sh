@@ -25,7 +25,11 @@ IMAGE_NAME="nsis-windows-builder:${NSIS_BRANCH}"
 CONTAINER_NAME="nsis-windows-build-$$"
 
 BUNDLE_DIR="$OUT_DIR/nsis-bundle"
+LICENSES_DIR="$BUNDLE_DIR/LICENSES"
 NOLOG_DIR="$OUT_DIR/nsis-nolog"
+
+# shellcheck source=nsis-plugin-licenses.sh
+source "$SCRIPT_DIR/nsis-plugin-licenses.sh"
 OUTPUT_ARCHIVE="$OUT_DIR/nsis-bundle-base-$NSIS_BRANCH.tar.gz"
 
 echo "Building NSIS Base Bundle (Docker, MinGW cross-compile, LOG + STRLEN=8192)..."
@@ -391,6 +395,21 @@ PLUGIN_SHA256=(
 NSIS7Z_URL="https://nsis.sourceforge.io/mediawiki/images/6/69/Nsis7z_19.00.7z"
 NSIS7Z_SHA256="6f2f3730049926f40442ee0c8b7d3e3dee7ace544d82467ff8059ea3f4201c58"
 
+# License files pinned from the source repository of a plugin, at the version bundled above, for terms its
+# download does not carry (or may not): "<plugin>|<url>|<sha256>|<path under LICENSES/<plugin>/>".
+# Every other plugin's license files come from its own download (see collect_plugin_licenses).
+PLUGIN_LICENSE_FILES=(
+    "INetC|https://raw.githubusercontent.com/DigitalMediaServer/NSIS-INetC-plugin/v1.0.5.7/LICENSE.md|c5ee66863fcea719d3b4badeb81fcf0021796b693b4b8b3821d9ce53e447cdf3|LICENSE.md"
+    "StdUtils|https://raw.githubusercontent.com/lordmulder/stdutils/1.14/LGPL.txt|dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551|LGPL.txt"
+    "StdUtils|https://raw.githubusercontent.com/lordmulder/stdutils/1.14/LGPL_CLARIFICATION.txt|49287ffa37d51910a8cb595d7ab64ebd2d42525384b16d4322783a0e57a77194|LGPL_CLARIFICATION.txt"
+    "StdUtils|https://raw.githubusercontent.com/lordmulder/stdutils/1.14/Contrib/StdUtils/src/rhash/COPYING.txt|8cf876d3406a2eed6c17ae804c8958bd78d3a0f63c30d6e2e789ab575e9fde40|src/rhash/COPYING.txt"
+    "StdUtils|https://raw.githubusercontent.com/lordmulder/stdutils/1.14/Contrib/StdUtils/src/blake2/COPYING.txt|a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499|src/blake2/COPYING.txt"
+)
+
+# "<plugin><TAB><url><TAB><sha256>" for every plugin downloaded, for LICENSES/README.md
+PLUGIN_SOURCES="$TEMP_DIR/plugin-sources.tsv"
+: > "$PLUGIN_SOURCES"
+
 DOWNLOADED_COUNT=0
 FAILED_DOWNLOADS=()
 
@@ -408,6 +427,7 @@ for i in "${!PLUGIN_NAMES[@]}"; do
         echo "    🔍 Verifying checksum..."
         if verify_sha256 "$plugin_zip" "$plugin_sha256"; then
             DOWNLOADED_COUNT=$((DOWNLOADED_COUNT + 1))
+            printf '%s\t%s\t%s\n' "$plugin_name" "$plugin_url" "$plugin_sha256" >> "$PLUGIN_SOURCES"
         else
             echo "    ⚠️  Checksum verification failed - plugin will be skipped"
             FAILED_DOWNLOADS+=("$plugin_name (checksum)")
@@ -426,6 +446,7 @@ if curl -fsSL --retry 3 --retry-delay 2 --max-time 120 "$NSIS7Z_URL" -o "$PLUGIN
     echo "    🔍 Verifying checksum..."
     if verify_sha256 "$PLUGINS_DIR/nsis7z.7z" "$NSIS7Z_SHA256"; then
         DOWNLOADED_COUNT=$((DOWNLOADED_COUNT + 1))
+        printf '%s\t%s\t%s\n' "nsis7z" "$NSIS7Z_URL" "$NSIS7Z_SHA256" >> "$PLUGIN_SOURCES"
     else
         echo "    ⚠️  Checksum verification failed - plugin will be skipped"
         FAILED_DOWNLOADS+=("nsis7z (checksum)")
@@ -467,11 +488,19 @@ fi
 mkdir -p "$BUNDLE_DIR/windows/Plugins"/{x64-ansi,x64-unicode,x86-ansi,x86-unicode}
 mkdir -p "$BUNDLE_DIR/windows/Include"
 
+# Every DLL in windows/Plugins is attributed to the plugin that installed it (LICENSES/plugin-dlls.tsv), so the
+# license check below can find its terms. The DLLs built from NSIS are covered by windows/COPYING.
+rm -rf "$LICENSES_DIR"
+mkdir -p "$LICENSES_DIR"
+DLL_SNAPSHOT="$TEMP_DIR/plugin-dlls.snapshot"
+plugin_dll_snapshot "$BUNDLE_DIR/windows/Plugins" | awk '{print $1 "\tNSIS"}' > "$LICENSES_DIR/plugin-dlls.tsv"
+
 for plugin_zip in "$PLUGINS_DIR"/*.zip; do
     test -f "$plugin_zip" || continue
 
     plugin_name=$(basename "$plugin_zip" .zip)
     extract_dir="$PLUGINS_DIR/$plugin_name"
+    plugin_dll_snapshot "$BUNDLE_DIR/windows/Plugins" > "$DLL_SNAPSHOT"
 
     mkdir -p "$extract_dir"
 
@@ -568,6 +597,9 @@ for plugin_zip in "$PLUGINS_DIR"/*.zip; do
         ! -ipath '*doc*' \
         -exec cp {} "$BUNDLE_DIR/windows/Include/" \; 2>/dev/null || true
 
+    record_plugin_dlls "$plugin_name" "$DLL_SNAPSHOT" "$BUNDLE_DIR/windows/Plugins" "$LICENSES_DIR"
+    collect_plugin_licenses "$plugin_name" "$extract_dir" "$LICENSES_DIR"
+
     echo "  ✓ $plugin_name"
 done
 
@@ -575,13 +607,16 @@ done
 # and looks in x86-unicode. Copy it there so nsProcess::FindProcess resolves.
 nsprocess_ansi="$BUNDLE_DIR/windows/Plugins/x86-ansi/NsProcess.dll"
 if [ -f "$nsprocess_ansi" ]; then
+    plugin_dll_snapshot "$BUNDLE_DIR/windows/Plugins" > "$DLL_SNAPSHOT"
     cp "$nsprocess_ansi" "$BUNDLE_DIR/windows/Plugins/x86-unicode/NsProcess.dll"
+    record_plugin_dlls "NsProcess" "$DLL_SNAPSHOT" "$BUNDLE_DIR/windows/Plugins" "$LICENSES_DIR"
     echo "  ✓ NsProcess.dll placed in x86-unicode"
 fi
 
 if test -f "$PLUGINS_DIR/nsis7z.7z"; then
     nsis7z_dir="$PLUGINS_DIR/nsis7z"
     mkdir -p "$nsis7z_dir"
+    plugin_dll_snapshot "$BUNDLE_DIR/windows/Plugins" > "$DLL_SNAPSHOT"
 
     if test "$EXTRACT_CMD" = "unzip"; then
         echo "  ⚠️  Cannot extract .7z files without 7z/7za - skipping nsis7z"
@@ -598,8 +633,46 @@ if test -f "$PLUGINS_DIR/nsis7z.7z"; then
         rsync -a --include='*.nsh' --exclude='*' \
             "$nsis7z_dir/" "$BUNDLE_DIR/windows/Include/" 2>/dev/null || true
 
+        record_plugin_dlls "nsis7z" "$DLL_SNAPSHOT" "$BUNDLE_DIR/windows/Plugins" "$LICENSES_DIR"
+        collect_plugin_licenses "nsis7z" "$nsis7z_dir" "$LICENSES_DIR"
+
         echo "  ✓ nsis7z"
     fi
+fi
+
+# =============================================================================
+# Plugin Licenses
+# =============================================================================
+
+echo ""
+echo "📄 Adding plugin licenses pinned from their source repositories..."
+
+for entry in "${PLUGIN_LICENSE_FILES[@]}"; do
+    IFS='|' read -r lic_plugin lic_url lic_sha256 lic_path <<< "$entry"
+    fetch_plugin_license "$lic_plugin" "$lic_url" "$lic_sha256" "$lic_path" "$LICENSES_DIR"
+done
+
+# NsProcess, SpiderBanner, WinShell and NSISunzU ship no license terms of their own: point at the NSIS plugin API
+# license (and, for NSISunzU, the Unicode build of Nsisunz, at Nsisunz's own license files)
+for notice_plugin in $PLUGIN_API_NOTICE_PLUGINS; do
+    [ -d "$PLUGINS_DIR/$notice_plugin" ] || continue
+    notice_related=()
+    [ "$notice_plugin" = "NSISunzU" ] && notice_related=("Nsisunz" "the Unicode build of Nsisunz")
+    write_plugin_api_notice "$notice_plugin" "$PLUGINS_DIR/$notice_plugin" "$LICENSES_DIR" \
+        "$BUNDLE_DIR/windows/Examples/Plugin/nsis/api.h" "$NSIS_BRANCH" \
+        "$(awk -F'\t' -v p="$notice_plugin" '$1 == p {print $2}' "$PLUGIN_SOURCES")" \
+        ${notice_related[@]+"${notice_related[@]}"}
+done
+
+write_plugin_license_index "$LICENSES_DIR" "$PLUGIN_SOURCES"
+
+# Fail the build when any plugin DLL ships without license terms
+echo "🔍 Checking every plugin DLL has license terms..."
+if ! verify_plugin_licenses "$BUNDLE_DIR"; then
+    for unlicensed in $(plugins_without_terms "$LICENSES_DIR"); do
+        report_archive_terms "$unlicensed" "$PLUGINS_DIR/$unlicensed"
+    done
+    exit 1
 fi
 
 # =============================================================================

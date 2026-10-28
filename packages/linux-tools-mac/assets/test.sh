@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2016 # the bash -c '...' snippets expand $1/$2 in the child shell, on purpose
 set -euo pipefail
 
 ### ================================
@@ -53,6 +54,8 @@ fail_test() {
     fail=$((fail + 1))
 }
 
+indent() { sed 's/^/      /'; }
+
 run_test() {
     local label="$1"; shift
     local out
@@ -60,7 +63,7 @@ run_test() {
         ok "$label"
     else
         fail_test "$label"
-        echo "$out" | sed 's/^/      /'
+        indent <<< "$out"
     fi
 }
 
@@ -99,7 +102,7 @@ for tool in gtar lzip ar; do
         fail_test "$tool: DYLD_PRINT_LIBRARIES produced no image list"
     elif [[ -n "$bad" ]]; then
         fail_test "$tool loads images outside the bundle/OS:"
-        echo "$bad" | sed 's/^/      /'
+        indent <<< "$bad"
     else
         ok "$tool loads only bundle + OS images ($(grep -c "$BUNDLE_DIR/" "$WORK/dyld-$tool.log") from bundle)"
     fi
@@ -256,6 +259,25 @@ expect_reject "minos 26.0 on lzip" "$c"
 c="$(fresh_copy)"
 cp "$c/bin/lzip" "$c/bin/extra-tool"
 expect_reject "extra tool in bin/" "$c"
+
+# 4. license texts: binutils' GPLv3 text, a binary dropped from the manifest, the source pointer
+c="$(fresh_copy)"
+rm -f "$c/LICENSES/binutils/COPYING3"
+expect_reject "LICENSES/binutils/COPYING3 missing" "$c"
+c="$(fresh_copy)"
+grep -v 'libzstd' "$c/LICENSES/MANIFEST.tsv" > "$c/LICENSES/MANIFEST.tsv.new" && mv "$c/LICENSES/MANIFEST.tsv.new" "$c/LICENSES/MANIFEST.tsv"
+expect_reject "lib/libzstd.1.dylib not in LICENSES/MANIFEST.tsv" "$c"
+c="$(fresh_copy)"
+rm -f "$c/LICENSES/SOURCES.txt"
+expect_reject "LICENSES/SOURCES.txt missing" "$c"
+
+### ================================
+### LICENSE TOOLING SELF-TEST (stand-in bundle, no Homebrew)
+### ================================
+echo ""
+echo "── license collection self-test ──"
+run_test "test-licenses.sh (collect-licenses.sh / verify-bundle-licenses.sh accept and reject)" \
+    bash "$SCRIPT_DIR/test-licenses.sh"
 
 ### ================================
 ### SUMMARY

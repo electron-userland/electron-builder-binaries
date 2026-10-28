@@ -196,9 +196,6 @@ cp "$PKCS11PROV" "$STAGE_LIB/ossl-modules/pkcs11prov.dylib"
 chmod 644 "$STAGE_LIB"/*.dylib "$STAGE_LIB/ossl-modules/pkcs11prov.dylib"
 relink_openssl "$STAGE_LIB/ossl-modules/pkcs11prov.dylib"
 add_rpath_once "$STAGE_LIB/ossl-modules/pkcs11prov.dylib" "@loader_path/.."
-# Licenses of the bundled libraries (OpenSSL: Apache-2.0, libp11: LGPL-2.1+).
-cp "$TMP_DIR/openssl-$OPENSSL_VER/LICENSE.txt" "$STAGE_LIB/LICENSE.openssl.txt"
-cp "$TMP_DIR/libp11-$LIBP11_VER/COPYING" "$STAGE_LIB/LICENSE.libp11.txt"
 
 # ── osslsigncode ──────────────────────────────────────────────────────────────
 mkdir -p "$SOURCE_DIR/build"
@@ -241,8 +238,20 @@ mkdir -p "$OUT_BIN"
 cp "$OSSLSIGNCODE_BIN" "$OUT_BIN/osslsigncode"
 DYLD_LIBRARY_PATH="$STAGE_LIB" "$OUT_BIN/osslsigncode" --version > "$OUT_BIN/VERSION.txt"
 
+# ── Licenses ──────────────────────────────────────────────────────────────────
+# osslsigncode (GPL-3.0-or-later), OpenSSL (Apache-2.0) and libp11 (LGPL-2.1+), from the sources built above.
+# shellcheck source=licenses.sh
+source "$SCRIPT_DIR/assets/licenses.sh"
+STAGE_LICENSES="$TMP_DIR/stage-licenses"
+osslsigncode_unix_licenses "$STAGE_LICENSES" "$SOURCE_DIR" \
+    "$TMP_DIR/openssl-$OPENSSL_VER" "$TMP_DIR/libp11-$LIBP11_VER"
+
 bash "$SCRIPT_DIR/assets/bundle-osslsigncode.sh" \
     --src "$OUT_BIN/osslsigncode" \
     --lib-dir "$STAGE_LIB" \
+    --licenses-dir "$STAGE_LICENSES" \
     --output-dir "$OUTPUT_DIR" \
     --platform-arch "$ARCH"
+
+# Every binary in the zip must ship its license (scripts/verify-licenses.sh).
+license_verify "$OUTPUT_DIR/win-codesign-darwin-$ARCH.zip"

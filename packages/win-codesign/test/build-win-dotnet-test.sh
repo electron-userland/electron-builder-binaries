@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Unit + e2e + Wine smoke tests for build-win-dotnet.sh.
 # Run: bash packages/win-codesign/test/build-win-dotnet-test.sh
+# shellcheck disable=SC2001 # sed indents every line of multi-line output; ${var//...} cannot anchor at line starts
 set -uo pipefail
 
 PASS=0
@@ -84,11 +85,12 @@ mkdir -p "$FAKE_BIN" "$E2E_OUT"
 # Minimal layout mirroring the real win-x64 runtime zip
 mkdir -p "$MOCK_ZIP_SRC/host/fxr/8.0.28"
 mkdir -p "$MOCK_ZIP_SRC/shared/Microsoft.NETCore.App/8.0.28"
-echo "mock-dotnet-exe"       > "$MOCK_ZIP_SRC/dotnet.exe"
+# (.exe/.dll mocks start with "MZ" so the license guard treats them as binaries)
+echo "MZmock-dotnet-exe"     > "$MOCK_ZIP_SRC/dotnet.exe"
 echo "mock-license"          > "$MOCK_ZIP_SRC/LICENSE.txt"
 echo "mock-third-party"      > "$MOCK_ZIP_SRC/ThirdPartyNotices.txt"
-echo "mock-hostfxr"          > "$MOCK_ZIP_SRC/host/fxr/8.0.28/hostfxr.dll"
-echo "mock-coreclr"          > "$MOCK_ZIP_SRC/shared/Microsoft.NETCore.App/8.0.28/coreclr.dll"
+echo "MZmock-hostfxr"        > "$MOCK_ZIP_SRC/host/fxr/8.0.28/hostfxr.dll"
+echo "MZmock-coreclr"        > "$MOCK_ZIP_SRC/shared/Microsoft.NETCore.App/8.0.28/coreclr.dll"
 
 (cd "$MOCK_ZIP_SRC" && zip -r -q "$MOCK_ZIP" .)
 
@@ -155,6 +157,15 @@ if [ -n "$PRODUCED_ZIP" ]; then
         echo "  ❌ e2e: ZIP missing shared/Microsoft.NETCore.App directory"
         FAIL=$(( FAIL + 1 ))
     fi
+
+    # The runtime's LICENSE.txt and ThirdPartyNotices.txt, laid out for scripts/verify-licenses.sh
+    assert_eq "e2e: LICENSES/dotnet-runtime/LICENSE.txt is the zip's LICENSE.txt" "mock-license" \
+        "$(unzip -p "$PRODUCED_ZIP" LICENSES/dotnet-runtime/LICENSE.txt 2>/dev/null)"
+    assert_eq "e2e: LICENSES/dotnet-runtime/ThirdPartyNotices.txt is the zip's" "mock-third-party" \
+        "$(unzip -p "$PRODUCED_ZIP" LICENSES/dotnet-runtime/ThirdPartyNotices.txt 2>/dev/null)"
+    assert_eq "e2e: LICENSES/MANIFEST.tsv maps the whole bundle to dotnet-runtime" "*	dotnet-runtime" \
+        "$(unzip -p "$PRODUCED_ZIP" LICENSES/MANIFEST.tsv 2>/dev/null | grep -v '^#')"
+    assert_eq "e2e: the license guard ran" "1" "$(echo "$E2E_OUTPUT" | grep -c '✓ All 3 binaries have license files')"
 
     # VERSION.txt must record the requested version
     VERSION_CONTENTS=$(unzip -p "$PRODUCED_ZIP" VERSION.txt 2>/dev/null || true)
@@ -252,6 +263,21 @@ E2E_MISSING_EXIT=0
 ) >/dev/null 2>&1 || E2E_MISSING_EXIT=$?
 assert_eq "exits 1 when dotnet.exe missing from zip" "1" "$E2E_MISSING_EXIT"
 
+# ── License guard on the produced bundle ──────────────────────────────────────
+# The real bundle from build-win-dotnet.sh (CI builds it right before this test): every binary in it must be covered
+# by LICENSES/MANIFEST.tsv with the runtime's LICENSE.txt and ThirdPartyNotices.txt (scripts/verify-licenses.sh).
+
+echo ""
+echo "▶ License guard on the produced bundle"
+
+PRODUCED_BUNDLE=$(find "$PACKAGE_DIR/out/win-codesign" -name "dotnet-runtime-win-x64-*.zip" 2>/dev/null | head -1)
+if [ -z "$PRODUCED_BUNDLE" ]; then
+    skip "license guard (no produced bundle — run build-win-dotnet.sh first)"
+else
+    assert_exit "every binary in $(basename "$PRODUCED_BUNDLE") ships its license" 0 \
+        bash "$PACKAGE_DIR/assets/verify-bundle-licenses.sh" "$PRODUCED_BUNDLE"
+fi
+
 # ── Wine smoke test ───────────────────────────────────────────────────────────
 # Requires: a real bundle produced by build-win-dotnet.sh + wine in PATH + DISPLAY.
 # Skips cleanly if any prerequisite is absent.
@@ -292,6 +318,7 @@ else
                 "$WINE_BIN" wineboot --init 2>/dev/null || true
 
             # Z: maps to host filesystem root under Wine
+            # shellcheck disable=SC1003 # '\\' is a literal backslash for tr, not an escaped quote
             WIN_DOTNET_EXE="Z:$(echo "$SMOKE_DOTNET/dotnet.exe" | tr '/' '\\')"
 
             SMOKE_EXIT=0

@@ -29,7 +29,7 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with: { fetch-depth: 0 }
+        with: { fetch-depth: 0, persist-credentials: false }
 
       - name: Setup Node.js
         uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a
@@ -50,8 +50,27 @@ jobs:
         run: pnpm run ci:detect-changes
 
       - name: Show detected packages
+        env:
+          MATRIX: ${{ steps.set.outputs.matrix }}
         run: |
-          echo "Packages to build for release: ${{ steps.set.outputs.matrix }}"
+          echo "Packages to build for release: $MATRIX"
+
+  # Shared bundle guards (scripts/), tested on every runner OS the bundles are built and checked on
+  script-tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - name: Test the license guard (scripts/verify-licenses.sh)
+        shell: bash
+        run: bash ./scripts/tests/verify-licenses-test.sh
 
   fpm:
     if: contains(needs.detect.outputs.matrix, '"fpm"')
@@ -130,7 +149,6 @@ jobs:
         squirrel,
         wine,
         linux-tools-mac,
-        squirrel,
         wix,
         icons,
         sevenzip,
@@ -153,7 +171,7 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with: { fetch-depth: 0 }
+        with: { fetch-depth: 0, persist-credentials: false }
 
       - name: Setup Node.js
         uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a

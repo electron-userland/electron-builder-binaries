@@ -6,6 +6,8 @@
 #   - any Mach-O requires a newer macOS than --max-minos (electron-builder#10084)
 #   - any Mach-O has an invalid code signature
 #   - lib/ holds a dylib nothing in the bundle loads
+#   - verify-bundle-licenses.sh fails: a binary without LICENSES/MANIFEST.tsv entry or license texts (shared
+#     scripts/verify-licenses.sh guard), a required license text missing (license-files.tsv), or no SOURCES.txt entry
 set -euo pipefail
 
 BUNDLE_DIR=""
@@ -26,6 +28,7 @@ if [[ -z "$BUNDLE_DIR" || ! -d "$BUNDLE_DIR/bin" ]]; then
     exit 1
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUNDLE_DIR="$(cd "$BUNDLE_DIR" && pwd -P)"
 errors=0
 err() { echo "  ❌ $*"; errors=$((errors + 1)); }
@@ -89,7 +92,7 @@ resolve_in_bundle() {
 echo "🔎 Verifying bundle: $BUNDLE_DIR (max minos $MAX_MINOS)"
 
 # ── bin/ allowlist ──
-actual_bins="$(ls -1 "$BUNDLE_DIR/bin" | sort | tr '\n' ' ' | sed 's/ $//')"
+actual_bins="$(find "$BUNDLE_DIR/bin" -mindepth 1 -maxdepth 1 -exec basename {} \; | sort | tr '\n' ' ' | sed 's/ $//')"
 expected_bins="$(tr ' ' '\n' <<< "$EXPECTED_BINS" | sort | tr '\n' ' ' | sed 's/ $//')"
 if [[ "$actual_bins" == "$expected_bins" ]]; then
     echo "  ✅ bin/ contains exactly: $actual_bins"
@@ -150,6 +153,11 @@ if [[ -d "$BUNDLE_DIR/lib" ]]; then
             err "lib/$(basename "$lib") is not loaded by anything in the bundle"
         fi
     done < <(find "$BUNDLE_DIR/lib" -type f)
+fi
+
+# ── licenses ──
+if ! bash "$SCRIPT_DIR/verify-bundle-licenses.sh" --bundle-dir "$BUNDLE_DIR"; then
+    err "license verification failed (see above)"
 fi
 
 if [[ "$errors" -ne 0 ]]; then

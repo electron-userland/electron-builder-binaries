@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Unit + e2e tests for build-win-kits.sh helpers and full script flow.
 # Run: bash packages/win-codesign/test/build-win-kits-test.sh
+# shellcheck disable=SC2001 # sed indents every line of multi-line output; ${var//...} cannot anchor at line starts
 set -uo pipefail
 
 PASS=0
@@ -128,7 +129,9 @@ echo ""
 echo "▶ e2e: full script with mocked SDK"
 
 E2E_DIR="$TMPDIR_ROOT/e2e"
-MOCK_SDK="$E2E_DIR/sdk"
+# Same layout (and spaces) as the real install: <kits root>/bin/<version>/<arch> and <kits root>/Licenses/<version>
+MOCK_KITS="$E2E_DIR/Program Files (x86)/Windows Kits/10"
+MOCK_SDK="$MOCK_KITS/bin"
 E2E_OUT="$E2E_DIR/out"
 
 mkdir -p "$E2E_OUT"
@@ -151,9 +154,18 @@ SDK_FILES=(
 for arch in "${ARCHS[@]}"; do
     mkdir -p "$MOCK_SDK/$SDK_VER/$arch"
     for f in "${SDK_FILES[@]}"; do
-        echo "mock-$f" > "$MOCK_SDK/$SDK_VER/$arch/$f"
+        # .exe/.dll mocks start with "MZ" so the license guard treats them as binaries
+        case "$f" in
+            *.exe|*.dll) printf 'MZmock-%s\n' "$f" > "$MOCK_SDK/$SDK_VER/$arch/$f" ;;
+            *) echo "mock-$f" > "$MOCK_SDK/$SDK_VER/$arch/$f" ;;
+        esac
     done
 done
+
+# Mock the SDK's license terms; a second SDK version's terms must not be picked up
+mkdir -p "$MOCK_KITS/Licenses/$SDK_VER" "$MOCK_KITS/Licenses/10.0.11111.0"
+echo "mock sdk license terms" > "$MOCK_KITS/Licenses/$SDK_VER/sdk_license.rtf"
+echo "mock older sdk license terms" > "$MOCK_KITS/Licenses/10.0.11111.0/older_license.rtf"
 
 # Run the script
 E2E_EXIT=0
@@ -192,6 +204,22 @@ if [ -n "$PRODUCED_ZIP" ]; then
         FAIL=$(( FAIL + 1 ))
     fi
 
+    # SDK binaries ship with the license terms of the SDK version they were copied from, verbatim
+    MANIFEST_CONTENTS=$(unzip -p "$PRODUCED_ZIP" LICENSES/MANIFEST.tsv 2>/dev/null || true)
+    assert_eq "e2e: LICENSES/MANIFEST.tsv maps the 11 SDK binary names to windows-sdk" "11" \
+        "$(echo "$MANIFEST_CONTENTS" | grep -c '	windows-sdk$')"
+    assert_eq "e2e: LICENSES/MANIFEST.tsv maps signtool.exe" "1" \
+        "$(echo "$MANIFEST_CONTENTS" | grep -c '^\*/signtool\.exe	windows-sdk$')"
+    assert_eq "e2e: LICENSES/MANIFEST.tsv does not map manifests" "0" "$(echo "$MANIFEST_CONTENTS" | grep -c 'manifest	')"
+    assert_eq "e2e: LICENSES/windows-sdk/ is the SDK's license directory, copied verbatim" "mock sdk license terms" \
+        "$(unzip -p "$PRODUCED_ZIP" LICENSES/windows-sdk/sdk_license.rtf 2>/dev/null)"
+    assert_eq "e2e: another SDK version's license terms are not shipped" "0" "$(echo "$ZIP_LIST" | grep -c 'older_license')"
+    assert_eq "e2e: LICENSES/SOURCES.tsv names the SDK version" "1" \
+        "$(unzip -p "$PRODUCED_ZIP" LICENSES/SOURCES.tsv 2>/dev/null | grep -c "^windows-sdk	$SDK_VER	")"
+    assert_eq "e2e: no LICENSES/EXEMPT.tsv" "0" "$(echo "$ZIP_LIST" | grep -c 'EXEMPT.tsv')"
+    assert_eq "e2e: the license guard ran with no exemptions" "1" \
+        "$(echo "$E2E_OUTPUT" | grep -c '✓ All 33 binaries have license files (0 exempted')"
+
     # ATS files must NOT be in the kits bundle
     if echo "$ZIP_LIST" | grep -q "Azure.CodeSigning.Dlib.dll"; then
         echo "  ❌ e2e: kits ZIP unexpectedly contains ATS payload"
@@ -226,7 +254,7 @@ bash "$SCRIPT" --unknown-flag 2>/dev/null || UNKNOWN_EXIT=$?
 assert_eq "unknown flag exits 1" "1" "$UNKNOWN_EXIT"
 
 # --sdk-path overrides WINDOWS_KIT_PATH env var
-SDK_PATH_OUT=$(( WINDOWS_KIT_PATH="/env-only-path" bash "$SCRIPT" --sdk-path "/cli-override-path" ) 2>&1) || true
+SDK_PATH_OUT=$( ( WINDOWS_KIT_PATH="/env-only-path" bash "$SCRIPT" --sdk-path "/cli-override-path" ) 2>&1) || true
 assert_eq "--sdk-path overrides env WINDOWS_KIT_PATH" "0" "$(echo "$SDK_PATH_OUT" | grep -c '/env-only-path')"
 
 # ── e2e: error paths ──────────────────────────────────────────────────────────
@@ -237,6 +265,24 @@ echo "▶ e2e: error paths"
 E2E_ERR=0
 ( WINDOWS_KIT_PATH="/nonexistent/path" bash "$SCRIPT" ) >/dev/null 2>&1 || E2E_ERR=$?
 assert_eq "exits 1 when SDK directory missing" "1" "$E2E_ERR"
+
+# The SDK version's license directory is missing, then empty: the build fails instead of shipping the tools without it
+NOLIC_OUT="$E2E_DIR/out-nolicense"
+mv "$MOCK_KITS/Licenses/$SDK_VER" "$E2E_DIR/licenses-aside"
+E2E_ERR=0
+LICENSE_ERR_OUT=$( ( WINDOWS_KIT_PATH="$MOCK_SDK" bash "$SCRIPT" --output-dir "$NOLIC_OUT" ) 2>&1 ) || E2E_ERR=$?
+assert_eq "exits 1 when the SDK version's license directory is missing" "1" "$E2E_ERR"
+assert_eq "names the missing license directory" "1" \
+    "$(echo "$LICENSE_ERR_OUT" | grep -c "License directory for windows-sdk not found: .*/Licenses/$SDK_VER")"
+assert_eq "produces no ZIP without the license directory" "0" "$(find "$NOLIC_OUT" -name '*.zip' 2>/dev/null | wc -l | tr -d ' ')"
+
+mkdir -p "$MOCK_KITS/Licenses/$SDK_VER"
+E2E_ERR=0
+LICENSE_ERR_OUT=$( ( WINDOWS_KIT_PATH="$MOCK_SDK" bash "$SCRIPT" --output-dir "$NOLIC_OUT" ) 2>&1 ) || E2E_ERR=$?
+assert_eq "exits 1 when the SDK version's license directory is empty" "1" "$E2E_ERR"
+assert_eq "reports the empty license directory" "1" \
+    "$(echo "$LICENSE_ERR_OUT" | grep -c "License directory for windows-sdk has no files")"
+assert_eq "produces no ZIP with an empty license directory" "0" "$(find "$NOLIC_OUT" -name '*.zip' 2>/dev/null | wc -l | tr -d ' ')"
 
 # ── Results ───────────────────────────────────────────────────────────────────
 
