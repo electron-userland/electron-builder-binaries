@@ -67,6 +67,8 @@ importers:
 
   packages/ran: {}
 
+  packages/rpm: {}
+
   packages/snap-template: {}
 
   packages/squirrel.windows: {}

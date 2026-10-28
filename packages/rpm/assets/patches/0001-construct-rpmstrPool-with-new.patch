@@ -1,0 +1,45 @@
+From 5f2726246de792aac980867833b3357376145818 Mon Sep 17 00:00:00 2001
+From: Daeho Ro <40587651+daeho-ro@users.noreply.github.com>
+Date: Sun, 19 Jul 2026 14:55:27 +0900
+Subject: [PATCH] Construct rpmstrPool with new instead of xcalloc
+
+rpmstrPool_s embeds a std::shared_mutex, but rpmstrPoolCreate() allocates
+it with xcalloc(), which does not run the C++ constructor. On Linux this
+happens to work because PTHREAD_MUTEX_INITIALIZER is all-zero, but on
+macOS/libc++ the zeroed pthread_mutex_t has an invalid signature, so the
+first lock fails with EINVAL and rpmbuild aborts while parsing a spec:
+
+    libc++abi: terminating due to uncaught exception of type
+    std::__1::system_error: mutex lock failed: Invalid argument
+
+Allocate with new/delete so the mutex is constructed, matching the
+existing pattern in rpmkeyring.cc and macro.cc.
+---
+ rpmio/rpmstrpool.cc | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/rpmio/rpmstrpool.cc b/rpmio/rpmstrpool.cc
+index cf7d9d4..4379be8 100644
+--- a/rpmio/rpmstrpool.cc
++++ b/rpmio/rpmstrpool.cc
+@@ -237,7 +237,7 @@ static void rpmstrPoolRehash(rpmstrPool pool)
+ 
+ rpmstrPool rpmstrPoolCreate(void)
+ {
+-    rpmstrPool pool = (rpmstrPool)xcalloc(1, sizeof(*pool));
++    rpmstrPool pool = new rpmstrPool_s{};
+ 
+     pool->offs_alloced = STROFFS_CHUNK;
+     pool->offs = (const char **)xcalloc(pool->offs_alloced, sizeof(*pool->offs));
+@@ -267,7 +267,7 @@ rpmstrPool rpmstrPoolFree(rpmstrPool pool)
+ 	pool->chunks[i] = _free(pool->chunks[i]);
+     }
+     free(pool->chunks);
+-    free(pool);
++    delete pool;
+ 
+     return NULL;
+ }
+-- 
+2.43.0
+

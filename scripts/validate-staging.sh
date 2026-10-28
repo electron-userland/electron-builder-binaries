@@ -31,6 +31,7 @@ stub_relative_path() {
     linux-tools-mac)  echo "linux-tools-mac/stub.tar.gz" ;;
     squirrel.windows) echo "squirrel.windows/stub.7z" ;;
     7zip)             echo "7zip/stub.tar.gz" ;;
+    rpm)              echo "rpm/stub.7z" ;;
     *)
       echo "Error: Unrecognized package name '$1'" >&2
       exit 1
