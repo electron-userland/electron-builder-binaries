@@ -131,7 +131,8 @@ run_ok "finds the package of a library (through its symlink)" env PATH="$FAKEBIN
 assert "component is debian-<package>" [ "$(cat "$D/component" 2>/dev/null)" = "debian-liblzo2-2" ]
 assert "copyright copied" cmp -s "$SYSROOT/usr/share/doc/liblzo2-2/copyright" "$D/LICENSES/debian-liblzo2-2/copyright"
 assert "common license it refers to copied (GPL-2, not GPL-2.)" cmp -s "$SYSROOT/usr/share/common-licenses/GPL-2" "$D/LICENSES/debian-liblzo2-2/GPL-2"
-assert "only the referenced files" [ "$(cd "$D/LICENSES/debian-liblzo2-2" && echo *)" = "GPL-2 copyright" ]
+# C collation for the glob: macOS (en_US.UTF-8) would list copyright before GPL-2
+assert "only the referenced files" [ "$(cd "$D/LICENSES/debian-liblzo2-2" && LC_ALL=C && echo *)" = "GPL-2 copyright" ]
 assert "source package recorded" grep -q '`liblzo2-2` 2.08-1.2 (Ubuntu 18.04 package; source package `lzo2` 2.08-1.2: https://launchpad.net/ubuntu/+source/lzo2/2.08-1.2)' "$D/LICENSES/SOURCES.d/linux-x64.md"
 run_ok "a copyright that refers to no common license" env PATH="$FAKEBIN:$PATH" LIC_SYSROOT="$SYSROOT" \
     bash "$RUN" "$DEBIAN_CASE" "$WORK/debian-xss" "$SYSROOT/usr/lib/x86_64-linux-gnu/libXss.so.1.0.0"
