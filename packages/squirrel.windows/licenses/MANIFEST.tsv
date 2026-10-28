@@ -1,0 +1,60 @@
+# Which licenses cover which binary of the squirrel.windows bundle (checked by scripts/verify-licenses.sh).
+# build.ps1 copies this directory to LICENSES/ at the bundle root and adds the files taken from the build inputs:
+#   squirrel-windows/COPYING   Squirrel.Windows source (tag $SquirrelVersion)
+#   semver/LICENSE.md          Squirrel.Windows source, src/StubExecutable/LICENSE.md
+#   7-zip/License.txt          the pinned 7-Zip x64 installer
+#   nuget-commandline/NOTICES.txt  the pinned NuGet.CommandLine package
+# Where every other file comes from: SOURCES.md.
+# Squirrel.exe, Squirrel-Mono.exe and SyncReleases.exe contain the assemblies merged by ILRepack (src/Update/Update.csproj,
+# src/Update/Update-Mono.csproj, src/SyncReleases/SyncReleases.csproj) and the source files Squirrel.Windows vendors.
+
+electron-winstaller/vendor/Squirrel.exe	squirrel-windows
+electron-winstaller/vendor/Squirrel.exe	nuget-squirrel
+electron-winstaller/vendor/Squirrel.exe	sharpcompress
+electron-winstaller/vendor/Squirrel.exe	mono-cecil
+electron-winstaller/vendor/Squirrel.exe	deltacompressiondotnet
+electron-winstaller/vendor/Squirrel.exe	microsoft-web-xdt
+electron-winstaller/vendor/Squirrel.exe	wpfanimatedgif
+electron-winstaller/vendor/Squirrel.exe	mono-options
+electron-winstaller/vendor/Squirrel.exe	simplejson
+electron-winstaller/vendor/Squirrel.exe	splat
+electron-winstaller/vendor/Squirrel.exe	markdownsharp
+electron-winstaller/vendor/Squirrel.exe	bsdiff
+
+electron-winstaller/vendor/Squirrel-Mono.exe	squirrel-windows
+electron-winstaller/vendor/Squirrel-Mono.exe	nuget-squirrel
+electron-winstaller/vendor/Squirrel-Mono.exe	sharpcompress
+electron-winstaller/vendor/Squirrel-Mono.exe	mono-cecil
+electron-winstaller/vendor/Squirrel-Mono.exe	deltacompressiondotnet
+electron-winstaller/vendor/Squirrel-Mono.exe	microsoft-web-xdt
+electron-winstaller/vendor/Squirrel-Mono.exe	mono-options
+electron-winstaller/vendor/Squirrel-Mono.exe	simplejson
+electron-winstaller/vendor/Squirrel-Mono.exe	splat
+electron-winstaller/vendor/Squirrel-Mono.exe	markdownsharp
+electron-winstaller/vendor/Squirrel-Mono.exe	bsdiff
+
+electron-winstaller/vendor/SyncReleases.exe	squirrel-windows
+electron-winstaller/vendor/SyncReleases.exe	nuget-squirrel
+electron-winstaller/vendor/SyncReleases.exe	sharpcompress
+electron-winstaller/vendor/SyncReleases.exe	microsoft-web-xdt
+electron-winstaller/vendor/SyncReleases.exe	octokit
+electron-winstaller/vendor/SyncReleases.exe	mono-options
+electron-winstaller/vendor/SyncReleases.exe	simplejson
+electron-winstaller/vendor/SyncReleases.exe	splat
+electron-winstaller/vendor/SyncReleases.exe	markdownsharp
+electron-winstaller/vendor/SyncReleases.exe	bsdiff
+
+electron-winstaller/vendor/Setup.exe	squirrel-windows
+electron-winstaller/vendor/Setup.exe	wtl
+electron-winstaller/vendor/Setup.exe	unzip-zlib
+
+electron-winstaller/vendor/StubExecutable.exe	squirrel-windows
+electron-winstaller/vendor/StubExecutable.exe	semver
+
+electron-winstaller/vendor/WriteZipToSetup.exe	squirrel-windows
+
+electron-winstaller/vendor/nuget.exe	nuget-commandline
+
+# 7z.exe/7z.dll (x64, the default), 7z-x64.* and 7z-arm64.*
+electron-winstaller/vendor/7z*.exe	7-zip
+electron-winstaller/vendor/7z*.dll	7-zip

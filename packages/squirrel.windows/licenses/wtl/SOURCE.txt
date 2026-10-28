@@ -1,0 +1,6 @@
+Setup.exe is built with the Windows Template Library (WTL) 9.0.4140 headers, which are licensed
+under the Common Public License 1.0 (CPL.TXT in this directory).
+
+The source code of these headers is available from:
+  - https://sourceforge.net/projects/wtl/files/WTL%209.0/WTL%209.0.4140%20Final/WTL90_4140_Final.zip
+  - https://github.com/Squirrel/Squirrel.Windows/tree/2.0.1/src/Setup/wtl90
