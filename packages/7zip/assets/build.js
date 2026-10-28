@@ -55,23 +55,23 @@ for (let i = 2; i < process.argv.length; i++) {
 }
 
 if (!version) {
-  console.error("❌ --version is required (e.g. --version 24.09)");
+  console.error("❌ --version is required (e.g. --version 26.05)");
   process.exit(1);
 }
 
-const ver = version.replace(/\./g, ""); // "24.09" → "2409"
+const ver = version.replace(/\./g, ""); // "26.05" → "2605"
 const base = `https://github.com/ip7z/7zip/releases/download/${version}`;
 
 // ─── SHA-256 manifest ─────────────────────────────────────────────────────────
 
-const SRC_SHA256 = "49c05169f49572c1128453579af1632a952409ced028259381dac30726b6133a"; // 7z-src.tar.xz
-const LX64_SHA256 = "914c7e20ad5ef8e4d3cf08620ff8894b28fe11b7eb99809d6930870fbe48a281"; // linux-x64.tar.xz
-const LARM64_SHA256 = "fbe331697c9417bbc06fc92d3f4576dca6a5a1442fad7ae810304446a9153e2c"; // linux-arm64.tar.xz
-const LIA32_SHA256 = "cb5e49caaf761df67add54729553bef89a38071b0c455461452578018625fee5"; // linux-ia32.tar.xz
-const MAC_SHA256 = "073b6fa8dc5d9adb6f742888d0d75f5767406b503199b9704ccbf61133a21ded"; // mac.tar.xz
-const WX64_SHA256 = "43ae97658d0fc5b4eec4d409d85f7bed74a80945fd5704333a3599e0bd79b5fc"; // extra.7z
-const WARM64_SHA256 = "bc7b3a18f218f4916e1c4996751468f96e46eb7e97e91e8c1553d74793037f1a"; // win-arm64-installer.exe
-const WIA32_SHA256 = "e35e4374100b52e697e002859aefdd5533bcbf4118e5d2210fae6de318947c41"; // win-ia32-installer.exe
+const SRC_SHA256 = "0b6080b8c3e7a579161d2d495224c0e51c467576cb4c7048b0ab485ef44cc22e"; // 7z-src.tar.xz
+const LX64_SHA256 = "22cf82fcc6eb7474f1d5bb4f02c0f8ebd573a718089d6833dc30f8350a3b232e"; // linux-x64.tar.xz
+const LARM64_SHA256 = "0b71f6cfc34669b3bf69f2347efd3429f77020665003a13b9cdc53b784270421"; // linux-arm64.tar.xz
+const LIA32_SHA256 = "e8d8b762a4ee97fffa36a35b9831bbd0a7bb4645e5fafad839f9c22e297587a8"; // linux-ia32.tar.xz
+const MAC_SHA256 = "12ef6830317743cfd3f0ab1724bde43fcc270d8b6d8564f8c12c2a2b7f993570"; // mac.tar.xz
+const WX64_SHA256 = "f27a8f103c84785026edcba1f67faf1357225df9d19ddb0b7760d55947141bc7"; // extra.7z
+const WARM64_SHA256 = "86d5790d5dd84cab4636c3bb7fab10d3ed7cd3e57e6119401bd2769e28165268"; // win-arm64-installer.exe
+const WIA32_SHA256 = "6435a470fe7c4769962dbed8a60c641ee21401c833ced06077c80e33e7845a5e"; // win-ia32-installer.exe
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

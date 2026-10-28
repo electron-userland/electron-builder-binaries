@@ -19,7 +19,7 @@ set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 ASSETS_DIR="$SCRIPT_DIR/assets"
 
-SEVEN_ZIP_VERSION="${SEVEN_ZIP_VERSION:-24.09}"
+SEVEN_ZIP_VERSION="${SEVEN_ZIP_VERSION:-26.05}"
 OUT_DIR="${OUT_DIR:-$SCRIPT_DIR/out/7zip}"
 BUILD_TARGET=""
 PRINT_DOWNLOADS_CHECKSUM=""
@@ -45,7 +45,7 @@ show_usage() {
 Usage: $0 [--version VERSION] [--target TARGET] [--output-dir DIR] [--print-downloads-checksum]
 
 Options:
-  --version, -v VERSION        7-Zip version to package (default: 24.09)
+  --version, -v VERSION        7-Zip version to package (default: 26.05)
   --output-dir, -o DIR         Output directory (default: ./out/7zip)
   --target, -t TARGET          Build target (default: all)
   --print-downloads-checksum   Print SHA-256 of each upstream download at the end,
@@ -65,7 +65,7 @@ Environment:
 
 Examples:
   ./build.sh                                              # Build all platforms + test
-  ./build.sh --version 24.09 --target linux               # Linux bundles only
+  ./build.sh --version 26.05 --target linux               # Linux bundles only
   ./build.sh --target darwin                              # macOS bundles only
   ./build.sh --target test                                # Test already-built bundles
   ./build.sh --print-downloads-checksum                   # Build + print upstream checksums

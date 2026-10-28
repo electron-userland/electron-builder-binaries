@@ -4,15 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       seven_zip_version:
-        description: "7-Zip version to package (e.g. 24.09)"
+        description: "7-Zip version to package (e.g. 26.05)"
         required: false
-        default: "24.09"
+        default: "26.05"
   workflow_call:
     inputs:
       seven_zip_version:
         type: string
         required: false
-        default: "24.09"
+        default: "26.05"
 
 # ─── Build ────────────────────────────────────────────────────────────────────
 # Assembles all 8 platform bundles inside a single Docker container on one Linux
@@ -29,7 +29,7 @@ jobs:
 
       - name: Build all platform bundles
         env:
-          SEVEN_ZIP_VERSION: ${{ inputs.seven_zip_version || '24.09' }}
+          SEVEN_ZIP_VERSION: ${{ inputs.seven_zip_version || '26.05' }}
         run: |
           bash ./packages/7zip/build.sh \
             --target build \
