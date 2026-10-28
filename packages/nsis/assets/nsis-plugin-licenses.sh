@@ -20,6 +20,12 @@
 # A readme whose content matches this states license terms
 LICENSE_TEXT_RE='licen[cs]e|permission is (hereby )?granted|public domain'
 
+# Plugins whose downloads carry no license terms of their own; the only license text they ship is the header of
+# NSIS's plugin API file api.h (zlib/libpng). For these alone, LICENSES/<plugin>/NOTICE-plugin-api.txt (written by
+# write_plugin_api_notice) counts as their license terms. Any other plugin still needs its own license file.
+PLUGIN_API_NOTICE_PLUGINS="NsProcess SpiderBanner WinShell"
+PLUGIN_API_NOTICE_FILE="NOTICE-plugin-api.txt"
+
 # Is this archive member a license / readme document? (by base name, case-insensitive)
 _is_license_doc() {
     local name
@@ -61,11 +67,24 @@ collect_plugin_licenses() {
     echo "    📄 $plugin: $count license/readme file(s) from the plugin archive"
 }
 
+_uses_plugin_api_notice() {
+    case " $PLUGIN_API_NOTICE_PLUGINS " in
+        *" $1 "*) return 0 ;;
+    esac
+    return 1
+}
+
 # _has_license_terms <dir>: a license file by name, or a document that states license terms
+# (the plugin API notice counts only for the plugins in PLUGIN_API_NOTICE_PLUGINS)
 _has_license_terms() {
-    local file name
+    local file name owner
     [ -d "$1" ] || return 1
+    owner=$(basename "$1")
     while IFS= read -r file; do
+        if [ "$(basename "$file")" = "$PLUGIN_API_NOTICE_FILE" ]; then
+            _uses_plugin_api_notice "$owner" && return 0
+            continue
+        fi
         name=$(basename "$file" | tr '[:upper:]' '[:lower:]')
         case "$name" in
             *licen[cs]e*|*copying*|*lgpl*|*gpl*|*clarification*|notice*) return 0 ;;
@@ -94,6 +113,58 @@ fetch_plugin_license() {
         return 1
     fi
     echo "    📄 $plugin: $4 from its source repository"
+}
+
+# _leading_comment <file>: the leading /* ... */ comment block of a C header, CRs and a UTF-8 BOM removed
+_leading_comment() {
+    tr -d '\r' < "$1" | awk 'NR == 1 {sub(/^\357\273\277/, "")} NR == 1 && $0 !~ /^[[:space:]]*\/\*/ {exit} {print} /\*\// {exit}'
+}
+
+# write_plugin_api_notice <plugin> <extracted-archive-dir> <licenses-dir> <nsis-api.h> <nsis-commit> <download-url>
+# For the plugins in PLUGIN_API_NOTICE_PLUGINS only: LICENSES/<plugin>/NOTICE-plugin-api.txt, which says the
+# download carries no license terms of its own and quotes, verbatim, the license header of NSIS's plugin API
+# file api.h: the copy in the plugin's own download if it has one, else <nsis-api.h> (the bundle's own copy).
+write_plugin_api_notice() {
+    local plugin="$1" src="$2" dest="$3/$1" nsis_api="$4" commit="$5" url="$6" api from ships header
+    if ! _uses_plugin_api_notice "$plugin"; then
+        echo "❌ $plugin is not in PLUGIN_API_NOTICE_PLUGINS"
+        return 1
+    fi
+    api=$(find "$src" -type f -name api.h 2>/dev/null | LC_ALL=C sort | head -n 1)
+    if [ -n "$api" ]; then
+        from="${api#"$src"/} in the $plugin download"
+        ships="The only license text it
+ships is the header of api.h, the NSIS plugin API header the plugin is built against,
+which NSIS licenses under the zlib/libpng license."
+    else
+        api="$nsis_api"
+        from="NSIS's own copy, windows/Examples/Plugin/nsis/api.h in this bundle"
+        ships="It ships no license text at
+all. Like every NSIS plugin, it is built against the NSIS plugin API header api.h,
+which NSIS licenses under the zlib/libpng license."
+    fi
+    header=$(_leading_comment "$api")
+    if ! printf '%s' "$header" | grep -q 'zlib/libpng'; then
+        echo "❌ The api.h header for $plugin ($api) does not state the zlib/libpng license"
+        return 1
+    fi
+    mkdir -p "$dest"
+    cat > "$dest/$PLUGIN_API_NOTICE_FILE" <<EOF
+$plugin plug-in for NSIS
+Download: $url
+
+The $plugin download carries no license terms of its own. $ships
+The full license text is NSIS's COPYING, shipped as LICENSE at the top of this bundle
+and as windows/COPYING.
+
+  api.h:   https://github.com/NSIS-Dev/nsis/blob/$commit/Source/exehead/api.h
+  COPYING: https://github.com/NSIS-Dev/nsis/blob/$commit/COPYING
+
+api.h license header, verbatim from $from:
+
+$header
+EOF
+    echo "    📄 $plugin: $PLUGIN_API_NOTICE_FILE (plugin API license header from $from)"
 }
 
 # plugin_dll_snapshot <plugins-dir>  ->  "<arch>/<dll> <crc>" lines, sorted

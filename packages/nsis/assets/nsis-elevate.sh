@@ -23,6 +23,15 @@ NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v313}
 ELEVATE_VERSION="1.3.0"
 ELEVATE_SHA256="b1b3f070353a0eadee2cea3a575049d10df9763ff24e39313da4cec9455382e1"
 
+# elevate's license: the redist itself states no terms (only "Copyright (C) Kai Liu. All rights reserved." in its
+# sources). Its BSD 2-clause license ("Copyright (c) 2011, Kai Liu") is published with the Chocolatey package
+# elevate.native 1.3.0.20150904, whose installer downloads this same redist; pinned from the package's source.
+ELEVATE_LICENSE_URL="https://raw.githubusercontent.com/jberezanski/ChocolateyPackages/fcf5ce06b6ff63cad138ddbf0c9a64688cec0740/elevate.native/tools/license.txt"
+ELEVATE_LICENSE_SHA256="14525a276acbddba8aa18979a82f4a3b2674a0bd17d9ea182fd21b64bf21f801"
+
+# shellcheck source=nsis-plugin-licenses.sh
+source "$SCRIPT_DIR/nsis-plugin-licenses.sh"
+
 # Docker configuration
 IMAGE_TAG="${NSIS_BRANCH//\//_}"
 IMAGE_NAME="nsis-elevate-builder:${IMAGE_TAG}"
@@ -183,12 +192,11 @@ fi
 echo "  ✓ elevate.exe extracted"
 
 docker cp "$CONTAINER_NAME:/output/LICENSES" "$TEMP_DIR/nsis-bundle/LICENSES"
-if ! grep -rqiE 'licen[cs]e|permission is (hereby )?granted|public domain' "$TEMP_DIR/nsis-bundle/LICENSES/elevate" 2>/dev/null; then
-    echo "❌ No license terms for elevate.exe found in the elevate ${ELEVATE_VERSION} redist archive"
+fetch_plugin_license elevate "$ELEVATE_LICENSE_URL" "$ELEVATE_LICENSE_SHA256" LICENSE.txt "$TEMP_DIR/nsis-bundle/LICENSES"
+if ! _has_license_terms "$TEMP_DIR/nsis-bundle/LICENSES/elevate"; then
+    echo "❌ No license terms for elevate.exe in LICENSES/elevate"
     # Show what the redist does carry, so the terms can be found and pinned (also as annotations, readable
     # through the checks API)
-    # shellcheck source=nsis-plugin-licenses.sh
-    source "$SCRIPT_DIR/nsis-plugin-licenses.sh"
     ci_notice "elevate redist: files" "$(docker run --rm "$IMAGE_NAME" find /redist -type f 2>&1 | sort)"
     ci_notice "elevate redist: readme / license files" "$(docker run --rm "$IMAGE_NAME" sh -c \
         'for f in /output/LICENSES/elevate/*; do [ -f "$f" ] && { echo "=== $f"; cat "$f"; }; done' 2>&1)"

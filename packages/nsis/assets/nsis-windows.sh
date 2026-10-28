@@ -647,6 +647,14 @@ for entry in "${PLUGIN_LICENSE_FILES[@]}"; do
     fetch_plugin_license "$lic_plugin" "$lic_url" "$lic_sha256" "$lic_path" "$LICENSES_DIR"
 done
 
+# NsProcess, SpiderBanner and WinShell ship no license terms of their own: point at the NSIS plugin API license
+for notice_plugin in $PLUGIN_API_NOTICE_PLUGINS; do
+    [ -d "$PLUGINS_DIR/$notice_plugin" ] || continue
+    write_plugin_api_notice "$notice_plugin" "$PLUGINS_DIR/$notice_plugin" "$LICENSES_DIR" \
+        "$BUNDLE_DIR/windows/Examples/Plugin/nsis/api.h" "$NSIS_BRANCH" \
+        "$(awk -F'\t' -v p="$notice_plugin" '$1 == p {print $2}' "$PLUGIN_SOURCES")"
+done
+
 write_plugin_license_index "$LICENSES_DIR" "$PLUGIN_SOURCES"
 
 # Fail the build when any plugin DLL ships without license terms
