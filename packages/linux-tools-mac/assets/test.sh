@@ -79,20 +79,27 @@ run_test "verify-bundle.sh (self-contained, minos <= $MAX_MINOS)" \
 ### ================================
 echo ""
 echo "── runtime linkage (DYLD_PRINT_LIBRARIES) ──"
+# Print every image dyld loads for `<bundle>/bin/<tool> --version` that is not
+# from the bundle or the OS. Lines look like "dyld[123]: <UUID> /path".
+# Returns 2 if dyld printed no image list at all (so silence never passes).
+foreign_images() {
+    local bundle="$1" tool="$2" log="$WORK/dyld-$2.log"
+    bundle="$(cd "$bundle" && pwd -P)"
+    env -i HOME="$HOME" PATH="$bundle/bin:/usr/bin:/bin" DYLD_PRINT_LIBRARIES=1 \
+        "$bundle/bin/$tool" --version > /dev/null 2> "$log" || true
+    grep -q '/usr/lib/libSystem' "$log" || { sed 's/^/      /' "$log" >&2; return 2; }
+    sed -nE 's/^dyld\[[0-9]+\]: (<[^>]*> )?//p' "$log" \
+        | grep -v -e "^$bundle/" -e '^/usr/lib/' -e '^/System/' || true
+}
+
 for tool in gtar lzip ar; do
-    log="$WORK/dyld-$tool.log"
-    clean_env DYLD_PRINT_LIBRARIES=1 "$BIN/$tool" --version > /dev/null 2> "$log" || true
-    if ! grep -q 'libSystem' "$log"; then
+    if ! bad="$(foreign_images "$BUNDLE_DIR" "$tool")"; then
         fail_test "$tool: DYLD_PRINT_LIBRARIES produced no image list"
-        sed 's/^/      /' "$log"
-        continue
-    fi
-    bad="$(sed -n 's/^dyld\[[0-9]*\]: //p' "$log" | grep -v -e "^$BUNDLE_DIR/" -e '^/usr/lib/' -e '^/System/' || true)"
-    if [[ -n "$bad" ]]; then
+    elif [[ -n "$bad" ]]; then
         fail_test "$tool loads images outside the bundle/OS:"
         echo "$bad" | sed 's/^/      /'
     else
-        ok "$tool loads only bundle + OS images ($(grep -c "$BUNDLE_DIR/" "$log") from bundle)"
+        ok "$tool loads only bundle + OS images ($(grep -c "$BUNDLE_DIR/" "$WORK/dyld-$tool.log") from bundle)"
     fi
 done
 
@@ -214,9 +221,25 @@ for f in "$c"/bin/* "$c"/lib/*; do
     if [[ -n "$d" ]]; then victim="$f"; victim_dep="$d"; break; fi
 done
 if [[ -n "$victim" ]]; then
-    install_name_tool -change "$victim_dep" "/opt/homebrew/lib/$(basename "$victim_dep")" "$victim" 2>/dev/null || true
+    # Point it at the real Homebrew copy when one exists, so the runtime check
+    # below can also see dyld load it from outside the bundle.
+    dep_name="$(basename "$victim_dep")"
+    brew_dep=""
+    if brew_prefix="$(brew --prefix 2>/dev/null)"; then
+        for cand in "$brew_prefix"/opt/*/lib/"$dep_name"; do
+            if [[ -e "$cand" ]]; then brew_dep="$cand"; break; fi
+        done
+    fi
+    install_name_tool -change "$victim_dep" "${brew_dep:-/opt/homebrew/lib/$dep_name}" "$victim" 2>/dev/null || true
     codesign --force --sign - "$victim" 2>/dev/null || true
     expect_reject "absolute Homebrew dylib path in $(basename "$victim")" "$c"
+    if [[ -n "$brew_dep" && "$victim" == "$c/bin/"* ]]; then
+        if bad="$(foreign_images "$c" "$(basename "$victim")")" && [[ -n "$bad" ]]; then
+            ok "runtime check rejects: $(basename "$victim") loads $(head -n 1 <<< "$bad")"
+        else
+            fail_test "runtime check accepted tampered $(basename "$victim")"
+        fi
+    fi
 else
     echo "  ⏭️  no bundled dylib references to tamper with"
 fi
