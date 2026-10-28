@@ -2,9 +2,9 @@
 
 set -euo pipefail
 
-CWD=$(cd "$(dirname "$BASH_SOURCE")" && pwd)
+CWD=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=SCRIPTDIR/constants.sh
 source "$CWD/constants.sh"
-LIB_DIR="$RUBY_PREFIX/lib"
 
 # SHA256 of https://cache.ruby-lang.org/pub/ruby/${RUBY_VERSION%.*}/ruby-${RUBY_VERSION}.tar.gz
 # Re-pin when bumping RUBY_VERSION: curl -fsSL <url> | sha256sum
@@ -78,7 +78,7 @@ if [ "$(uname)" = "Darwin" ]; then
     echo "  ⚙️ Running configure..."
     ./configure "${BASE_FLAGS[@]}" \
         --with-opt-dir="$BREW_PREFIX" \
-        --with-libyaml-dir=$(brew --prefix libyaml) \
+        --with-libyaml-dir="$(brew --prefix libyaml)" \
         --with-openssl-dir="$(brew --prefix openssl@3)" \
         --with-zlib-dir="$(brew --prefix zlib)" \
         --with-readline-dir="$(brew --prefix readline)" \
@@ -133,13 +133,31 @@ else
     fi
 
     echo "  🔨 Building Ruby..."
-    make -j$(nproc) 1>/dev/null
+    make -j"$(nproc)" 1>/dev/null
 
     echo "  ⤵️ Installing Ruby..."
     make install 1>/dev/null
 fi
 
 echo "💎 Ruby $RUBY_VERSION installed to $RUBY_PREFIX"
+
+# `make install` does not install Ruby's license files: copy them from the (checksum-verified) source tree before it
+# is deleted. LEGAL lists the third-party code built into the ruby binary (Onigmo, ccan, siphash, ...).
+echo "📄 Copying Ruby's license files from the source tree..."
+mkdir -p "$INSTALL_DIR/LICENSES/ruby"
+for f in COPYING BSDL LEGAL; do
+    if [ ! -s "$f" ]; then
+        echo "❌ $f is missing from the Ruby $RUBY_VERSION source tree" >&2
+        exit 1
+    fi
+    cp "$f" "$INSTALL_DIR/LICENSES/ruby/$f"
+done
+for f in COPYING.ja GPL; do
+    if [ -s "$f" ]; then
+        cp "$f" "$INSTALL_DIR/LICENSES/ruby/$f"
+    fi
+done
+
 echo "🗑️ Cleaning up source code download..."
 rm -rf "$SOURCE_DIR"
 echo "✅ Done!"

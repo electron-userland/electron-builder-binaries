@@ -2,7 +2,8 @@
 
 set -euo pipefail
 
-CWD=$(cd "$(dirname "$BASH_SOURCE")" && pwd)
+CWD=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=SCRIPTDIR/constants.sh
 source "$CWD/constants.sh"
 
 GEM_LIST=("fpm -v 1.18.0" "ruby-xz") # Add other gems (with or without version arg) here
@@ -53,9 +54,9 @@ mkdir -p "$GEM_DIR"
 export GEM_HOME="$GEM_DIR"
 export GEM_PATH="$GEM_HOME"
 for gem in "${GEM_LIST[@]}"; do
-    gem_name=$(echo "$gem" | cut -d' ' -f1)
-    echo "  ⤵️ Installing $gem_name"
-    gem install --no-document $gem --quiet --env-shebang
+    read -r -a gem_args <<<"$gem"
+    echo "  ⤵️ Installing ${gem_args[0]}"
+    gem install --no-document "${gem_args[@]}" --quiet --env-shebang
 done
 
 echo "🔨 Creating entrypoint scripts for installed gems..."
@@ -77,25 +78,26 @@ done
 LIB_DIR="$RUBY_PREFIX/lib"
 if [ "$(uname)" = "Darwin" ]; then
     echo "  🗑️ Removing dSYM files"
-    find $RUBY_PREFIX -type d -name "*.dSYM" -exec rm -rf {} +
+    find "$RUBY_PREFIX" -type d -name "*.dSYM" -exec rm -rf {} +
 
     echo "  🍎 Patching portable Ruby bundle for MacOS."
 
     SHARED_LIB_DIR="$LIB_DIR"
     echo "  ⏩️ Copying shared libraries to $SHARED_LIB_DIR"
     mkdir -p "$SHARED_LIB_DIR"
+    # bin/ruby links openssl@3, zlib, libyaml and gmp (otool -L); ruby-xz loads liblzma at runtime through Fiddle.
+    # readline (GPL-3.0) and ncurses are not shipped: Ruby 3.4 has no readline extension, so nothing in the bundle
+    # links or loads them. Each library's license is collected by collect-licenses.sh from its formula.
     SHARED_LIBRARIES=(
         "$(brew --prefix openssl@3)/lib/*.dylib"
-        "$(brew --prefix readline)/lib/*.dylib"
         "$(brew --prefix zlib)/lib/*.dylib"
         "$(brew --prefix libyaml)/lib/*.dylib"
         "$(brew --prefix xz)/lib/*.dylib"
         "$(brew --prefix gmp)/lib/*.dylib"
-        "$(brew --prefix ncurses)/lib/*.dylib"
     )
     for pattern in "${SHARED_LIBRARIES[@]}"; do
         for filepath in $pattern; do
-            dest="$SHARED_LIB_DIR/$(basename $filepath)"
+            dest="$SHARED_LIB_DIR/$(basename "$filepath")"
             if [[ ! -f "$dest" ]]; then
                 echo "    📝 Copying $filepath"
                 cp -a "$filepath" "$dest"
@@ -203,8 +205,9 @@ if [ "$(uname)" = "Darwin" ]; then
     echo "✅ All dylib references made portable. Autocopied missing libraries where needed."
 else
     # OpenSSL is linked statically (compile-openssl.sh), so libssl/libcrypto are not copied.
+    # readline (GPL-3.0) is not allowed: Ruby 3.4 has no readline extension. Each copied library's license is
+    # collected by collect-licenses.sh from the Debian package that provides it.
     ALLOWLIST=(
-        libreadline.so
         libz.so
         libyaml
         liblzma.so
@@ -239,6 +242,7 @@ else
     fi
 
     echo "  🐧 Patching portable Ruby bundle for Linux"
+    # shellcheck disable=SC2016 # $ORIGIN is for the dynamic linker, not the shell
     patchelf --set-rpath '$ORIGIN/../lib' "$RUBY_PREFIX/bin/ruby"
 fi
 
@@ -327,47 +331,39 @@ fi
 
 # ===== Create VERSION file =====
 echo "🔨 Creating VERSION file..."
-RUBY_VERSION_VERBOSE="$($RUBY_PREFIX/bin/ruby --version)"
-FPM_VERSION="$($INSTALL_DIR/fpm --version | cut -d' ' -f2)"
+RUBY_VERSION_VERBOSE="$("$RUBY_PREFIX/bin/ruby" --version)"
+FPM_VERSION="$("$INSTALL_DIR/fpm" --version | cut -d' ' -f2)"
 if [ -z "$FPM_VERSION" ]; then
     echo "⚠️ Could not determine fpm version!"
     exit 1
 fi
 
-echo "$RUBY_VERSION_VERBOSE" >$INSTALL_DIR/VERSION.txt
-echo "fpm: $FPM_VERSION" >>$INSTALL_DIR/VERSION.txt
-echo "openssl: $OPENSSL_LIBRARY_VERSION" >>$INSTALL_DIR/VERSION.txt
+{
+    echo "$RUBY_VERSION_VERBOSE"
+    echo "fpm: $FPM_VERSION"
+    echo "openssl: $OPENSSL_LIBRARY_VERSION"
+} >"$INSTALL_DIR/VERSION.txt"
 
-echo "📄 Downloading component licenses..."
-mkdir -p "$INSTALL_DIR/LICENSES"
-curl -fsSL --retry 3 --retry-delay 2 --max-time 60 \
-  "https://raw.githubusercontent.com/jordansissel/fpm/master/LICENSE" \
-  -o "$INSTALL_DIR/LICENSES/LICENSE.fpm"
-if [ -f "$RUBY_PREFIX/COPYING" ]; then
-  cp "$RUBY_PREFIX/COPYING" "$INSTALL_DIR/LICENSES/LICENSE.ruby"
-else
-  curl -fsSL --retry 3 --retry-delay 2 --max-time 60 \
-    "https://raw.githubusercontent.com/ruby/ruby/master/COPYING" \
-    -o "$INSTALL_DIR/LICENSES/LICENSE.ruby"
+# ===== Licenses =====
+# Every binary in the bundle must carry its license (LICENSES/MANIFEST.tsv + LICENSES/<component>/): collect them
+# from the sources the build used, then fail the build if any binary is not covered.
+# Docker copies the guard next to this script; the macOS build runs it from the repository.
+if [ -z "${VERIFY_LICENSES:-}" ]; then
+    if [ -f "$CWD/verify-licenses.sh" ]; then
+        VERIFY_LICENSES="$CWD/verify-licenses.sh"
+    else
+        VERIFY_LICENSES="$CWD/../../../scripts/verify-licenses.sh"
+    fi
 fi
-if [ "$(uname)" = "Darwin" ]; then
-  OPENSSL_LICENSE="$(brew --prefix openssl@3)/LICENSE.txt"
-else
-  OPENSSL_LICENSE="${OPENSSL_PREFIX:-/opt/openssl}/LICENSE.txt"
-fi
-if [ -f "$OPENSSL_LICENSE" ]; then
-  cp "$OPENSSL_LICENSE" "$INSTALL_DIR/LICENSES/LICENSE.openssl"
-else
-  echo "❌ OpenSSL license not found at $OPENSSL_LICENSE" >&2
-  exit 1
-fi
-echo "  ✓ Licenses downloaded"
+export VERIFY_LICENSES
+bash "$CWD/collect-licenses.sh" "$INSTALL_DIR" "$RUBY_DIR_NAME"
+bash "$VERIFY_LICENSES" "$INSTALL_DIR"
 
 echo "🔨 Creating portable archive..."
 cd "$INSTALL_DIR"
 
-ARCHIVE_OS=$(echo ${OS_TARGET:-$(uname -s)} | tr '[:upper:]' '[:lower:]')
-ARCHIVE_ARCH_SUFFIX=$(echo ${TARGET_ARCH:-$(uname -m)} | tr -d '/' | tr '[:upper:]' '[:lower:]')
+ARCHIVE_OS=$(echo "${OS_TARGET:-$(uname -s)}" | tr '[:upper:]' '[:lower:]')
+ARCHIVE_ARCH_SUFFIX=$(echo "${TARGET_ARCH:-$(uname -m)}" | tr -d '/' | tr '[:upper:]' '[:lower:]')
 ARCHIVE_NAME="fpm-${FPM_VERSION}-ruby-${RUBY_VERSION}-${ARCHIVE_OS}-${ARCHIVE_ARCH_SUFFIX}.7z"
 
 7za a -mx=9 -mfb=64 "$OUTPUT_DIR/$ARCHIVE_NAME" "$INSTALL_DIR"/*
