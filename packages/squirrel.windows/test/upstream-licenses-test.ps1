@@ -246,3 +246,6 @@ if ($script:failures -gt 0) {
     exit 1
 }
 Write-Host "✓ All upstream license tests passed"
+# Explicitly: $LASTEXITCODE still holds the exit code of the last case that was expected to fail, and the
+# GitHub Actions pwsh shell exits with $LASTEXITCODE when the script does not exit itself
+exit 0
