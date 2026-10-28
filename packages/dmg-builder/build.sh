@@ -2,10 +2,13 @@
 set -euo pipefail
 
 # CONFIG
-PYTHON_VERSION="3.14.2"
-# https://github.com/dmgbuild/dmgbuild — base: v1.6.7
-# commit 75c8a6c7835c5b73dfd4510d92a8f357f93a5fbf
-DMGBUILD_VERSION_OR_HASH="75c8a6c"
+PYTHON_VERSION="3.14.10"
+# OpenSSL for the _ssl/_hashlib modules, built from source for MACOSX_DEPLOYMENT_TARGET.
+# 3.5 is the current LTS line (supported until 2030-04-08).
+OPENSSL_VERSION="3.5.9"
+# https://github.com/dmgbuild/dmgbuild — base: v1.6.7 (no newer release)
+# commit cc96fa235365b787ad0d73e4802a1f3953a62b19
+DMGBUILD_VERSION_OR_HASH="cc96fa2"
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 OUTPUT_DIR="${ROOT}/out/dmg-builder"
@@ -64,44 +67,24 @@ for ARCH in $ARCHS; do
     --root "$ROOT" \
     --output-dir "$OUTPUT_DIR" \
     --python-version "$PYTHON_VERSION" \
+    --openssl-version "$OPENSSL_VERSION" \
     --dmgbuild-version "$DMGBUILD_VERSION_OR_HASH" \
     --codesign-identity "-" \
     --arch "${ARCH}"
 done
 
 # ─── Post-build verification ─────────────────────────────────────────────
-# Refuse to publish an artifact that references Homebrew paths or whose embedded minOS is newer than our deployment target.
+# Refuse to publish an artifact that links Homebrew libraries or contains a Mach-O whose minOS is newer than our
+# deployment target. This inspects the extracted tarballs, i.e. exactly what ships (the per-arch staging dir is
+# wiped by the next arch's build), and fails if there is nothing to inspect.
 echo ""
-echo "🔎 Verifying artifact has no Homebrew leaks and minos<=${MACOSX_DEPLOYMENT_TARGET}"
+echo "🔎 Verifying artifacts have no Homebrew links and minos<=${MACOSX_DEPLOYMENT_TARGET}"
 
-bad=0
-FILELIST="$(mktemp)"
-find "${OUTPUT_DIR}" \( -name '*.dylib' -o -name '*.so' -o -perm -u+x -type f \) -print0 > "$FILELIST"
-while IFS= read -r -d '' f; do
-  # Only inspect Mach-O files
-  file "$f" | grep -qE 'Mach-O|dynamically linked' || continue
-
-  if otool -L "$f" 2>/dev/null | grep -E '/usr/local/|/opt/homebrew/' >/tmp/leak.$$; then
-    echo "❌ Homebrew dependency in $f:"
-    sed 's/^/    /' /tmp/leak.$$
-    bad=1
-  fi
-
-  minos=$(otool -l "$f" 2>/dev/null \
-            | awk '/LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX/{f=1} f && /minos|version/{print $2; f=0}' \
-            | head -n1)
-  if [ -n "${minos:-}" ]; then
-    # numeric compare on "X.Y"
-    awk -v a="$minos" -v b="$MACOSX_DEPLOYMENT_TARGET" \
-        'BEGIN{split(a,A,"."); split(b,B,"."); \
-               if (A[1]+0>B[1]+0 || (A[1]+0==B[1]+0 && A[2]+0>B[2]+0)) exit 1}' \
-      || { echo "❌ $f has minos=$minos > ${MACOSX_DEPLOYMENT_TARGET}"; bad=1; }
-  fi
-done < "$FILELIST"
-
-rm -f /tmp/leak.$$ "$FILELIST"
-if [ "$bad" -ne 0 ]; then
-  echo "🛑 Build rejected — fix the leaks above before publishing."
+ARCHIVES=()
+while IFS= read -r -d '' a; do ARCHIVES+=("$a"); done < <(find "${OUTPUT_DIR}" -name '*.tar.gz' -print0)
+if [ "${#ARCHIVES[@]}" -eq 0 ]; then
+  echo "❌ No archives found in ${OUTPUT_DIR}"
   exit 1
 fi
+bash "$ROOT/assets/verify-bundle.sh" --macos-target "${MACOSX_DEPLOYMENT_TARGET}" "${ARCHIVES[@]}"
 echo "✅ Artifact is clean."
