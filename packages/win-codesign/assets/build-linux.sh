@@ -11,7 +11,7 @@ Usage: $0 [options]
   --arch              Target architecture: amd64, arm64, i386
                       (default: \$PLATFORM_ARCH or 'amd64')
   --osslsigncode-ver  osslsigncode version tag to build
-                      (default: \$OSSLSIGNCODE_VER or '2.9')
+                      (default: \$OSSLSIGNCODE_VER or '2.14')
   --cmake-version     CMake version to use in the Docker build
                       (default: \$CMAKE_VERSION or '3.28.3')
   --output-dir        Output directory for the ZIP artifact
@@ -22,7 +22,7 @@ EOF
 }
 
 PLATFORM_ARCH="${PLATFORM_ARCH:-amd64}"
-OSSLSIGNCODE_VER="${OSSLSIGNCODE_VER:-2.9}"
+OSSLSIGNCODE_VER="${OSSLSIGNCODE_VER:-2.14}"
 CMAKE_VERSION="${CMAKE_VERSION:-3.28.3}"
 OUTPUT_DIR="$SCRIPT_DIR/out/win-codesign"
 

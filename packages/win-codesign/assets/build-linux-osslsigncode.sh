@@ -17,7 +17,7 @@ usage() {
     cat >&2 << EOF
 Usage: $0 [options]
   --arch              Target architecture: amd64, arm64, i386 (default: \$PLATFORM_ARCH or 'amd64')
-  --osslsigncode-ver  osslsigncode version tag to build (default: \$OSSLSIGNCODE_VER or '2.11')
+  --osslsigncode-ver  osslsigncode version tag to build (default: \$OSSLSIGNCODE_VER or '2.14')
   --output-dir        Directory to write the ZIP bundle to (default: /out/linux/osslsigncode)
   -h|--help           Show this help
 EOF
@@ -25,7 +25,7 @@ EOF
 }
 
 PLATFORM_ARCH="${PLATFORM_ARCH:-amd64}"
-OSSLSIGNCODE_VER="${OSSLSIGNCODE_VER:-2.11}"
+OSSLSIGNCODE_VER="${OSSLSIGNCODE_VER:-2.14}"
 OUTPUT_DIR="/out/linux/osslsigncode"
 # Oldest glibc the bundle may require: that of the Ubuntu 20.04 builder image.
 MAX_GLIBC="${MAX_GLIBC:-2.31}"

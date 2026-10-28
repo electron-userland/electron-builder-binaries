@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ARG PLATFORM_ARCH=amd64
-ARG OSSLSIGNCODE_VER=2.9
+ARG OSSLSIGNCODE_VER=2.14
 ARG CMAKE_VERSION=3.28.3
 
 # For i386, we build on amd64 with multilib. For others, use native platform.
