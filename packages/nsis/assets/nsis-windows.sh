@@ -536,6 +536,11 @@ for plugin_zip in "$PLUGINS_DIR"/*.zip; do
                     fi
                 elif echo "$plugin_name" | grep -qiE 'NSISunzU'; then
                     cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-unicode/" 2>/dev/null || true
+                elif [ "$plugin_name" = "Nsisunz" ]; then
+                    # Nsisunz.zip is the ANSI build only; its Unicode build ships separately as NSISunzU.zip under
+                    # the same nsisunz.dll name. Never let the ANSI build reach x86-unicode, or (depending on the
+                    # order the zips are processed in) it overwrites the Unicode build, as it did in nsis@2.0.3.
+                    cp "$dll_file" "$BUNDLE_DIR/windows/Plugins/x86-ansi/" 2>/dev/null || true
                 else
                     # No architecture indicator: copy to x86-ansi unconditionally.
                     # Only copy to x86-unicode when no paired *W.dll exists in this
@@ -573,6 +578,29 @@ if [ -f "$nsprocess_ansi" ]; then
     cp "$nsprocess_ansi" "$BUNDLE_DIR/windows/Plugins/x86-unicode/NsProcess.dll"
     echo "  ✓ NsProcess.dll placed in x86-unicode"
 fi
+
+# nsisunz.dll exists as two different builds that share one file name: the Unicode build (from NSISunzU.zip) must be
+# in x86-unicode and the ANSI build (from Nsisunz.zip) in x86-ansi. A Unicode build imports the wide-char Win32 API
+# (CreateDirectoryW), an ANSI build the narrow one (CreateDirectoryA), so check the import names in each DLL.
+nsisunz_ansi="$BUNDLE_DIR/windows/Plugins/x86-ansi/nsisunz.dll"
+nsisunz_unicode="$BUNDLE_DIR/windows/Plugins/x86-unicode/nsisunz.dll"
+if [ ! -f "$nsisunz_ansi" ] || [ ! -f "$nsisunz_unicode" ]; then
+    echo "❌ nsisunz.dll is missing from x86-ansi or x86-unicode (did the Nsisunz/NSISunzU downloads fail?)"
+    exit 1
+fi
+if cmp -s "$nsisunz_ansi" "$nsisunz_unicode"; then
+    echo "❌ x86-unicode/nsisunz.dll is identical to x86-ansi/nsisunz.dll (the ANSI build overwrote the Unicode one)"
+    exit 1
+fi
+if ! LC_ALL=C grep -aqF CreateDirectoryW "$nsisunz_unicode" || LC_ALL=C grep -aqF CreateDirectoryA "$nsisunz_unicode"; then
+    echo "❌ x86-unicode/nsisunz.dll is not the Unicode build (expected CreateDirectoryW import, no CreateDirectoryA)"
+    exit 1
+fi
+if ! LC_ALL=C grep -aqF CreateDirectoryA "$nsisunz_ansi" || LC_ALL=C grep -aqF CreateDirectoryW "$nsisunz_ansi"; then
+    echo "❌ x86-ansi/nsisunz.dll is not the ANSI build (expected CreateDirectoryA import, no CreateDirectoryW)"
+    exit 1
+fi
+echo "  ✓ nsisunz.dll: Unicode build in x86-unicode, ANSI build in x86-ansi"
 
 if test -f "$PLUGINS_DIR/nsis7z.7z"; then
     nsis7z_dir="$PLUGINS_DIR/nsis7z"

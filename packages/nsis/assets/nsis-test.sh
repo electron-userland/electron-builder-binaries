@@ -377,6 +377,31 @@ else
     skip "Plugins/x86-unicode/nsProcessW.dll not found (existence checked above)"
 fi
 
+# nsisunz.dll exists as two different builds that share one file name, so a wrong install order can silently put the
+# ANSI build in x86-unicode (as in nsis@2.0.3). A Unicode build imports the wide-char Win32 API (CreateDirectoryW),
+# an ANSI build the narrow one (CreateDirectoryA).
+_unz_ansi="$BUNDLE_DIR/windows/Plugins/x86-ansi/nsisunz.dll"
+_unz_unicode="$BUNDLE_DIR/windows/Plugins/x86-unicode/nsisunz.dll"
+if [ -f "$_unz_ansi" ] && [ -f "$_unz_unicode" ]; then
+    if cmp -s "$_unz_ansi" "$_unz_unicode"; then
+        fail "Plugins/x86-unicode/nsisunz.dll is identical to the x86-ansi build"
+    else
+        pass "Plugins/x86-unicode/nsisunz.dll differs from the x86-ansi build"
+    fi
+    if LC_ALL=C grep -aqF CreateDirectoryW "$_unz_unicode" && ! LC_ALL=C grep -aqF CreateDirectoryA "$_unz_unicode"; then
+        pass "Plugins/x86-unicode/nsisunz.dll is the Unicode build (imports CreateDirectoryW)"
+    else
+        fail "Plugins/x86-unicode/nsisunz.dll is not the Unicode build (expected CreateDirectoryW, no CreateDirectoryA)"
+    fi
+    if LC_ALL=C grep -aqF CreateDirectoryA "$_unz_ansi" && ! LC_ALL=C grep -aqF CreateDirectoryW "$_unz_ansi"; then
+        pass "Plugins/x86-ansi/nsisunz.dll is the ANSI build (imports CreateDirectoryA)"
+    else
+        fail "Plugins/x86-ansi/nsisunz.dll is not the ANSI build (expected CreateDirectoryA, no CreateDirectoryW)"
+    fi
+else
+    skip "nsisunz.dll Unicode/ANSI build check (existence checked above)"
+fi
+
 # =============================================================================
 # Set up the wrapper for compile tests 7-15
 # =============================================================================
