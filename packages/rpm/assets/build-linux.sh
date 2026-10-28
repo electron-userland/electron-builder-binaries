@@ -46,6 +46,20 @@ if ! command -v scdoc >/dev/null 2>&1; then
     export PATH="$WORK/fakebin:$PATH"
 fi
 
+# libgcrypt < 1.9 (EL8 ships 1.8.5) has no libgcrypt.pc; rpm finds it via pkg-config only.
+if ! pkg-config --exists libgcrypt && command -v libgcrypt-config >/dev/null 2>&1; then
+    mkdir -p "$WORK/pkgconfig"
+    cat >"$WORK/pkgconfig/libgcrypt.pc" <<PC
+Name: libgcrypt
+Description: shim generated from libgcrypt-config
+Version: $(libgcrypt-config --version)
+Cflags: $(libgcrypt-config --cflags)
+Libs: $(libgcrypt-config --libs)
+PC
+    export PKG_CONFIG_PATH="$WORK/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+    echo "🩹 Generated libgcrypt.pc shim ($(libgcrypt-config --version))"
+fi
+
 SRC=$(fetch_rpm_source "$WORK" "$ASSETS/patches")
 
 echo "🔨 Configuring rpm ${RPM_VERSION}"
