@@ -36,7 +36,28 @@ jobs:
       - name: Build
         env:
           ARCH: ${{ matrix.arch }}
-        run: bash packages/rpm/build.sh
+        run: |
+          set -o pipefail
+          mkdir -p packages/rpm/build
+          bash packages/rpm/build.sh 2>&1 | tee packages/rpm/build/build.log
+
+
+      # Job logs are not always retrievable through the API (e.g. by automation); annotations are.
+      - name: Report build result as annotations
+        if: always()
+        run: |
+          enc() { sed -e 's/%/%25/g' -e 's/\r//g' | awk '{printf "%s%%0A", $0}'; }
+          for v in packages/rpm/build/stage-*/VERSION.txt; do
+            if [ -f "$v" ]; then echo "::notice title=$(basename "$(dirname "$v")")::$(enc <"$v")"; fi
+          done
+          for a in packages/rpm/out/rpm/*.7z; do
+            if [ -f "$a" ]; then echo "::notice title=$(basename "$a")::$(wc -c <"$a" | tr -d ' ') bytes"; fi
+          done
+          if [ "$JOB_STATUS" != "success" ] && [ -f packages/rpm/build/build.log ]; then
+            echo "::error title=build.log (tail)::$(tail -n 60 packages/rpm/build/build.log | enc)"
+          fi
+        env:
+          JOB_STATUS: ${{ job.status }}
 
       - name: Upload rpm Linux artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
@@ -76,7 +97,27 @@ jobs:
           OS_TARGET: darwin
         run: |
           command -v 7zz || command -v 7z || command -v 7za || brew install -q sevenzip
-          bash packages/rpm/build.sh
+          set -o pipefail
+          mkdir -p packages/rpm/build
+          bash packages/rpm/build.sh 2>&1 | tee packages/rpm/build/build.log
+
+
+      # Job logs are not always retrievable through the API (e.g. by automation); annotations are.
+      - name: Report build result as annotations
+        if: always()
+        run: |
+          enc() { sed -e 's/%/%25/g' -e 's/\r//g' | awk '{printf "%s%%0A", $0}'; }
+          for v in packages/rpm/build/stage-*/VERSION.txt; do
+            if [ -f "$v" ]; then echo "::notice title=$(basename "$(dirname "$v")")::$(enc <"$v")"; fi
+          done
+          for a in packages/rpm/out/rpm/*.7z; do
+            if [ -f "$a" ]; then echo "::notice title=$(basename "$a")::$(wc -c <"$a" | tr -d ' ') bytes"; fi
+          done
+          if [ "$JOB_STATUS" != "success" ] && [ -f packages/rpm/build/build.log ]; then
+            echo "::error title=build.log (tail)::$(tail -n 60 packages/rpm/build/build.log | enc)"
+          fi
+        env:
+          JOB_STATUS: ${{ job.status }}
 
       - name: Upload rpm macOS artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
@@ -128,6 +169,7 @@ jobs:
         env:
           IMAGE: ${{ matrix.image }}
         run: |
+          set -o pipefail
           docker run --rm -v "$PWD:/w" -w /w "$IMAGE" bash -c '
             set -e
             if command -v apt-get >/dev/null; then
@@ -137,7 +179,18 @@ jobs:
               apt-get update -qq && apt-get install -y -qq --no-install-recommends rpm binutils >/dev/null
             fi
             bash packages/rpm/assets/test.sh --bundle-dir /w/bundle --fpm /w/fpmtk/fpm --plant-host-macros --host-rpm "$(command -v rpm)"
-          '
+          ' 2>&1 | tee test.log
+
+      - name: Report test result as annotation
+        if: always()
+        run: |
+          enc() { sed -e 's/%/%25/g' -e 's/\r//g' | awk '{printf "%s%%0A", $0}'; }
+          if [ -f test.log ]; then
+            if grep -q '0 failed' test.log; then lvl=notice; else lvl=error; fi
+            echo "::$lvl title=smoke test (${RUNNER_LABEL})::$(grep -v '^     ' test.log | tail -n 45 | enc)"
+          fi
+        env:
+          RUNNER_LABEL: ${{ matrix.image || matrix.runner }}
 
   test-mac:
     name: Test darwin-arm64 on ${{ matrix.runner }}
@@ -169,4 +222,17 @@ jobs:
           du -sh bundle
 
       - name: Smoke test
-        run: bash packages/rpm/assets/test.sh --bundle-dir bundle --fpm "$PWD/fpmtk/fpm" --plant-host-macros
+        run: |
+          set -o pipefail
+          bash packages/rpm/assets/test.sh --bundle-dir bundle --fpm "$PWD/fpmtk/fpm" --plant-host-macros 2>&1 | tee test.log
+
+      - name: Report test result as annotation
+        if: always()
+        run: |
+          enc() { sed -e 's/%/%25/g' -e 's/\r//g' | awk '{printf "%s%%0A", $0}'; }
+          if [ -f test.log ]; then
+            if grep -q '0 failed' test.log; then lvl=notice; else lvl=error; fi
+            echo "::$lvl title=smoke test (${RUNNER_LABEL})::$(grep -v '^     ' test.log | tail -n 45 | enc)"
+          fi
+        env:
+          RUNNER_LABEL: ${{ matrix.image || matrix.runner }}

@@ -42,8 +42,9 @@ else
     docker pull --platform "linux/$ARCH" "$IMAGE"
     docker image inspect --format '🐳 {{index .RepoDigests 0}}' "$IMAGE" || true
     rm -rf "$STAGE"
+    # WORK_DIR on the bind mount keeps cmake/make logs on the host for CI failure reports
     docker run --rm --platform "linux/$ARCH" \
-        -v "$CWD:/work" -w /work \
+        -v "$CWD:/work" -w /work -e WORK_DIR="/work/build/work-$ARCHIVE_ARCH" \
         "$IMAGE" \
         bash -c "bash /work/assets/build-linux.sh /work/build/stage-linux-$ARCHIVE_ARCH && chown -R $(id -u):$(id -g) /work/build"
     compress "$STAGE" "$OUTPUT_DIR/rpm-${RPM_VERSION}-linux-${ARCHIVE_ARCH}.7z"
