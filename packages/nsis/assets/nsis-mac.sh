@@ -125,6 +125,24 @@ if ! scons \
     exit 1
 fi
 
+# Second build without logging for the default (non-logging) bundle; only makensis reads NSIS_CONFIG_LOG
+# shellcheck disable=SC2086
+if ! scons \
+    SKIPSTUBS=all \
+    SKIPPLUGINS=all \
+    SKIPUTILS=all \
+    SKIPMISC=all \
+    NSIS_CONFIG_CONST_DATA_PATH=no \
+    NSIS_CONFIG_LOG=no \
+    NSIS_MAX_STRLEN=8192 \
+    $SCONS_BREW_FLAGS \
+    PREFIX="$BUILD_DIR/install-nolog" \
+    install-compiler; then
+    echo "❌ Compilation failed (NSIS_CONFIG_LOG=no)"
+    echo "   Check that Xcode Command Line Tools are properly installed"
+    exit 1
+fi
+
 echo "  ✓ Compilation successful"
 
 # =============================================================================
@@ -132,19 +150,20 @@ echo "  ✓ Compilation successful"
 # =============================================================================
 
 COMPILED_BINARY="$BUILD_DIR/install/makensis"
+COMPILED_BINARY_NOLOG="$BUILD_DIR/install-nolog/makensis"
 
-if [ ! -f "$COMPILED_BINARY" ]; then
+if [ ! -f "$COMPILED_BINARY" ] || [ ! -f "$COMPILED_BINARY_NOLOG" ]; then
     echo "❌ Compiled binary not found at expected location"
     exit 1
 fi
 
-chmod +x "$COMPILED_BINARY"
+chmod +x "$COMPILED_BINARY" "$COMPILED_BINARY_NOLOG"
 
 echo ""
 echo "🧪 Verifying binary..."
 
 # Check if it's a valid Mach-O binary
-if file "$COMPILED_BINARY" | grep -q "Mach-O"; then
+if file "$COMPILED_BINARY" | grep -q "Mach-O" && file "$COMPILED_BINARY_NOLOG" | grep -q "Mach-O"; then
     echo "  ✓ Valid macOS Mach-O binary"
 else
     echo "  ❌ Binary verification failed: not a valid macOS Mach-O binary"
@@ -164,6 +183,10 @@ mkdir -p "$TEMP_DIR/nsis-bundle/mac"
 
 cp "$COMPILED_BINARY" "$TEMP_DIR/nsis-bundle/mac/makensis"
 chmod +x "$TEMP_DIR/nsis-bundle/mac/makensis"
+# non-logging makensis for the default bundle (nsis-nolog/ overlay, see nsis-combine.sh)
+mkdir -p "$TEMP_DIR/nsis-nolog/mac"
+cp "$COMPILED_BINARY_NOLOG" "$TEMP_DIR/nsis-nolog/mac/makensis"
+chmod +x "$TEMP_DIR/nsis-nolog/mac/makensis"
 
 # =============================================================================
 # Create Version Metadata
@@ -201,7 +224,7 @@ echo ""
 echo "📦 Creating macOS bundle archive..."
 
 cd "$TEMP_DIR"
-tar -czf "${OUTPUT_ARCHIVE}" nsis-bundle
+tar -czf "${OUTPUT_ARCHIVE}" nsis-bundle nsis-nolog
 
 # =============================================================================
 # Cleanup

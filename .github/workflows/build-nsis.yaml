@@ -162,14 +162,18 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  # Each platform tests both bundles: the default one (nsis-bundle-<version>.tar.gz, NSIS_CONFIG_LOG=no) and the -log one
+  # (nsis-bundle-<version>-log.tar.gz, NSIS_CONFIG_LOG=yes)
   test-nsis:
-    name: Test NSIS Bundle (${{ matrix.platform }})
+    name: Test NSIS Bundle (${{ matrix.platform }}, ${{ matrix.variant }})
     runs-on: ${{ matrix.runner }}
     needs: combine-artifacts
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
+        platform: [Windows (powershell), Windows (cmd), Linux (x64), Linux (arm64), macOS (x64), macOS (arm64)]
+        variant: [default, log]
         include:
           - platform: Windows (powershell)
             runner: windows-latest
@@ -195,6 +199,9 @@ jobs:
             runner: macos-15
             platform_slug: macos-arm64
             upload_installer: true
+    env:
+      VARIANT: ${{ matrix.variant }}
+      PLATFORM_SLUG: ${{ matrix.platform_slug }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -209,33 +216,43 @@ jobs:
         shell: bash
         run: |
           BUNDLE_PATH="./packages/nsis/out/nsis"
-          shopt -s nullglob || true
-          archives=( "$BUNDLE_PATH"/*.tar.gz )
-          if (( ${#archives[@]} == 0 )); then
-              echo "ERROR: no *.tar.gz files found in $BUNDLE_PATH"
-              exit 1
+          shopt -s nullglob
+          archives=()
+          for archive in "$BUNDLE_PATH"/nsis-bundle-*.tar.gz; do
+            case "$archive" in
+              *-log.tar.gz) [ "$VARIANT" = "log" ] && archives+=( "$archive" ) ;;
+              *) [ "$VARIANT" = "default" ] && archives+=( "$archive" ) ;;
+            esac
+          done
+          if (( ${#archives[@]} != 1 )); then
+            echo "ERROR: expected one $VARIANT archive in $BUNDLE_PATH, found ${#archives[@]}: ${archives[*]}"
+            exit 1
           fi
           echo "Using archive: ${archives[0]}"
-          tar -xzf "${archives[0]}" -C "$BUNDLE_PATH"
-          echo "✅ Extracted to $BUNDLE_PATH/nsis-bundle"
+          mkdir -p "$BUNDLE_PATH/$VARIANT"
+          tar -xzf "${archives[0]}" -C "$BUNDLE_PATH/$VARIANT"
+          echo "✅ Extracted to $BUNDLE_PATH/$VARIANT/nsis-bundle"
 
       - name: Run NSIS test suite
         timeout-minutes: 10
         shell: bash
         run: |
-          bash packages/nsis/assets/nsis-test.sh --bundle-dir packages/nsis/out/nsis/nsis-bundle
+          LOGGING=no
+          [ "$VARIANT" = "log" ] && LOGGING=yes
+          bash packages/nsis/assets/nsis-test.sh --bundle-dir "packages/nsis/out/nsis/$VARIANT/nsis-bundle" --logging "$LOGGING"
 
       - name: Compile E2E installer
         if: matrix.upload_installer == true
         timeout-minutes: 10
         shell: bash
         run: |
-          WRAPPER="$(pwd)/packages/nsis/out/nsis/nsis-bundle/makensis"
+          WRAPPER="$(pwd)/packages/nsis/out/nsis/$VARIANT/nsis-bundle/makensis"
           chmod +x "$WRAPPER" 2>/dev/null || true
           # Use RUNNER_TEMP so upload-artifact (Node.js) resolves the path on all platforms
           E2E_DIR="$RUNNER_TEMP/nsis-e2e"
           mkdir -p "$E2E_DIR"
 
+          # the -log installer also writes install.log, which nsis-e2e-install.sh checks
           cat > "$E2E_DIR/e2e.nsi" << 'NSI'
           Name "NSIS E2E Test"
           OutFile "e2e-installer.exe"
@@ -244,6 +261,10 @@ jobs:
 
           Section "Install"
             SetOutPath "$INSTDIR"
+            !ifdef E2E_LOG
+              LogSet on
+              LogText "nsis-e2e-logged"
+            !endif
             FileOpen $0 "$INSTDIR\INSTALLED.txt" w
             FileWrite $0 "nsis-e2e-installed"
             FileClose $0
@@ -252,20 +273,23 @@ jobs:
 
           Section "Uninstall"
             Delete "$INSTDIR\INSTALLED.txt"
+            Delete "$INSTDIR\install.log"
             Delete "$INSTDIR\Uninstall.exe"
             RMDir "$INSTDIR"
           SectionEnd
           NSI
 
+          DEFINES=()
+          [ "$VARIANT" = "log" ] && DEFINES+=( -DE2E_LOG )
           cd "$E2E_DIR"
-          bash "$WRAPPER" e2e.nsi
-          echo "✅ E2E installer compiled (${{ matrix.platform_slug }})"
+          bash "$WRAPPER" ${DEFINES[@]+"${DEFINES[@]}"} e2e.nsi
+          echo "✅ E2E installer compiled ($PLATFORM_SLUG, $VARIANT)"
 
       - name: Upload E2E installer
         if: matrix.upload_installer == true
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: nsis-e2e-installer-${{ matrix.platform_slug }}
+          name: nsis-e2e-installer-${{ matrix.platform_slug }}-${{ matrix.variant }}
           path: ${{ runner.temp }}/nsis-e2e/e2e-installer.exe
           if-no-files-found: error
           retention-days: 1

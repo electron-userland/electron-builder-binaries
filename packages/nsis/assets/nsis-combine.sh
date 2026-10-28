@@ -4,8 +4,13 @@ set -euo pipefail
 # =============================================================================
 # NSIS Bundle Combiner
 # =============================================================================
-# Combines base, Linux, macOS, and elevate bundles into a single complete bundle
-# Generates universal entrypoint wrapper script
+# Combines base, Linux, macOS, and elevate bundles into a complete bundle and
+# generates the universal entrypoint wrapper scripts. Writes two archives:
+#   nsis-bundle-<version>.tar.gz      default: makensis + stubs with NSIS_CONFIG_LOG=no
+#   nsis-bundle-<version>-log.tar.gz  makensis + stubs with NSIS_CONFIG_LOG=yes (LogSet,
+#                                     electron-builder's nsis.installerDebugLogging)
+# Every input archive carries the logging build under nsis-bundle/ and the
+# non-logging makensis / stubs under nsis-nolog/; all other files are shared.
 # =============================================================================
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -87,6 +92,10 @@ if [ ! -d "$BUILD_DIR/nsis-bundle" ]; then
     echo "❌ Base bundle extraction failed - nsis-bundle directory not found"
     exit 1
 fi
+if [ ! -d "$BUILD_DIR/nsis-nolog/windows" ]; then
+    echo "❌ Base bundle extraction failed - nsis-nolog/windows (non-logging makensis.exe + stubs) not found"
+    exit 1
+fi
 
 echo "  ✓ Base bundle extracted"
 
@@ -120,8 +129,9 @@ if [ -n "$LINUX_BUNDLE" ]; then
     
     tar -xzf "$LINUX_BUNDLE" -C "$TEMP_LINUX"
     
-    if [ -d "$TEMP_LINUX/nsis-bundle/linux" ]; then
+    if [ -d "$TEMP_LINUX/nsis-bundle/linux" ] && [ -d "$TEMP_LINUX/nsis-nolog/linux" ]; then
         cp -r "$TEMP_LINUX/nsis-bundle/linux" "$BUILD_DIR/nsis-bundle/"
+        cp -r "$TEMP_LINUX/nsis-nolog/linux" "$BUILD_DIR/nsis-nolog/"
         echo "  ✓ Linux binary added"
     else
         echo "  ⚠️  Linux binary not found in bundle"
@@ -145,11 +155,12 @@ if [ "${#MAC_BUNDLES[@]}" -gt 0 ]; then
         
         tar -xzf "$mac_bundle" -C "$TEMP_MAC"
         
-        if [ -d "$TEMP_MAC/nsis-bundle/mac" ]; then
+        if [ -d "$TEMP_MAC/nsis-bundle/mac" ] && [ -f "$TEMP_MAC/nsis-nolog/mac/makensis" ]; then
             arch="${mac_bundle##*-mac-}"
             arch="${arch%%-*}"
-            mkdir -p "$BUILD_DIR/nsis-bundle/mac/$arch"
+            mkdir -p "$BUILD_DIR/nsis-bundle/mac/$arch" "$BUILD_DIR/nsis-nolog/mac/$arch"
             cp "$TEMP_MAC/nsis-bundle/mac"/* "$BUILD_DIR/nsis-bundle/mac/$arch"
+            cp "$TEMP_MAC/nsis-nolog/mac/makensis" "$BUILD_DIR/nsis-nolog/mac/$arch/makensis"
             echo "  ✓ macOS binary added ($(basename "$mac_bundle"))"
         else
             echo "  ⚠️  macOS binary not found in $(basename "$mac_bundle")"
@@ -366,6 +377,15 @@ export NSISDIR="\$(pwd)/windows"
 ./mac/makensis your-script.nsi           # macOS
 \`\`\`
 
+## Logging
+
+NSIS is published as two bundles that differ only in \`makensis\` and the stubs:
+
+- \`nsis-bundle-<version>.tar.gz\` (default): built with \`NSIS_CONFIG_LOG=no\`
+- \`nsis-bundle-<version>-log.tar.gz\`: built with \`NSIS_CONFIG_LOG=yes\`, so scripts can use \`LogSet\` / \`LogText\`
+
+The \`Logging:\` line of \`VERSION.txt\` says which bundle this is.
+
 ## Version Information
 
 - NSIS Version: $NSIS_VERSION
@@ -429,22 +449,79 @@ curl -fsSL --retry 3 --retry-delay 2 --max-time 60 \
 echo "  ✓ LICENSE downloaded"
 
 # =============================================================================
-# Create Final Archive
+# Create the default (non-logging) and -log bundles
 # =============================================================================
 
 echo ""
-echo "📦 Creating final tar.gz archive..."
+echo "🪵 Creating the default (NSIS_CONFIG_LOG=no) and -log (NSIS_CONFIG_LOG=yes) bundles..."
+
+LOG_ROOT="$BUILD_DIR/log"
+DEFAULT_ROOT="$BUILD_DIR/default"
+mkdir -p "$LOG_ROOT" "$DEFAULT_ROOT"
+mv "$BUILD_DIR/nsis-bundle" "$LOG_ROOT/nsis-bundle"
+cp -a "$LOG_ROOT/nsis-bundle" "$DEFAULT_ROOT/nsis-bundle"
+
+# Every makensis of the bundle needs its non-logging build, and the two stub sets must have the same files
+while IFS= read -r rel; do
+    if [ ! -f "$BUILD_DIR/nsis-nolog/$rel" ]; then
+        echo "❌ no non-logging build of $rel"
+        exit 1
+    fi
+done < <(cd "$LOG_ROOT/nsis-bundle" && find windows/makensis.exe linux mac -type f -name 'makensis*' 2>/dev/null)
+if ! diff <(cd "$LOG_ROOT/nsis-bundle/windows/Stubs" && find . -type f | sort) <(cd "$BUILD_DIR/nsis-nolog/windows/Stubs" && find . -type f | sort); then
+    echo "❌ the logging and non-logging builds have different stubs"
+    exit 1
+fi
+while IFS= read -r rel; do
+    if [ ! -f "$LOG_ROOT/nsis-bundle/$rel" ]; then
+        echo "❌ non-logging $rel has no counterpart in the logging bundle"
+        exit 1
+    fi
+    cp "$BUILD_DIR/nsis-nolog/$rel" "$DEFAULT_ROOT/nsis-bundle/$rel"
+done < <(cd "$BUILD_DIR/nsis-nolog" && find . -type f | sed 's|^\./||')
+rm -rf "$BUILD_DIR/nsis-nolog"
+
+# Platform VERSION.txt files describe the logging build; rewrite them for the default bundle (portable sed, no -i)
+rewrite() {
+    local file="$1"; shift
+    sed "$@" "$file" > "$file.tmp" && mv "$file.tmp" "$file"
+}
+rewrite "$DEFAULT_ROOT/nsis-bundle/windows/VERSION.txt" -e 's/(LOG + STRLEN=8192)/(STRLEN=8192)/' -e 's/^Log Feature: enabled/Log Feature: disabled/'
+while IFS= read -r version_file; do
+    rewrite "$version_file" -e 's/NSIS_CONFIG_LOG=yes (matches the Windows stubs)/NSIS_CONFIG_LOG=no (matches the Windows stubs)/'
+done < <(find "$DEFAULT_ROOT/nsis-bundle/linux" "$DEFAULT_ROOT/nsis-bundle/mac" -name VERSION.txt 2>/dev/null)
+echo "Logging: NSIS_CONFIG_LOG=no (LogSet unsupported; use the -log bundle for logging)" >> "$DEFAULT_ROOT/nsis-bundle/VERSION.txt"
+echo "Logging: NSIS_CONFIG_LOG=yes (makensis and stubs)" >> "$LOG_ROOT/nsis-bundle/VERSION.txt"
+
+# The bundles may differ only in the makensis builds, the stubs and the VERSION.txt files
+UNEXPECTED_DIFF=$(diff -rq "$LOG_ROOT/nsis-bundle" "$DEFAULT_ROOT/nsis-bundle" \
+    | sed -e "s|$LOG_ROOT/nsis-bundle/||" -e "s| and .*||" -e 's|^Files ||' \
+    | grep -vE '^(windows/makensis\.exe|linux/[^/]+/makensis|mac/[^/]+/makensis|windows/Stubs/[^/]+|(.+/)?VERSION\.txt)$' || true)
+if [ -n "$UNEXPECTED_DIFF" ]; then
+    echo "❌ the default and -log bundles differ in more than makensis / stubs:"
+    echo "$UNEXPECTED_DIFF"
+    exit 1
+fi
+echo "  ✓ default and -log bundles differ only in makensis, Stubs/ and VERSION.txt"
+
+# =============================================================================
+# Create Final Archives
+# =============================================================================
+
+echo ""
+echo "📦 Creating final tar.gz archives..."
 
 ARCHIVE_NAME="nsis-bundle-$NSIS_VERSION.tar.gz"
-rm -f "$OUT_DIR/$ARCHIVE_NAME"
+LOG_ARCHIVE_NAME="nsis-bundle-$NSIS_VERSION-log.tar.gz"
+rm -f "$OUT_DIR/$ARCHIVE_NAME" "$OUT_DIR/$LOG_ARCHIVE_NAME"
 
-(
-    cd "$BUILD_DIR"
-    tar -czf "$OUT_DIR/$ARCHIVE_NAME" nsis-bundle
-)
+# both archives hold a top-level nsis-bundle/ directory
+(cd "$DEFAULT_ROOT" && tar -czf "$OUT_DIR/$ARCHIVE_NAME" nsis-bundle)
+(cd "$LOG_ROOT" && tar -czf "$OUT_DIR/$LOG_ARCHIVE_NAME" nsis-bundle)
 
-rm -rf "$OUT_DIR/nsis-bundle"
-mv "$BUILD_DIR/nsis-bundle" "$OUT_DIR/nsis-bundle"
+rm -rf "$OUT_DIR/nsis-bundle" "$OUT_DIR/nsis-bundle-log"
+mv "$DEFAULT_ROOT/nsis-bundle" "$OUT_DIR/nsis-bundle"
+mv "$LOG_ROOT/nsis-bundle" "$OUT_DIR/nsis-bundle-log"
 
 # =============================================================================
 # Summary
@@ -454,9 +531,9 @@ echo ""
 echo "================================================================"
 echo "  ✅ Bundle Combination Complete!"
 echo "================================================================"
-echo "  📁 Directory: $OUT_DIR/nsis-bundle"
-echo "  📁 Archive:   $OUT_DIR/$ARCHIVE_NAME"
-echo "  📊 Size:      $(du -h "$OUT_DIR/$ARCHIVE_NAME" | cut -f1)"
+echo "  📁 Directories: $OUT_DIR/nsis-bundle, $OUT_DIR/nsis-bundle-log"
+echo "  📁 Archive:     $OUT_DIR/$ARCHIVE_NAME ($(du -h "$OUT_DIR/$ARCHIVE_NAME" | cut -f1))"
+echo "  📁 Archive:     $OUT_DIR/$LOG_ARCHIVE_NAME ($(du -h "$OUT_DIR/$LOG_ARCHIVE_NAME" | cut -f1))"
 echo "================================================================"
 echo ""
 

@@ -90,10 +90,13 @@ combine() {
 }
 
 run_tests() {
-    BUNDLE_DIR="$OUT_DIR/nsis/nsis-bundle"
-    echo "🧪 Running test suite..."
+    # nsis-combine.sh leaves the default (NSIS_CONFIG_LOG=no) bundle in nsis-bundle/ and the -log bundle in nsis-bundle-log/
+    echo "🧪 Running test suite (default bundle, NSIS_CONFIG_LOG=no)..."
     echo ""
-    bash "$ASSETS_DIR/nsis-test.sh" --bundle-dir "$BUNDLE_DIR" ${TEST_ARGS[@]+"${TEST_ARGS[@]}"}
+    bash "$ASSETS_DIR/nsis-test.sh" --bundle-dir "$OUT_DIR/nsis/nsis-bundle" --logging no ${TEST_ARGS[@]+"${TEST_ARGS[@]}"}
+    echo "🧪 Running test suite (-log bundle, NSIS_CONFIG_LOG=yes)..."
+    echo ""
+    bash "$ASSETS_DIR/nsis-test.sh" --bundle-dir "$OUT_DIR/nsis/nsis-bundle-log" --logging yes ${TEST_ARGS[@]+"${TEST_ARGS[@]}"}
 }
 
 show_usage() {
