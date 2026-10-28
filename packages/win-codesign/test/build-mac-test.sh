@@ -88,6 +88,10 @@ if [[ -f "$ASSETS_DIR/../../../scripts/verify-licenses.sh" ]]; then
     else
         fail "binaries without license files (scripts/verify-licenses.sh)"
     fi
+elif [[ "${LICENSE_GUARD_RUN_BY_CALLER:-0}" == 1 ]]; then
+    # build-linux-test.sh in the Docker test, where the repository root is not mounted:
+    # build-linux-docker-test.sh runs the guard on the zip on the host.
+    echo "  ⏭  license guard not available here (the caller runs it)"
 else
     fail "license guard scripts/verify-licenses.sh not found"
 fi

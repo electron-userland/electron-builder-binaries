@@ -107,7 +107,8 @@ else
 fi
 
 # ── Version + sign / verify (shared with the macOS bundle test) ───────────────
-if EXPECTED_OPENSSL="$EXPECTED_OPENSSL" bash "$TEST_DIR/build-mac-test.sh" "$BUNDLE"; then
+# The license guard ran above when the repository is available; otherwise build-linux-docker-test.sh runs it on the zip.
+if EXPECTED_OPENSSL="$EXPECTED_OPENSSL" LICENSE_GUARD_RUN_BY_CALLER=1 bash "$TEST_DIR/build-mac-test.sh" "$BUNDLE"; then
     pass "version, legacy PKCS#12 and PEM sign/verify checks"
 else
     fail "version, legacy PKCS#12 or PEM sign/verify checks (see above)"
