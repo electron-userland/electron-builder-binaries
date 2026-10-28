@@ -11,7 +11,7 @@ Usage: $0 [options]
   --arch              Target architecture: x64, arm64
                       (default: \$PLATFORM_ARCH or 'x64')
   --osslsigncode-ver  osslsigncode version tag to clone and build
-                      (default: \$OSSLSIGNCODE_VER or '2.9')
+                      (default: \$OSSLSIGNCODE_VER or '2.14')
   --cmake-version     CMake version (informational; resolved via MSYS2 packages)
                       (default: \$CMAKE_VERSION or '3.28.3')
   --output-dir        Output directory for the ZIP artifact
@@ -22,7 +22,7 @@ EOF
 }
 
 BUILD_ARCH="${PLATFORM_ARCH:-x64}"
-OSSLSIGNCODE_VER="${OSSLSIGNCODE_VER:-2.9}"
+OSSLSIGNCODE_VER="${OSSLSIGNCODE_VER:-2.14}"
 CMAKE_VERSION="${CMAKE_VERSION:-3.28.3}"
 OUTPUT_DIR="$SCRIPT_DIR/out/win-codesign"
 

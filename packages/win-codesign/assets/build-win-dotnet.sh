@@ -35,12 +35,12 @@ usage() {
     cat >&2 << EOF
 Usage: $0 [options]
   --dotnet-version  .NET Runtime version to download
-                    (default: \$DOTNET_VERSION or '8.0.28')
+                    (default: \$DOTNET_VERSION or '8.0.33')
   --dotnet-sha256   Expected SHA-256 of the downloaded zip. Defaults to the pinned
                     hash of the default --dotnet-version; override when changing
                     --dotnet-version, or pass an empty string to skip verification
                     (not recommended)
-                    (default: \$DOTNET_SHA256 or the pinned 8.0.28 hash)
+                    (default: \$DOTNET_SHA256 or the pinned 8.0.33 hash)
   --output-dir      Output directory for the bundle ZIP
                     (default: <package-root>/out/win-codesign)
   -h|--help         Show this help
@@ -49,9 +49,9 @@ EOF
 }
 
 # Defaults — CLI flags take precedence over env vars, env vars over built-in defaults
-DOTNET_VERSION="${DOTNET_VERSION:-8.0.28}"
-# Pinned SHA-256 of dotnet-runtime-8.0.28-win-x64.zip
-DOTNET_SHA256="${DOTNET_SHA256:-d525978009270857c7a3ff0ce7f5d1244ae547dd34482e09738fea49814f76cf}"
+DOTNET_VERSION="${DOTNET_VERSION:-8.0.33}"
+# Pinned SHA-256 of dotnet-runtime-8.0.33-win-x64.zip
+DOTNET_SHA256="${DOTNET_SHA256:-d88b9624950fd33ffd561462f4a23d7ef6d4173ddef55d198adab07016bc5b8c}"
 OUTPUT_DIR="$SCRIPT_DIR/out/win-codesign"
 
 while [[ $# -gt 0 ]]; do
@@ -91,6 +91,11 @@ curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --max-tim
 if [ -n "${DOTNET_SHA256}" ]; then
     echo "  🔍 Verifying checksum..."
     verify_sha256 "$DOTNET_ZIP" "$DOTNET_SHA256"
+fi
+# Microsoft publishes only SHA-512 hashes (dotnet/core release-notes/<major>/releases.json);
+# log it so a new SHA-256 pin can be cross-checked against the official hash.
+if command -v sha512sum >/dev/null 2>&1; then
+    echo "  sha512: $(sha512sum "$DOTNET_ZIP" | awk '{print $1}')"
 fi
 
 # ── Extract and repackage ─────────────────────────────────────────────────────

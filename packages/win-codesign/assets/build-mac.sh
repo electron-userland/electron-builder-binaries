@@ -11,7 +11,7 @@ Usage: $0 [options]
   --arch              Target architecture: arm64, x86_64
                       (default: \$PLATFORM_ARCH or native uname -m)
   --osslsigncode-ver  osslsigncode version tag to clone and build
-                      (default: \$OSSLSIGNCODE_VER or '2.9')
+                      (default: \$OSSLSIGNCODE_VER or '2.14')
   --openssl-ver       OpenSSL release to build and bundle
                       (default: \$OPENSSL_VER or '3.5.9'; set \$OPENSSL_SHA256 when overriding)
   --output-dir        Output directory for the ZIP artifact
@@ -22,7 +22,7 @@ EOF
 }
 
 ARCH="${PLATFORM_ARCH:-$(uname -m)}"
-OSSLSIGNCODE_VER="${OSSLSIGNCODE_VER:-2.9}"
+OSSLSIGNCODE_VER="${OSSLSIGNCODE_VER:-2.14}"
 # OPENSSL_VER/OPENSSL_SHA256 and LIBP11_VER/LIBP11_SHA256 (shared with the Linux build).
 # shellcheck source=deps-versions.sh
 source "$SCRIPT_DIR/assets/deps-versions.sh"

@@ -5,7 +5,7 @@ on:
     inputs:
       osslsigncode_ver:
         description: "osslsigncode version tag to build"
-        default: "2.11"
+        default: "2.14"
         required: false
       rcedit_version:
         description: "rcedit release version"
@@ -37,7 +37,7 @@ jobs:
         run: |
           bash ./packages/win-codesign/build.sh \
             --arch ${{ matrix.arch }} \
-            --osslsigncode-ver ${{ inputs.osslsigncode_ver || '2.11' }}
+            --osslsigncode-ver ${{ inputs.osslsigncode_ver || '2.14' }}
 
       # Clean ubuntu:24.04 (no OpenSSL 1.1): linkage, file signing and SoftHSM PKCS#11 signing.
       - name: Test win-codesign Linux bundle (${{ matrix.arch }})
@@ -93,7 +93,7 @@ jobs:
         run: |
           bash ./packages/win-codesign/build.sh \
             --arch ${{ matrix.arch }} \
-            --osslsigncode-ver ${{ inputs.osslsigncode_ver || '2.11' }} \
+            --osslsigncode-ver ${{ inputs.osslsigncode_ver || '2.14' }} \
             --target ossl
 
       - name: Upload artifact
@@ -195,7 +195,7 @@ jobs:
         run: |
           bash packages/win-codesign/build.sh \
             --arch ${{ matrix.arch }} \
-            --osslsigncode-ver ${{ inputs.osslsigncode_ver || '2.11' }}
+            --osslsigncode-ver ${{ inputs.osslsigncode_ver || '2.14' }}
 
       - name: Test win-codesign macOS bundle (${{ matrix.arch }})
         shell: bash

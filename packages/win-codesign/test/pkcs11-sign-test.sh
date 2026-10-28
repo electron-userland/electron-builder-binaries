@@ -5,7 +5,7 @@
 # uses (packages/app-builder-lib/src/codeSign/win/pkcs11SignManager.ts):
 #   sign -in <file> -out <file> -pkcs11module <module> -key <pkcs11 URI> -certs <chain> -h sha256 -pass <PIN>
 # (timestamping is left out so the test needs no network). With `-pkcs11module` and no
-# `-pkcs11engine`, osslsigncode 2.11 first loads the libp11 "pkcs11prov" OpenSSL provider and
+# `-pkcs11engine`, osslsigncode (2.11 and later) first loads the libp11 "pkcs11prov" OpenSSL provider and
 # falls back to the libp11 "pkcs11" engine, so libp11 must be reachable.
 #
 # Run: bash packages/win-codesign/test/pkcs11-sign-test.sh <bundle.zip | bundle dir>

@@ -9,7 +9,7 @@ usage() {
     cat >&2 << EOF
 Usage: $0 [options]
   --arch              Target architecture (default: \$PLATFORM_ARCH or 'x86_64')
-  --osslsigncode-ver  osslsigncode version tag (default: \$OSSLSIGNCODE_VER or '2.11')
+  --osslsigncode-ver  osslsigncode version tag (default: \$OSSLSIGNCODE_VER or '2.14')
   --rcedit-version    rcedit release version (default: \$RCEDIT_VERSION or '2.0.0')
   --os-target         Override OS detection: linux, darwin, windows
                       (default: auto-detected via uname)
@@ -21,7 +21,7 @@ EOF
 }
 
 PLATFORM_ARCH="${PLATFORM_ARCH:-x86_64}"
-OSSLSIGNCODE_VER="${OSSLSIGNCODE_VER:-2.11}"
+OSSLSIGNCODE_VER="${OSSLSIGNCODE_VER:-2.14}"
 RCEDIT_VERSION="${RCEDIT_VERSION:-2.0.0}"
 OS_TARGET="${OS_TARGET:-}"
 TARGETS=()
