@@ -16,7 +16,7 @@ OUTPUT_DIR="$BASEDIR/out/fpm"
 mkdir -p "$OUTPUT_DIR"
 
 # ===== Configuration =====
-RUBY_VERSION=$RUBY_VERSION # 3.4.3
+RUBY_VERSION=$RUBY_VERSION # e.g. 3.4.12 (set in build.sh)
 # Check if RUBY_VERSION is set
 if [ -z "$RUBY_VERSION" ]; then
     echo "RUBY_VERSION is not set. Please set it to the desired Ruby version."

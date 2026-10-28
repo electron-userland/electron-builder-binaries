@@ -6,9 +6,9 @@ CWD=$(cd "$(dirname "$BASH_SOURCE")" && pwd)
 source "$CWD/constants.sh"
 LIB_DIR="$RUBY_PREFIX/lib"
 
-# SHA256 of https://cache.ruby-lang.org/pub/ruby/3.4/ruby-${RUBY_VERSION}.tar.gz
+# SHA256 of https://cache.ruby-lang.org/pub/ruby/${RUBY_VERSION%.*}/ruby-${RUBY_VERSION}.tar.gz
 # Re-pin when bumping RUBY_VERSION: curl -fsSL <url> | sha256sum
-RUBY_SHA256="${RUBY_SHA256:-55a4cd1dcbe5ca27cf65e89a935a482c2bb2284832939266551c0ec68b437f46}"
+RUBY_SHA256="${RUBY_SHA256:-5e5d85ad93b0adcccbad47733680f4892bd0078e3342437f7babce01c1872479}"
 
 verify_sha256() {
     local file="$1" expected="$2" actual
@@ -96,13 +96,20 @@ if [ "$(uname)" = "Darwin" ]; then
     make install 1>/dev/null
 else
     echo "  🐧 Compiling for Linux."
+    # Static OpenSSL 3.x built by compile-openssl.sh (see Dockerfile)
+    OPENSSL_PREFIX="${OPENSSL_PREFIX:-/opt/openssl}"
+    if [ ! -f "$OPENSSL_PREFIX/lib/libssl.a" ]; then
+        echo "❌ Static OpenSSL not found in $OPENSSL_PREFIX (run compile-openssl.sh first)" >&2
+        exit 1
+    fi
+    export PKG_CONFIG_PATH="$OPENSSL_PREFIX/lib/pkgconfig"
     autoconf
     ./autogen.sh
     COMMON_FLAGS=(
         "${BASE_FLAGS[@]}"
         "--with-opt-dir=/usr"
         "--with-libyaml-dir=/usr"
-        "--with-openssl-dir=/usr"
+        "--with-openssl-dir=$OPENSSL_PREFIX"
         "--with-zlib-dir=/usr"
         "--with-readline-dir=/usr"
         "--with-baseruby=$(which ruby)"

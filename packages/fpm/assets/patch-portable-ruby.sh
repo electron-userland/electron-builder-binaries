@@ -5,7 +5,7 @@ set -euo pipefail
 CWD=$(cd "$(dirname "$BASH_SOURCE")" && pwd)
 source "$CWD/constants.sh"
 
-GEM_LIST=("fpm -v 1.17.0" "ruby-xz") # Add other gems (with or without version arg) here
+GEM_LIST=("fpm -v 1.18.0" "ruby-xz") # Add other gems (with or without version arg) here
 ENTRYPOINT_GEMS=("fpm")
 
 # ===== Prepare folders =====
@@ -202,9 +202,8 @@ if [ "$(uname)" = "Darwin" ]; then
 
     echo "✅ All dylib references made portable. Autocopied missing libraries where needed."
 else
+    # OpenSSL is linked statically (compile-openssl.sh), so libssl/libcrypto are not copied.
     ALLOWLIST=(
-        libssl.so
-        libcrypto.so
         libreadline.so
         libz.so
         libyaml
@@ -233,6 +232,11 @@ else
             fi
         done
     done
+
+    if ldd "$RUBY_PREFIX/bin/ruby" | grep -E 'lib(ssl|crypto)\.so'; then
+        echo "❌ ruby links a shared libssl/libcrypto; expected the static OpenSSL from compile-openssl.sh" >&2
+        exit 1
+    fi
 
     echo "  🐧 Patching portable Ruby bundle for Linux"
     patchelf --set-rpath '$ORIGIN/../lib' "$RUBY_PREFIX/bin/ruby"
@@ -281,6 +285,46 @@ if [ "$(uname)" = "Darwin" ]; then
     /usr/bin/codesign -v --deep --strict "$RUBY_PREFIX"/bin/ruby || true
 fi
 
+# ===== Verify the bundle =====
+echo "🔐 Verifying Ruby's openssl extension..."
+OPENSSL_LIBRARY_VERSION="$("$RUBY_PREFIX/bin/ruby" -ropenssl -e 'print OpenSSL::OPENSSL_LIBRARY_VERSION')"
+echo "  ✓ $OPENSSL_LIBRARY_VERSION"
+if [[ "$OPENSSL_LIBRARY_VERSION" != "OpenSSL 3."* ]]; then
+    echo "❌ Expected Ruby's openssl extension to use OpenSSL 3.x, got: $OPENSSL_LIBRARY_VERSION" >&2
+    exit 1
+fi
+
+if [ "$(uname)" != "Darwin" ]; then
+    # Debian buster (glibc 2.28) is the build image so the bundle keeps running on
+    # older distros (RHEL 8, Ubuntu 18.04/20.04). Fail if anything needs newer symbols.
+    GLIBC_MAX_ALLOWED="${GLIBC_MAX_ALLOWED:-2.28}"
+    echo "🔍 Checking glibc symbol versions (max allowed GLIBC_$GLIBC_MAX_ALLOWED)..."
+    # objdump exits non-zero on the non-ELF scripts the find also matches; ignore that.
+    GLIBC_MAX="$({ find "$INSTALL_DIR" -type f \( -perm -111 -o -name '*.so' -o -name '*.so.*' \) \
+        -exec objdump -T {} + 2>/dev/null || true; } |
+        { grep -o 'GLIBC_[0-9][0-9.]*' || true; } | sed 's/GLIBC_//' | sort -uV | tail -n1)"
+    if [ -z "$GLIBC_MAX" ]; then
+        echo "❌ Could not read any GLIBC_ symbol versions from the bundle" >&2
+        exit 1
+    fi
+    echo "  ✓ highest required: GLIBC_$GLIBC_MAX"
+    if [ "$(printf '%s\n%s\n' "$GLIBC_MAX" "$GLIBC_MAX_ALLOWED" | sort -V | tail -n1)" != "$GLIBC_MAX_ALLOWED" ]; then
+        echo "❌ Bundle requires GLIBC_$GLIBC_MAX, newer than GLIBC_$GLIBC_MAX_ALLOWED" >&2
+        exit 1
+    fi
+
+    echo "🧪 Smoke test: building a .deb with the bundled fpm..."
+    SMOKE_DIR="$(mktemp -d)"
+    mkdir -p "$SMOKE_DIR/root/opt/fpm-smoke"
+    echo "hello" >"$SMOKE_DIR/root/opt/fpm-smoke/hello.txt"
+    "$INSTALL_DIR/fpm" -s dir -t deb -n fpm-smoke -v 1.0.0 -a all \
+        -C "$SMOKE_DIR/root" -p "$SMOKE_DIR/fpm-smoke.deb" . >/dev/null
+    dpkg-deb --info "$SMOKE_DIR/fpm-smoke.deb" | grep -q 'Package: fpm-smoke'
+    dpkg-deb --contents "$SMOKE_DIR/fpm-smoke.deb" | grep -q './opt/fpm-smoke/hello.txt'
+    rm -rf "$SMOKE_DIR"
+    echo "  ✓ .deb built and readable by dpkg-deb"
+fi
+
 # ===== Create VERSION file =====
 echo "🔨 Creating VERSION file..."
 RUBY_VERSION_VERBOSE="$($RUBY_PREFIX/bin/ruby --version)"
@@ -292,6 +336,7 @@ fi
 
 echo "$RUBY_VERSION_VERBOSE" >$INSTALL_DIR/VERSION.txt
 echo "fpm: $FPM_VERSION" >>$INSTALL_DIR/VERSION.txt
+echo "openssl: $OPENSSL_LIBRARY_VERSION" >>$INSTALL_DIR/VERSION.txt
 
 echo "📄 Downloading component licenses..."
 mkdir -p "$INSTALL_DIR/LICENSES"
@@ -304,6 +349,17 @@ else
   curl -fsSL --retry 3 --retry-delay 2 --max-time 60 \
     "https://raw.githubusercontent.com/ruby/ruby/master/COPYING" \
     -o "$INSTALL_DIR/LICENSES/LICENSE.ruby"
+fi
+if [ "$(uname)" = "Darwin" ]; then
+  OPENSSL_LICENSE="$(brew --prefix openssl@3)/LICENSE.txt"
+else
+  OPENSSL_LICENSE="${OPENSSL_PREFIX:-/opt/openssl}/LICENSE.txt"
+fi
+if [ -f "$OPENSSL_LICENSE" ]; then
+  cp "$OPENSSL_LICENSE" "$INSTALL_DIR/LICENSES/LICENSE.openssl"
+else
+  echo "❌ OpenSSL license not found at $OPENSSL_LICENSE" >&2
+  exit 1
 fi
 echo "  ✓ Licenses downloaded"
 
