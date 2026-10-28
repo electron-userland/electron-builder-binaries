@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Unit + e2e tests for build-win-kits.sh helpers and full script flow.
 # Run: bash packages/win-codesign/test/build-win-kits-test.sh
+# shellcheck disable=SC2001 # sed indents every line of multi-line output; ${var//...} cannot anchor at line starts
 set -uo pipefail
 
 PASS=0
@@ -151,7 +152,11 @@ SDK_FILES=(
 for arch in "${ARCHS[@]}"; do
     mkdir -p "$MOCK_SDK/$SDK_VER/$arch"
     for f in "${SDK_FILES[@]}"; do
-        echo "mock-$f" > "$MOCK_SDK/$SDK_VER/$arch/$f"
+        # .exe/.dll mocks start with "MZ" so the license guard treats them as binaries
+        case "$f" in
+            *.exe|*.dll) printf 'MZmock-%s\n' "$f" > "$MOCK_SDK/$SDK_VER/$arch/$f" ;;
+            *) echo "mock-$f" > "$MOCK_SDK/$SDK_VER/$arch/$f" ;;
+        esac
     done
 done
 
@@ -192,6 +197,16 @@ if [ -n "$PRODUCED_ZIP" ]; then
         FAIL=$(( FAIL + 1 ))
     fi
 
+    # SDK binaries ship without license files, exempted (and reported on every run) until the NuGet decision
+    EXEMPT_CONTENTS=$(unzip -p "$PRODUCED_ZIP" LICENSES/EXEMPT.tsv 2>/dev/null || true)
+    assert_eq "e2e: LICENSES/EXEMPT.tsv exempts the 11 SDK binary names" "11" \
+        "$(echo "$EXEMPT_CONTENTS" | grep -c "Windows SDK redistribution terms pending decision (NuGet fetch proposed)")"
+    assert_eq "e2e: LICENSES/EXEMPT.tsv exempts signtool.exe" "1" "$(echo "$EXEMPT_CONTENTS" | grep -c '^\*/signtool\.exe	')"
+    assert_eq "e2e: LICENSES/EXEMPT.tsv does not exempt manifests" "0" "$(echo "$EXEMPT_CONTENTS" | grep -c 'manifest')"
+    assert_eq "e2e: LICENSES/MANIFEST.tsv ships" "1" "$(echo "$ZIP_LIST" | grep -c 'LICENSES/MANIFEST.tsv')"
+    assert_eq "e2e: the license guard ran and reported the exemptions" "1" \
+        "$(echo "$E2E_OUTPUT" | grep -c '✓ All 33 binaries have license files (33 exempted')"
+
     # ATS files must NOT be in the kits bundle
     if echo "$ZIP_LIST" | grep -q "Azure.CodeSigning.Dlib.dll"; then
         echo "  ❌ e2e: kits ZIP unexpectedly contains ATS payload"
@@ -226,7 +241,7 @@ bash "$SCRIPT" --unknown-flag 2>/dev/null || UNKNOWN_EXIT=$?
 assert_eq "unknown flag exits 1" "1" "$UNKNOWN_EXIT"
 
 # --sdk-path overrides WINDOWS_KIT_PATH env var
-SDK_PATH_OUT=$(( WINDOWS_KIT_PATH="/env-only-path" bash "$SCRIPT" --sdk-path "/cli-override-path" ) 2>&1) || true
+SDK_PATH_OUT=$( ( WINDOWS_KIT_PATH="/env-only-path" bash "$SCRIPT" --sdk-path "/cli-override-path" ) 2>&1) || true
 assert_eq "--sdk-path overrides env WINDOWS_KIT_PATH" "0" "$(echo "$SDK_PATH_OUT" | grep -c '/env-only-path')"
 
 # ── e2e: error paths ──────────────────────────────────────────────────────────

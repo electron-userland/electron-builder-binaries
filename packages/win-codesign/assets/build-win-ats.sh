@@ -86,6 +86,7 @@ trap cleanup EXIT
 
 ATS_NUGET_ID="microsoft.trusted.signing.client"
 
+mkdir -p "$OUTPUT_DIR"
 echo "📦 Downloading Microsoft.Trusted.Signing.Client v${ATS_NUGET_VERSION}..."
 curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --max-time 120 \
     "https://api.nuget.org/v3-flatcontainer/${ATS_NUGET_ID}/${ATS_NUGET_VERSION}/${ATS_NUGET_ID}.${ATS_NUGET_VERSION}.nupkg" \
@@ -124,7 +125,7 @@ for arch in "${ATS_ARCHS[@]}"; do
     fi
     mkdir -p "$ATS_BUNDLE_DIR/$arch"
     cp -R "$src_dir/." "$ATS_BUNDLE_DIR/$arch/"
-    echo "  ✅ $arch: $(ls -1 "$src_dir" | wc -l | tr -d ' ') file(s)"
+    echo "  ✅ $arch: $(find "$src_dir" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ') file(s)"
     for f in "${ATS_REQUIRED[@]}"; do
         if [ ! -f "$ATS_BUNDLE_DIR/$arch/$f" ]; then
             echo "  ⚠️  Not found: $src_dir/$f"
@@ -142,6 +143,19 @@ if [ "${#MISSING_FILES[@]}" -gt 0 ]; then
     exit 1
 fi
 
+# ── Licenses ──────────────────────────────────────────────────────────────────
+# Microsoft's license terms for the package (LICENSE.md at the nupkg root) cover the whole bin/<arch> payload.
+# shellcheck source=licenses.sh
+source "$SCRIPT_DIR/assets/licenses.sh"
+ATS_COMPONENT="microsoft-trusted-signing-client"
+echo "📄 Adding the package's LICENSE.md..."
+license_add "$ATS_BUNDLE_DIR/LICENSES" "$ATS_COMPONENT" "$ATS_EXTRACT/LICENSE.md"
+for arch in "${ATS_ARCHS[@]}"; do
+    license_map "$ATS_BUNDLE_DIR/LICENSES" "$ATS_COMPONENT" "$arch/*"
+done
+license_source "$ATS_BUNDLE_DIR/LICENSES" "$ATS_COMPONENT" "$ATS_NUGET_VERSION" \
+    "https://www.nuget.org/packages/Microsoft.Trusted.Signing.Client/${ATS_NUGET_VERSION}"
+
 rm -rf "$ATS_EXTRACT"
 
 # ── ZIP ───────────────────────────────────────────────────────────────────────
@@ -155,9 +169,11 @@ rm -rf "$ATS_EXTRACT"
 echo "📦 Zipping ats-bundle..."
 ATS_ZIP="$OUTPUT_DIR/ats-bundle-${ATS_NUGET_VERSION//./_}.zip"
 
-cd "$ATS_BUNDLE_DIR"
-zip -r -9 "$ATS_ZIP" .
+(cd "$ATS_BUNDLE_DIR" && zip -r -9 "$ATS_ZIP" .)
 rm -rf "$ATS_BUNDLE_DIR"
+
+# Every binary in the zip must ship its license (scripts/verify-licenses.sh).
+license_verify "$ATS_ZIP"
 
 echo "✅ Created bundle: $ATS_ZIP"
 echo ""

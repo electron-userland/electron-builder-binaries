@@ -66,7 +66,7 @@ RUN ARCH=$(uname -m) && \
 RUN cmake --version
 
 COPY ./assets/deps-versions.sh ./assets/compiler-flags.sh ./assets/verify-linux-linkage.sh \
-     ./assets/bundle-osslsigncode.sh ./assets/build-linux-osslsigncode.sh /tmp/assets/
+     ./assets/bundle-osslsigncode.sh ./assets/build-linux-osslsigncode.sh ./assets/licenses.sh /tmp/assets/
 
 # Build OpenSSL + libp11 + osslsigncode and create the portable bundle
 RUN bash /tmp/assets/build-linux-osslsigncode.sh \

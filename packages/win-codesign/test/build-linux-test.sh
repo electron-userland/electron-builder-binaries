@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Smoke tests for the Linux osslsigncode bundle produced by build-linux.sh.
-#   - the bundle ships its OpenSSL libraries, pkcs11prov and their licenses in lib/
+#   - the bundle ships its OpenSSL libraries and pkcs11prov in lib/, and every binary's license in LICENSES/
+#     (scripts/verify-licenses.sh layout, including osslsigncode's full GPLv3 text)
 #   - the binary and bundled libraries need only base-system libraries (glibc, libz) or each
 #     other, use $ORIGIN-relative RUNPATHs and need glibc <= $EXPECTED_MAX_GLIBC (default 2.31)
 #   - bin/osslsigncode resolves the bundled libcrypto through its RUNPATH alone (no launcher)
@@ -9,6 +10,7 @@
 #
 # Meant to run on a distro without OpenSSL 1.1 (see build-linux-docker-test.sh).
 # Run: bash packages/win-codesign/test/build-linux-test.sh <win-codesign-linux-*.zip | extracted bundle dir>
+# shellcheck disable=SC2001 # sed indents every line of multi-line output; ${var//...} cannot anchor at line starts
 set -uo pipefail
 
 PASS=0
@@ -42,13 +44,39 @@ BIN="$BUNDLE/bin/osslsigncode"
 echo "🧪 Testing Linux bundle at $BUNDLE"
 
 # ── Contents ──────────────────────────────────────────────────────────────────
-for f in libcrypto.so.3 libssl.so.3 ossl-modules/pkcs11prov.so LICENSE.openssl.txt LICENSE.libp11.txt; do
+for f in libcrypto.so.3 libssl.so.3 ossl-modules/pkcs11prov.so; do
     if [[ -f "$BUNDLE/lib/$f" ]]; then
         pass "bundle ships lib/$f"
     else
         fail "bundle is missing lib/$f"
     fi
 done
+
+# ── Licenses ──────────────────────────────────────────────────────────────────
+for f in LICENSES/MANIFEST.tsv LICENSES/SOURCES.tsv LICENSES/osslsigncode/LICENSE.txt LICENSES/osslsigncode/COPYING.txt \
+    LICENSES/openssl/LICENSE.txt LICENSES/libp11/COPYING; do
+    if [[ -s "$BUNDLE/$f" ]]; then
+        pass "bundle ships $f"
+    else
+        fail "bundle is missing $f"
+    fi
+done
+if grep -q "GNU GENERAL PUBLIC LICENSE" "$BUNDLE/LICENSES/osslsigncode/COPYING.txt" 2>/dev/null \
+    && grep -q "Version 3" "$BUNDLE/LICENSES/osslsigncode/COPYING.txt"; then
+    pass "LICENSES/osslsigncode/COPYING.txt is the full GPLv3 text"
+else
+    fail "LICENSES/osslsigncode/COPYING.txt is not the GPLv3 text"
+fi
+# scripts/verify-licenses.sh lives at the repository root, which is not mounted in the Docker test.
+if [[ -f "$ASSETS_DIR/../../../scripts/verify-licenses.sh" ]]; then
+    if bash "$ASSETS_DIR/verify-bundle-licenses.sh" "$BUNDLE"; then
+        pass "every binary ships its license (scripts/verify-licenses.sh)"
+    else
+        fail "binaries without license files (scripts/verify-licenses.sh)"
+    fi
+else
+    echo "  ⏭  license guard not available here (build-linux-docker-test.sh runs it on the zip)"
+fi
 
 # ── Linkage ───────────────────────────────────────────────────────────────────
 ELF=("$BIN")

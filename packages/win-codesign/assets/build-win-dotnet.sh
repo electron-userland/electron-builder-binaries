@@ -124,6 +124,16 @@ if [ "${#MISSING_FILES[@]}" -gt 0 ]; then
     exit 1
 fi
 
+# ── Licenses ──────────────────────────────────────────────────────────────────
+# The runtime's license (LICENSE.txt) and third-party notices (ThirdPartyNotices.txt) from the SHA-256 pinned zip.
+# They stay where the zip has them and are also laid out for scripts/verify-licenses.sh; everything in the bundle
+# is the .NET runtime as Microsoft ships it.
+# shellcheck source=licenses.sh
+source "$SCRIPT_DIR/assets/licenses.sh"
+license_add "$DOTNET_EXTRACT/LICENSES" dotnet-runtime "$DOTNET_EXTRACT/LICENSE.txt" "$DOTNET_EXTRACT/ThirdPartyNotices.txt"
+license_map "$DOTNET_EXTRACT/LICENSES" dotnet-runtime '*'
+license_source "$DOTNET_EXTRACT/LICENSES" dotnet-runtime "$DOTNET_VERSION" "$DOTNET_URL"
+
 {
     echo "bundle: dotnet-runtime"
     echo "created_at: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
@@ -135,9 +145,11 @@ fi
 echo "📦 Zipping dotnet-runtime-win-x64 bundle..."
 OUT_ZIP="$OUTPUT_DIR/dotnet-runtime-win-x64-${DOTNET_VERSION//./_}.zip"
 
-cd "$DOTNET_EXTRACT"
-zip -r -9 "$OUT_ZIP" .
+(cd "$DOTNET_EXTRACT" && zip -r -9 "$OUT_ZIP" .)
 rm -rf "$DOTNET_EXTRACT"
+
+# Every binary in the zip must ship its license (scripts/verify-licenses.sh).
+license_verify "$OUT_ZIP"
 
 echo "✅ Created bundle: $OUT_ZIP"
 echo ""

@@ -105,14 +105,28 @@ verify_sha256 "$RCEDIT_BUNDLE_DIR/rcedit-x86.exe" "$RCEDIT_X86_SHA256"
     echo "  rcedit-x86.exe: ${RCEDIT_X86_SHA256}"
 } > "$RCEDIT_BUNDLE_DIR/VERSION.txt"
 
-echo "📄 Downloading rcedit LICENSE..."
+# rcedit is MIT-licensed; take the LICENSE from the same release tag as the EXEs (not master, which can drift).
+echo "📄 Downloading rcedit LICENSE (v${RCEDIT_VERSION})..."
+# shellcheck source=licenses.sh
+source "$SCRIPT_DIR/assets/licenses.sh"
+RCEDIT_LICENSE_DOWNLOAD="$RCEDIT_BUNDLE_DIR/.download/LICENSE"
+mkdir -p "$(dirname "$RCEDIT_LICENSE_DOWNLOAD")"
 curl -fsSL --retry 3 --retry-delay 2 --max-time 60 \
-    "https://raw.githubusercontent.com/electron/rcedit/master/LICENSE" \
-    -o "$RCEDIT_BUNDLE_DIR/LICENSE"
+    "https://raw.githubusercontent.com/electron/rcedit/v${RCEDIT_VERSION}/LICENSE" \
+    -o "$RCEDIT_LICENSE_DOWNLOAD"
+license_add "$RCEDIT_BUNDLE_DIR/LICENSES" rcedit "$RCEDIT_LICENSE_DOWNLOAD"
+rm -rf "$(dirname "$RCEDIT_LICENSE_DOWNLOAD")"
+license_map "$RCEDIT_BUNDLE_DIR/LICENSES" rcedit rcedit-x64.exe rcedit-x86.exe
+license_source "$RCEDIT_BUNDLE_DIR/LICENSES" rcedit "$RCEDIT_VERSION" \
+    "https://github.com/electron/rcedit/tree/v${RCEDIT_VERSION}"
 
 echo "📦 Zipping rcedit bundle..."
+rm -f "$RCEDIT_ZIP"
 cd "$RCEDIT_BUNDLE_DIR"
 zip -r -9 "$RCEDIT_ZIP" .
+
+# Every binary in the zip must ship its license (scripts/verify-licenses.sh).
+license_verify "$RCEDIT_ZIP"
 
 echo "✅ Created bundle: $RCEDIT_ZIP"
 echo ""

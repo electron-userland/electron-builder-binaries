@@ -130,6 +130,13 @@ for dll in $REQUIRED_DLLS; do
     fi
 done
 
+echo "📄 Adding licenses..."
+# osslsigncode's LICENSE.txt + COPYING.txt from the clone of the tag just built, OpenSSL's license (applink.c is
+# compiled into osslsigncode.exe), and the license files of the MSYS2 package behind every bundled DLL.
+# shellcheck source=licenses.sh
+source "$SCRIPT_DIR/assets/licenses.sh"
+osslsigncode_windows_licenses "$BUNDLE_DIR" "$BUILD_DIR/osslsigncode" "$PACMAN_PREFIX" "$PATH_PREFIX"
+
 "$BUNDLE_DIR/bin/osslsigncode.exe" --version > "$BUNDLE_DIR/VERSION.txt" 2>&1 || true
 {
     echo "platform: Windows"
@@ -150,6 +157,9 @@ ARCHIVE="$OUTPUT_DIR/win-codesign-windows-${BUILD_ARCH}.zip"
 rm -f "$ARCHIVE"
 cd "$BUNDLE_DIR"
 zip -r -9 "$ARCHIVE" .
+
+# Every binary in the zip must ship its license (scripts/verify-licenses.sh).
+license_verify "$ARCHIVE"
 
 echo ""
 echo "✅ Build completed successfully!"

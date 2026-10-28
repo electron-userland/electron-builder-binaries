@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Unit + e2e tests for build-win-ats.sh helpers and full script flow.
 # Run: bash packages/win-codesign/test/build-win-ats-test.sh
+# shellcheck disable=SC2001 # sed indents every line of multi-line output; ${var//...} cannot anchor at line starts
 set -uo pipefail
 
 PASS=0
@@ -100,10 +101,19 @@ NUPKG_ARCHS=("x86" "x64")
 for arch in "${NUPKG_ARCHS[@]}"; do
     mkdir -p "$MOCK_NUPKG_DIR/bin/$arch"
     for dll in "${ATS_FILES[@]}"; do
-        echo "mock-$dll" > "$MOCK_NUPKG_DIR/bin/$arch/$dll"
+        # .dll mocks start with "MZ" so the license guard treats them as binaries
+        case "$dll" in
+            *.dll) printf 'MZmock-%s\n' "$dll" > "$MOCK_NUPKG_DIR/bin/$arch/$dll" ;;
+            *) echo "mock-$dll" > "$MOCK_NUPKG_DIR/bin/$arch/$dll" ;;
+        esac
     done
 done
+echo "mock Microsoft Software License Terms" > "$MOCK_NUPKG_DIR/LICENSE.md"
 (cd "$MOCK_NUPKG_DIR" && zip -r -q "$MOCK_NUPKG" .)
+
+# The same package without its LICENSE.md
+MOCK_NUPKG_NOLICENSE="$E2E_DIR/mock-nolicense.nupkg"
+(cd "$MOCK_NUPKG_DIR" && zip -r -q "$MOCK_NUPKG_NOLICENSE" . -x LICENSE.md)
 
 # Compute hash of the mock nupkg (exercises verification against a known-good hash)
 if command -v sha256sum >/dev/null 2>&1; then
@@ -177,6 +187,13 @@ if [ -n "$PRODUCED_ZIP" ]; then
         FAIL=$(( FAIL + 1 ))
     fi
 
+    # The package's LICENSE.md ships, laid out for scripts/verify-licenses.sh
+    assert_eq "e2e: ZIP ships the nupkg LICENSE.md" "mock Microsoft Software License Terms" \
+        "$(unzip -p "$PRODUCED_ZIP" LICENSES/microsoft-trusted-signing-client/LICENSE.md 2>/dev/null)"
+    assert_eq "e2e: LICENSES/MANIFEST.tsv covers x86/* and x64/*" "x86/*	microsoft-trusted-signing-client
+x64/*	microsoft-trusted-signing-client" "$(unzip -p "$PRODUCED_ZIP" LICENSES/MANIFEST.tsv 2>/dev/null | grep -v '^#')"
+    assert_eq "e2e: the license guard ran" "1" "$(echo "$E2E_OUTPUT" | grep -c '✓ All 8 binaries have license files')"
+
     # Verify temp files were cleaned up
     SCRIPT_PARENT="$(cd "$(dirname "$SCRIPT")/.." && pwd)"
     assert_file_missing "e2e: ATS nupkg cleaned up" "$SCRIPT_PARENT/out/win-codesign/ats-client.nupkg"
@@ -206,7 +223,7 @@ bash "$SCRIPT" --unknown-flag 2>/dev/null || UNKNOWN_EXIT=$?
 assert_eq "unknown flag exits 1" "1" "$UNKNOWN_EXIT"
 
 # --ats-version overrides ATS_NUGET_VERSION env var
-ATS_VER_OUT=$(( ATS_NUGET_VERSION="9.9.9" bash "$SCRIPT" --ats-version "1.2.3" ) 2>&1) || true
+ATS_VER_OUT=$( ( ATS_NUGET_VERSION="9.9.9" bash "$SCRIPT" --ats-version "1.2.3" ) 2>&1) || true
 assert_eq "--ats-version overrides env ATS_NUGET_VERSION" "0" "$(echo "$ATS_VER_OUT" | grep -c '9\.9\.9')"
 
 # ── e2e: --output-dir ─────────────────────────────────────────────────────────
@@ -249,6 +266,22 @@ E2E_SHA_ERR=0
     bash "$SCRIPT"
 ) >/dev/null 2>&1 || E2E_SHA_ERR=$?
 assert_eq "exits 1 when nupkg checksum mismatches" "1" "$E2E_SHA_ERR"
+
+# A package without its LICENSE.md must fail the build (the binaries would ship without their terms)
+NOLICENSE_SHA256=$( (sha256sum "$MOCK_NUPKG_NOLICENSE" 2>/dev/null || shasum -a 256 "$MOCK_NUPKG_NOLICENSE") | awk '{print $1}')
+E2E_NOLICENSE_OUT="$TMPDIR_ROOT/nolicense-out"
+mkdir -p "$E2E_NOLICENSE_OUT"
+E2E_NOLICENSE_ERR=0
+E2E_NOLICENSE_OUTPUT=$(
+    MOCK_NUPKG_PATH="$MOCK_NUPKG_NOLICENSE" \
+    PATH="$FAKE_BIN:$PATH" \
+    ATS_NUGET_VERSION="0.0.0" \
+    ATS_NUGET_SHA256="$NOLICENSE_SHA256" \
+    bash "$SCRIPT" --output-dir "$E2E_NOLICENSE_OUT" 2>&1
+) || E2E_NOLICENSE_ERR=$?
+assert_eq "exits 1 when the nupkg has no LICENSE.md" "1" "$E2E_NOLICENSE_ERR"
+assert_eq "names the missing LICENSE.md" "1" "$(echo "$E2E_NOLICENSE_OUTPUT" | grep -c 'missing or empty: .*LICENSE.md')"
+assert_eq "writes no bundle without the LICENSE.md" "" "$(find "$E2E_NOLICENSE_OUT" -name 'ats-bundle-*.zip')"
 
 # ── Results ───────────────────────────────────────────────────────────────────
 

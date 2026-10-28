@@ -93,7 +93,7 @@ if [ ! -d "$SDK_BASE" ]; then
     exit 1
 fi
 
-VERSION=$(ls -1 "$SDK_BASE" 2>/dev/null | grep '^10\.' | sort -V | tail -n1)
+VERSION=$(for d in "$SDK_BASE"/10.*; do if [ -d "$d" ]; then basename "$d"; fi; done | sort -V | tail -n1)
 if [ -z "$VERSION" ]; then
     echo "❌ Error: No Windows SDK version found in directory."
     echo "Directory contents:"
@@ -131,6 +131,20 @@ echo "Copying Windows SDK files..."
 copy_arch_files "$SDK_BASE/$VERSION" "$BUNDLE_DIR" "${FILES[@]}"
 report_missing "Windows SDK file(s)"
 
+# ── Licenses ──────────────────────────────────────────────────────────────────
+# The SDK tools are still copied from the runner's Windows SDK as before. Whether their license terms allow
+# redistributing them is undecided (the proposal is to fetch Microsoft.Windows.SDK.BuildTools from NuGet instead),
+# so they are listed in LICENSES/EXEMPT.tsv, which the guard reports on every run, rather than given license files.
+# shellcheck source=licenses.sh
+source "$SCRIPT_DIR/assets/licenses.sh"
+KITS_EXEMPT_REASON="Windows SDK redistribution terms pending decision (NuGet fetch proposed)"
+license_init "$BUNDLE_DIR/LICENSES"
+for f in "${FILES[@]}"; do
+    case "$f" in
+        *.exe|*.dll) license_exempt "$BUNDLE_DIR/LICENSES" "$KITS_EXEMPT_REASON" "*/$f" ;;
+    esac
+done
+
 # ── ZIP ───────────────────────────────────────────────────────────────────────
 {
     echo "bundle: windows-kits"
@@ -142,9 +156,11 @@ report_missing "Windows SDK file(s)"
 echo "📦 Zipping windows-kits..."
 ASSETS_ZIP="$OUTPUT_DIR/windows-kits-bundle-${VERSION//./_}.zip"
 
-cd "$BUNDLE_DIR"
-zip -r -9 "$ASSETS_ZIP" .
+(cd "$BUNDLE_DIR" && zip -r -9 "$ASSETS_ZIP" .)
 rm -rf "$BUNDLE_DIR"
+
+# Every binary in the zip must ship its license or be exempted (scripts/verify-licenses.sh).
+license_verify "$ASSETS_ZIP"
 
 echo "✅ Created bundle: $ASSETS_ZIP"
 echo ""
