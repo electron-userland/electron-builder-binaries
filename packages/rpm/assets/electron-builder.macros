@@ -1,0 +1,9 @@
+# electron-builder pinned defaults, loaded last by bin/rpmbuild and bin/rpm.
+# Command-line --define (e.g. fpm --rpm-rpmbuild-define) still overrides these.
+
+# Emit v4 packages so the output installs on every rpm >= 4.x host (rpm 6 defaults to v6).
+%_rpmformat 4
+
+# Do not ship /usr/lib/.build-id/* symlinks: they conflict between Electron apps that
+# bundle identical binaries (chrome-sandbox, libffmpeg.so, ...). electron-builder#10471.
+%_build_id_links none

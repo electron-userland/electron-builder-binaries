@@ -113,6 +113,11 @@ jobs:
     uses: ./.github/workflows/build-7zip.yaml
     needs: detect
 
+  rpm:
+    if: contains(needs.detect.outputs.matrix, '"rpm"')
+    uses: ./.github/workflows/build-rpm.yaml
+    needs: detect
+
   combine:
     runs-on: macos-latest
     needs: [
@@ -128,7 +133,8 @@ jobs:
         squirrel,
         wix,
         icons,
-        sevenzip
+        sevenzip,
+        rpm
       ]
     if: |
       always() &&
