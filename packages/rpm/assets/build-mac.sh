@@ -18,7 +18,7 @@ DESTDIR="$WORK/dest"
 BUNDLE="$WORK/bundle"
 export MACOSX_DEPLOYMENT_TARGET="$MACOS_MIN"
 
-# gettext: libintl is a transitive dependency of the Homebrew libgcrypt/popt bottles
+# gettext: msgfmt is needed at build time (po/), and libintl is a transitive dependency of a Homebrew bottle
 FORMULAE=(lua popt libarchive libmagic zstd xz libgcrypt libgpg-error gettext)
 echo "🍺 Installing build dependencies"
 brew install -q cmake pkgconf scdoc coreutils "${FORMULAE[@]}"

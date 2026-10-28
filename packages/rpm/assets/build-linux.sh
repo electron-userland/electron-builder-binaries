@@ -21,8 +21,9 @@ if [ "${INSTALL_DEPS:-1}" = "1" ] && command -v dnf >/dev/null 2>&1; then
     echo "📦 Installing build dependencies (dnf)"
     dnf -y -q install dnf-plugins-core
     dnf config-manager --set-enabled powertools
+    # gettext: rpm configures po/ (msgfmt/xgettext) even with ENABLE_NLS=OFF
     dnf -y -q install \
-        cmake make gawk patch bzip2 pkgconf-pkg-config binutils file \
+        cmake make gawk patch bzip2 pkgconf-pkg-config binutils file gettext \
         lua-devel popt-devel file-devel libarchive-devel zlib-devel bzip2-devel xz-devel \
         libzstd-devel elfutils-libelf-devel elfutils-devel libgcrypt-devel
 fi
