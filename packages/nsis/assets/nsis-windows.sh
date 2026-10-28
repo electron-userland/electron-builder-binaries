@@ -651,7 +651,12 @@ write_plugin_license_index "$LICENSES_DIR" "$PLUGIN_SOURCES"
 
 # Fail the build when any plugin DLL ships without license terms
 echo "🔍 Checking every plugin DLL has license terms..."
-verify_plugin_licenses "$BUNDLE_DIR"
+if ! verify_plugin_licenses "$BUNDLE_DIR"; then
+    for unlicensed in $(plugins_without_terms "$LICENSES_DIR"); do
+        report_archive_terms "$unlicensed" "$PLUGINS_DIR/$unlicensed"
+    done
+    exit 1
+fi
 
 # =============================================================================
 # Apply Language File Patches

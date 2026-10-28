@@ -185,11 +185,17 @@ echo "  ✓ elevate.exe extracted"
 docker cp "$CONTAINER_NAME:/output/LICENSES" "$TEMP_DIR/nsis-bundle/LICENSES"
 if ! grep -rqiE 'licen[cs]e|permission is (hereby )?granted|public domain' "$TEMP_DIR/nsis-bundle/LICENSES/elevate" 2>/dev/null; then
     echo "❌ No license terms for elevate.exe found in the elevate ${ELEVATE_VERSION} redist archive"
-    # Show what the redist does carry, so the terms can be found and pinned
-    docker run --rm "$IMAGE_NAME" sh -c '
-        echo "--- redist contents"; find /redist -type f | sort
-        for f in /output/LICENSES/elevate/*; do [ -f "$f" ] && { echo "--- $f"; cat "$f"; }; done
-        echo "--- head of src/elevate.c"; head -n 40 src/elevate.c | cat -A | head -n 40' || true
+    # Show what the redist does carry, so the terms can be found and pinned (also as annotations, readable
+    # through the checks API)
+    # shellcheck source=nsis-plugin-licenses.sh
+    source "$SCRIPT_DIR/nsis-plugin-licenses.sh"
+    ci_notice "elevate redist: files" "$(docker run --rm "$IMAGE_NAME" find /redist -type f 2>&1 | sort)"
+    ci_notice "elevate redist: readme / license files" "$(docker run --rm "$IMAGE_NAME" sh -c \
+        'for f in /output/LICENSES/elevate/*; do [ -f "$f" ] && { echo "=== $f"; cat "$f"; }; done' 2>&1)"
+    ci_notice "elevate redist: head of src/elevate.c" "$(docker run --rm "$IMAGE_NAME" sh -c \
+        'od -c src/elevate.c | head -n 2; head -n 30 src/elevate.c' 2>&1)"
+    ci_notice "elevate redist: license/copyright mentions" "$(docker run --rm "$IMAGE_NAME" sh -c \
+        'grep -rniE -I "licen[cs]e|copyright|\(c\) ?[0-9]|public domain|permission|freeware|free software" /redist | cut -c1-240 | head -n 60' 2>&1)"
     exit 1
 fi
 echo "  ✓ elevate license files extracted: $(find "$TEMP_DIR/nsis-bundle/LICENSES/elevate" -type f -exec basename {} \; | sort | xargs)"

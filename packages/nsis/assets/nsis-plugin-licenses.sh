@@ -138,6 +138,40 @@ verify_plugin_licenses() {
     echo "  ✓ Every plugin DLL has license terms ($(grep -c . "$tsv" | xargs) DLL records)"
 }
 
+# ci_notice <title> <text>: print <text>, and on GitHub Actions also raise it as a notice annotation, which can
+# be read through the checks API (no job log download needed)
+ci_notice() {
+    local title="$1" text="$2" msg
+    printf '%s\n%s\n' "--- $title" "$text"
+    if [ -n "${GITHUB_ACTIONS:-}" ]; then
+        msg=$(printf '%s' "$text" | head -c 30000 | awk '{gsub(/%/, "%25"); gsub(/\r/, "%0D"); printf "%s%%0A", $0}')
+        echo "::notice title=$title::$msg"
+    fi
+}
+
+# report_archive_terms <plugin> <extracted-archive-dir>
+# Shows what a plugin's download carries when no license terms were found in it: the file list and every line of
+# its text files that mentions a license or copyright, so the terms can be located and pinned.
+report_archive_terms() {
+    local plugin="$1" src="$2" files lines
+    files=$(cd "$src" 2>/dev/null && find . -type f | sed 's|^\./||' | LC_ALL=C sort)
+    lines=$(cd "$src" 2>/dev/null && find . -type f ! -iname '*.dll' ! -iname '*.exe' ! -iname '*.lib' ! -iname '*.obj' \
+        ! -iname '*.ico' ! -iname '*.bmp' ! -iname '*.png' ! -iname '*.zip' -print0 \
+        | xargs -0 grep -niE -I 'licen[cs]e|copyright|\(c\) ?[0-9]|public domain|permission|zlib|gpl|freeware|free software' 2>/dev/null \
+        | cut -c1-240 | head -n 80)
+    ci_notice "$plugin archive: files" "${files:-(no files)}"
+    ci_notice "$plugin archive: license/copyright mentions" "${lines:-(none)}"
+}
+
+# plugins_without_terms <licenses-dir>: the owners in plugin-dlls.tsv (other than NSIS) without license terms
+plugins_without_terms() {
+    local licenses="$1" owner
+    awk -F'\t' '{o[$1] = $2} END {for (d in o) if (o[d] != "NSIS") print o[d]}' "$licenses/plugin-dlls.tsv" | LC_ALL=C sort -u \
+        | while IFS= read -r owner; do
+            _has_license_terms "$licenses/$owner" || echo "$owner"
+        done
+}
+
 # write_plugin_license_index <licenses-dir> <sources-tsv>
 # <sources-tsv> lines: "<plugin><TAB><download url><TAB><sha256>"
 write_plugin_license_index() {
