@@ -154,11 +154,12 @@ ci_notice() {
 # its text files that mentions a license or copyright, so the terms can be located and pinned.
 report_archive_terms() {
     local plugin="$1" src="$2" files lines
-    files=$(cd "$src" 2>/dev/null && find . -type f | sed 's|^\./||' | LC_ALL=C sort)
+    # grep exits 1 (and xargs 123) when nothing matches; that is an answer here, not an error
+    files=$(cd "$src" 2>/dev/null && find . -type f | sed 's|^\./||' | LC_ALL=C sort || true)
     lines=$(cd "$src" 2>/dev/null && find . -type f ! -iname '*.dll' ! -iname '*.exe' ! -iname '*.lib' ! -iname '*.obj' \
         ! -iname '*.ico' ! -iname '*.bmp' ! -iname '*.png' ! -iname '*.zip' -print0 \
         | xargs -0 grep -niE -I 'licen[cs]e|copyright|\(c\) ?[0-9]|public domain|permission|zlib|gpl|freeware|free software' 2>/dev/null \
-        | cut -c1-240 | head -n 80)
+        | cut -c1-240 | head -n 80 || true)
     ci_notice "$plugin archive: files" "${files:-(no files)}"
     ci_notice "$plugin archive: license/copyright mentions" "${lines:-(none)}"
 }
