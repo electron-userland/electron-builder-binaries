@@ -1,5 +1,11 @@
 # linux-tools-mac
 
+## 1.1.1
+
+### Patch Changes
+
+- [#251](https://github.com/electron-userland/electron-builder-binaries/pull/251) [`987b1db`](https://github.com/electron-userland/electron-builder-binaries/commit/987b1dbf1e144b85fae30110680bf479c26103e3) Thanks [@claude](https://github.com/apps/claude)! - fix(linux-tools-mac): ship the complete license texts and a corresponding-source pointer for every bundled binary. License files now come from each Homebrew formula's pinned upstream source tarball (fetched with `brew fetch --build-from-source`, sha256-checked against the formula) instead of the keg, which lacked binutils' `COPYING3` / `COPYING3.LIB`: `ar`, `libbfd` and `libsframe` are GPL-3.0-or-later, and the bundle only carried the GPLv2/LGPLv2 texts. zstd also ships the MIT notice of the libdivsufsort-lite code compiled into `libzstd` (`LICENSES/zstd/divsufsort-LICENSE`). The bundle gains `LICENSES/MANIFEST.tsv` (every bundled binary and dylib mapped to its component) and `LICENSES/SOURCES.txt` (upstream URL, version, sha256, license and Homebrew formula for each component). The build and the bundle tests fail if a required license text is missing or empty, a binary is not covered (the shared `scripts/verify-licenses.sh` guard), or a component has no source entry, instead of only warning when no license file was found at all
+
 ## 1.1.0
 
 ### Minor Changes

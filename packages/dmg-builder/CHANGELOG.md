@@ -1,5 +1,11 @@
 # dmg-builder
 
+## 1.2.7
+
+### Patch Changes
+
+- [#251](https://github.com/electron-userland/electron-builder-binaries/pull/251) [`987b1db`](https://github.com/electron-userland/electron-builder-binaries/commit/987b1dbf1e144b85fae30110680bf479c26103e3) Thanks [@claude](https://github.com/apps/claude)! - fix(dmg-builder): ship the license of every component in the bundle. The build deleted the pip packages' `.dist-info` directories, and with them the only copies of the MIT licenses of `ds_store`, `mac_alias`, `pyobjc-framework-Cocoa` and `pyobjc-framework-Quartz`; `pyobjc-core`'s wheel has none at all, and CPython's notices for the third-party code compiled into the interpreter and its extension modules (expat, libmpdec, mimalloc, Mersenne Twister, HACL*, ...) were never shipped. `LICENSES/` is now laid out per component (`python/` with CPython's `LICENSE`, `Doc/license.rst` and the HACL* notice, `openssl/`, `dmgbuild/`, `ds_store/`, `mac_alias/`, `pyobjc-core/`, `pyobjc-framework-Cocoa/`, `pyobjc-framework-Quartz/`) with a `LICENSES/MANIFEST.tsv` mapping every binary to its components; the package licenses are copied from their `.dist-info` before it is deleted, `pyobjc-core`'s `License.txt` comes from its SHA256-pinned sdist, CPython's from the checksum-verified source tree instead of a second download, and dmgbuild's `LICENSE` is fetched at the pinned commit instead of `master`. The build and its post-build check of the archives fail when a binary has no license (`scripts/verify-licenses.sh`). The license files moved from `LICENSES/LICENSE.<name>` to `LICENSES/<name>/`.
+
 ## 1.2.6
 
 ### Patch Changes
