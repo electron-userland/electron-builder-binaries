@@ -49,25 +49,36 @@ TMP_DIR="/tmp/linux-tools-mac-build-${ARCH}"
 BUNDLE_DIR="${TMP_DIR}/linux-tools-mac"
 BIN_DIR="${BUNDLE_DIR}/bin"
 LIB_DIR="${BUNDLE_DIR}/lib"
+DEP_FORMULAS_FILE="${TMP_DIR}/dep-formulas.txt"
 
 cleanup() { rm -rf "$TMP_DIR"; }
 trap cleanup EXIT INT TERM
 
-# Binaries to collect per formula — "formula:bin1 bin2 bin3" entries
+# Only the tools electron-builder needs when building Linux targets on macOS:
+#   - gtar: fpm's tar_cmd (deb/pacman/apk/sh/freebsd payloads); needs GNU --sort/--mtime
+#   - ar:   fpm's ar_cmd (assembles the .deb ar archive)
+#   - lzip: electron-builder's tar.lz archive target (targets/archive.ts)
+# electron-builder puts bin/ first on PATH for fpm (FpmTarget.ts) and calls bin/lzip directly.
+# "formula:bin1 bin2" entries. Keep in sync with EXPECTED_BINS in assets/verify-bundle.sh.
 FORMULA_BINS=(
     "gnu-tar:gtar"
     "lzip:lzip"
-    "makedepend:makedepend"
-    "glib:gapplication gdbus gdbus-codegen gio gio-querymodules glib-compile-resources glib-compile-schemas glib-genmarshal glib-gettextize glib-mkenums gobject-query gresource gsettings gtester gtester-report"
-    "libgsf:gsf gsf-office-thumbnailer gsf-vba-dump"
-    "libtool:glibtool glibtoolize"
-    "pcre:pcre-config pcregrep pcretest"
-    "gettext:autopoint envsubst gettext gettext.sh gettextize msgattrib msgcat msgcmp msgcomm msgconv msgen msgexec msgfilter msgfmt msggrep msginit msgmerge msgunfmt msguniq ngettext recode-sr-latin xgettext"
-    "binutils:gar ar"
+    "binutils:ar"
 )
+
+FORMULAS=()
+for entry in "${FORMULA_BINS[@]}"; do
+    FORMULAS+=("${entry%%:*}")
+done
+
+# Oldest macOS the bundle must run on. Homebrew bottles inherit the runner's
+# OS as their minimum (electron-builder#10084), so verify-bundle.sh fails the
+# build if anything in the bundle requires a newer macOS than this.
+MAX_MINOS="15.0"
 
 echo "🛠️  linux-tools-mac macOS bundle"
 echo "   Arch:   $ARCH"
+echo "   macOS:  $(sw_vers -productVersion)"
 echo "   Xcode:  $XCODE_VER"
 echo "   Output: $OUTPUT_DIR"
 
@@ -76,13 +87,70 @@ echo "   Output: $OUTPUT_DIR"
 ### ================================
 rm -rf "$TMP_DIR"
 mkdir -p "$BIN_DIR" "$LIB_DIR"
+: > "$DEP_FORMULAS_FILE"
 
 ### ================================
 ### INSTALL DEPENDENCIES
 ### ================================
 echo ""
-echo "📦 Installing brew formulas..."
-brew install gnu-tar lzip makedepend glib libgsf libtool pcre gettext binutils
+echo "📦 Installing brew formulas: ${FORMULAS[*]}"
+brew install "${FORMULAS[@]}"
+
+### ================================
+### MACH-O HELPERS
+### ================================
+is_macho() {
+    file -b "$1" 2>/dev/null | grep -q '^Mach-O'
+}
+
+is_system_lib() {
+    [[ "$1" == /usr/lib/* || "$1" == /System/* ]]
+}
+
+# Dylibs a Mach-O file loads (load commands only, not its own install name)
+macho_deps() {
+    otool -l "$1" 2>/dev/null | awk '
+        /cmd LC_(LOAD_DYLIB|LOAD_WEAK_DYLIB|REEXPORT_DYLIB|LAZY_LOAD_DYLIB|LOAD_UPWARD_DYLIB)$/ { f = 1; next }
+        f && $1 == "name" { print $2; f = 0 }'
+}
+
+macho_rpaths() {
+    otool -l "$1" 2>/dev/null | awk '/cmd LC_RPATH$/ { f = 1; next } f && $1 == "path" { print $2; f = 0 }'
+}
+
+# Resolve a load-command path the way dyld would, relative to the ORIGINAL
+# (Homebrew) file that references it. Prints the real path, or nothing.
+resolve_dep() {
+    local dep="$1" origin="$2"
+    local origin_dir candidate rp
+    origin_dir="$(dirname "$origin")"
+    case "$dep" in
+        @loader_path/* | @executable_path/*)
+            candidate="${origin_dir}/${dep#*/}"
+            [[ -e "$candidate" ]] && realpath "$candidate"
+            ;;
+        @rpath/*)
+            while read -r rp; do
+                rp="${rp/#@loader_path/$origin_dir}"
+                rp="${rp/#@executable_path/$origin_dir}"
+                candidate="${rp}/${dep#@rpath/}"
+                if [[ -e "$candidate" ]]; then
+                    realpath "$candidate"
+                    return 0
+                fi
+            done < <(macho_rpaths "$origin")
+            ;;
+        /*)
+            [[ -e "$dep" ]] && realpath "$dep"
+            ;;
+    esac
+    return 0
+}
+
+# Homebrew formula that owns a Cellar path (for licenses / VERSION.txt)
+formula_of() {
+    sed -n 's#.*/Cellar/\([^/]*\)/.*#\1#p' <<< "$1"
+}
 
 ### ================================
 ### COPY BINARIES
@@ -90,46 +158,153 @@ brew install gnu-tar lzip makedepend glib libgsf libtool pcre gettext binutils
 echo ""
 echo "📋 Copying binaries..."
 
+# bundled file -> original Homebrew file, so deps resolve against the original location
+ORIGINS_FILE="${TMP_DIR}/origins.txt"
+: > "$ORIGINS_FILE"
+
 for entry in "${FORMULA_BINS[@]}"; do
     formula="${entry%%:*}"
     bins="${entry#*:}"
-    prefix="$(brew --prefix "$formula" 2>/dev/null || true)"
-    if [[ -z "$prefix" ]]; then
-        echo "  ⚠️  Could not find prefix for $formula, skipping"
-        continue
-    fi
+    prefix="$(brew --prefix "$formula")"
     for bin in $bins; do
         src="$prefix/bin/$bin"
-        if [[ -f "$src" || -L "$src" ]]; then
-            echo "  ➕ $formula/$bin"
-            cp -L "$src" "$BIN_DIR/$bin"
-            chmod u+w,a+x "$BIN_DIR/$bin"
-        else
-            echo "  ⏭️  $formula/$bin not found, skipping"
+        if [[ ! -e "$src" ]]; then
+            echo "  ❌ $formula/$bin not found at $src"
+            exit 1
         fi
+        echo "  ➕ $formula/$bin"
+        cp -L "$src" "$BIN_DIR/$bin"
+        chmod u+w,a+x "$BIN_DIR/$bin"
+        echo "$BIN_DIR/$bin	$(realpath "$src")" >> "$ORIGINS_FILE"
     done
 done
 
+# fpm's ar_cmd probes `ar` then `gar`. Keep the historical gar name as a free
+# symlink so the probe order behaves exactly as before.
+ln -s ar "$BIN_DIR/gar"
+echo "  🔗 gar -> ar"
+
 ### ================================
-### COPY LICENSE FILES
+### COLLECT DYLIB DEPENDENCIES
+### ================================
+echo ""
+echo "📚 Collecting dylib dependencies..."
+
+collect_deps() {
+    local file="$1" origin="$2"
+    local dep resolved name dest
+    is_macho "$file" || return 0
+    while read -r dep; do
+        is_system_lib "$dep" && continue
+        resolved="$(resolve_dep "$dep" "$origin")"
+        if [[ -z "$resolved" ]]; then
+            echo "  ❌ $(basename "$file"): cannot resolve $dep (from $origin)"
+            exit 1
+        fi
+        name="$(basename "$dep")"
+        dest="$LIB_DIR/$name"
+        [[ -f "$dest" ]] && continue
+        echo "    📥 $name  <- $resolved"
+        cp -L "$resolved" "$dest"
+        chmod u+w "$dest"
+        formula_of "$resolved" >> "$DEP_FORMULAS_FILE"
+        echo "$dest	$resolved" >> "$ORIGINS_FILE"
+        collect_deps "$dest" "$resolved"
+    done < <(macho_deps "$file")
+}
+
+for bin in "$BIN_DIR"/*; do
+    [[ -L "$bin" ]] && continue
+    origin="$(awk -F'\t' -v f="$bin" '$1 == f { print $2 }' "$ORIGINS_FILE")"
+    echo "  🔍 bin/$(basename "$bin")"
+    collect_deps "$bin" "$origin"
+done
+
+### ================================
+### PATCH DYLIB REFERENCES
+### ================================
+echo ""
+echo "🔧 Patching dylib references..."
+
+patch_macho() {
+    local file="$1" is_lib="$2"
+    local dep name new_path it_err
+    is_macho "$file" || return 0
+
+    if [[ "$is_lib" == "true" ]]; then
+        install_name_tool -id "@loader_path/$(basename "$file")" "$file"
+    fi
+
+    while read -r dep; do
+        is_system_lib "$dep" && continue
+        name="$(basename "$dep")"
+        [[ -f "$LIB_DIR/$name" ]] || continue
+        if [[ "$is_lib" == "true" ]]; then
+            new_path="@loader_path/$name"
+        else
+            new_path="@loader_path/../lib/$name"
+        fi
+        [[ "$dep" == "$new_path" ]] && continue
+        it_err="$(install_name_tool -change "$dep" "$new_path" "$file" 2>&1)" \
+            || { echo "  ❌ patch failed [$(basename "$file")] $dep: $it_err"; exit 1; }
+    done < <(macho_deps "$file")
+}
+
+for bin in "$BIN_DIR"/*; do
+    [[ -L "$bin" ]] && continue
+    echo "  🔁 bin/$(basename "$bin")"
+    patch_macho "$bin" "false"
+done
+
+for lib in "$LIB_DIR"/*; do
+    [[ -f "$lib" ]] || continue
+    echo "  🔁 lib/$(basename "$lib")"
+    patch_macho "$lib" "true"
+done
+
+### ================================
+### STRIP SYMBOLS
+### ================================
+echo ""
+echo "✂️  Stripping symbols..."
+find "$BIN_DIR" "$LIB_DIR" -type f | while read -r f; do
+    strip -x "$f" 2>/dev/null || true
+done
+
+### ================================
+### AD-HOC CODESIGN
+### ================================
+echo ""
+echo "🔏 Code signing..."
+
+# Sign libs first (executables may load them)
+find "$LIB_DIR" -type f | while read -r lib; do
+    codesign --force --sign - "$lib"
+done
+
+find "$BIN_DIR" -type f | while read -r bin; do
+    codesign --force --sign - "$bin"
+done
+
+### ================================
+### LICENSES
 ### ================================
 echo ""
 echo "📄 Copying license files..."
 mkdir -p "$BUNDLE_DIR/LICENSES"
 
-for entry in "${FORMULA_BINS[@]}"; do
-    formula="${entry%%:*}"
-    license_prefix="$(brew --prefix "$formula" 2>/dev/null || true)"
-    if [[ -z "$license_prefix" ]]; then
-        echo "  ⚠️  Could not find prefix for $formula, skipping licenses"
-        continue
-    fi
+ALL_FORMULAS=()
+while read -r formula; do
+    [[ -n "$formula" ]] && ALL_FORMULAS+=("$formula")
+done < <({ printf '%s\n' "${FORMULAS[@]}"; sort -u "$DEP_FORMULAS_FILE"; } | awk '!seen[$0]++')
 
+for formula in "${ALL_FORMULAS[@]}"; do
+    license_prefix="$(brew --prefix "$formula")"
     license_dir="$BUNDLE_DIR/LICENSES/$formula"
     mkdir -p "$license_dir"
 
     found=0
-    for name in COPYING LICENSE LICENCE COPYING.LIB AUTHORS; do
+    for name in COPYING COPYING.LIB COPYING.LESSER COPYING3 COPYING3.LIB LICENSE LICENCE LICENSE.md AUTHORS; do
         src="$license_prefix/$name"
         if [[ -f "$src" ]]; then
             cp "$src" "$license_dir/$name"
@@ -143,129 +318,6 @@ for entry in "${FORMULA_BINS[@]}"; do
 done
 
 ### ================================
-### COLLECT DYLIB DEPENDENCIES
-### ================================
-echo ""
-echo "📚 Collecting dylib dependencies..."
-
-should_skip_lib() {
-    local dep="$1"
-    [[ "$dep" == /usr/lib/* ]] && return 0
-    [[ "$dep" == /System/* ]] && return 0
-    [[ "$dep" == @* ]] && return 0
-    return 1
-}
-
-is_macho() {
-    file -b "$1" 2>/dev/null | grep -q '^Mach-O'
-}
-
-collect_deps() {
-    local binary="$1"
-    is_macho "$binary" || return 0
-    otool -L "$binary" 2>/dev/null | awk 'NR>1 {print $1}' | while read -r dep; do
-        should_skip_lib "$dep" && continue
-        [[ ! -f "$dep" ]] && continue
-
-        local dep_name
-        dep_name="$(basename "$dep")"
-        local dest="$LIB_DIR/$dep_name"
-
-        if [[ ! -f "$dest" ]]; then
-            echo "    📥 $dep_name"
-            cp -L "$dep" "$dest"
-            chmod u+w "$dest"
-            # Recurse into this library's own deps
-            collect_deps "$dest"
-        fi
-    done
-}
-
-find "$BIN_DIR" -type f | while read -r bin; do
-    collect_deps "$bin"
-done
-
-# Also collect deps of libs (they may have deps we missed)
-find "$LIB_DIR" -name "*.dylib" -type f | while read -r lib; do
-    collect_deps "$lib"
-done
-
-### ================================
-### PATCH DYLIB REFERENCES
-### ================================
-echo ""
-echo "🔧 Patching dylib references..."
-
-patch_binary() {
-    local binary="$1"
-    local is_lib="${2:-false}"
-
-    is_macho "$binary" || return 0
-
-    # Set install name for dylibs
-    if [[ "$is_lib" == "true" ]]; then
-        local lib_name
-        lib_name="$(basename "$binary")"
-        install_name_tool -id "@loader_path/$lib_name" "$binary" 2>/dev/null || true
-    fi
-
-    # Patch all absolute non-system dep references
-    otool -L "$binary" 2>/dev/null | awk 'NR>1 {print $1}' | while read -r dep; do
-        should_skip_lib "$dep" && continue
-
-        local dep_name
-        dep_name="$(basename "$dep")"
-        local dest="$LIB_DIR/$dep_name"
-
-        if [[ -f "$dest" ]]; then
-            local new_path
-            if [[ "$is_lib" == "true" ]]; then
-                new_path="@loader_path/$dep_name"
-            else
-                new_path="@loader_path/../lib/$dep_name"
-            fi
-            local it_err
-            it_err="$(install_name_tool -change "$dep" "$new_path" "$binary" 2>&1)" \
-                || echo "    ⚠️  patch failed [$(basename "$binary")] $dep: $it_err"
-        fi
-    done
-}
-
-find "$BIN_DIR" -type f | while read -r bin; do
-    echo "  🔁 bin/$(basename "$bin")"
-    patch_binary "$bin" "false"
-done
-
-find "$LIB_DIR" -name "*.dylib" -type f | while read -r lib; do
-    echo "  🔁 lib/$(basename "$lib")"
-    patch_binary "$lib" "true"
-done
-
-### ================================
-### STRIP SYMBOLS
-### ================================
-echo ""
-echo "✂️  Stripping symbols..."
-find "$BUNDLE_DIR" -type f | while read -r f; do
-    strip -x "$f" 2>/dev/null || true
-done
-
-### ================================
-### AD-HOC CODESIGN
-### ================================
-echo ""
-echo "🔏 Code signing..."
-
-# Sign libs first (executables may load them)
-find "$LIB_DIR" -name "*.dylib" -type f | while read -r lib; do
-    codesign --force --sign - "$lib" 2>/dev/null || true
-done
-
-find "$BIN_DIR" -type f | while read -r bin; do
-    codesign --force --sign - "$bin" 2>/dev/null || true
-done
-
-### ================================
 ### VERSION.txt
 ### ================================
 echo ""
@@ -273,13 +325,16 @@ echo "📝 Writing VERSION.txt..."
 {
     echo "platform: darwin"
     echo "arch: $ARCH"
+    echo "built_on: macOS $(sw_vers -productVersion), Xcode $XCODE_VER"
+    echo "min_macos: $MAX_MINOS"
     echo "created_at: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
     echo ""
-    for formula in gnu-tar lzip makedepend glib libgsf libtool pcre gettext binutils; do
-        ver="$(brew info --json "$formula" 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d[0]['versions']['stable'])" 2>/dev/null || echo "unknown")"
-        echo "$formula: $ver"
+    for formula in "${ALL_FORMULAS[@]}"; do
+        ver="$(brew list --versions "$formula" | awk '{print $NF}')"
+        echo "$formula: ${ver:-unknown}"
     done
 } > "$BUNDLE_DIR/VERSION.txt"
+cat "$BUNDLE_DIR/VERSION.txt"
 
 ### ================================
 ### ARCHIVE
@@ -307,7 +362,7 @@ VERIFY_DIR="/tmp/linux-tools-mac-verify-$$"
 mkdir -p "$VERIFY_DIR"
 tar -xzf "$ARCHIVE_PATH" -C "$VERIFY_DIR"
 
-bash "$ROOT/assets/test.sh" --bundle-dir "$VERIFY_DIR/linux-tools-mac"
+bash "$ROOT/assets/test.sh" --bundle-dir "$VERIFY_DIR/linux-tools-mac" --max-minos "$MAX_MINOS"
 
 rm -rf "$VERIFY_DIR"
 
