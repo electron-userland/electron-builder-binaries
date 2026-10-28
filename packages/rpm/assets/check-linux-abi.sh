@@ -39,7 +39,7 @@ check GCC ""
 if [ "$status" != "0" ]; then
     echo "Offending files:" >&2
     find "$BUNDLE" -type f | while read -r f; do
-        objdump -T "$f" 2>/dev/null | grep -oE "\bGLIBC_$(max_of GLIBC)\b" | head -1 | sed "s|^|  $f: |" >&2 || true
+        objdump -T "$f" 2>/dev/null | grep -oE "\bGLIBC_$(max_of GLIBC)\b" | sed -n 1p | sed "s|^|  $f: |" >&2 || true
     done
 fi
 exit "$status"

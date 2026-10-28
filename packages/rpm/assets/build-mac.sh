@@ -18,7 +18,8 @@ DESTDIR="$WORK/dest"
 BUNDLE="$WORK/bundle"
 export MACOSX_DEPLOYMENT_TARGET="$MACOS_MIN"
 
-FORMULAE=(lua popt libarchive libmagic zstd xz libgcrypt libgpg-error)
+# gettext: libintl is a transitive dependency of the Homebrew libgcrypt/popt bottles
+FORMULAE=(lua popt libarchive libmagic zstd xz libgcrypt libgpg-error gettext)
 echo "🍺 Installing build dependencies"
 brew install -q cmake pkgconf scdoc coreutils "${FORMULAE[@]}"
 BREW_PREFIX="$(brew --prefix)"
@@ -47,7 +48,7 @@ echo "📁 Assembling bundle"
 install_bundle_skeleton "$DESTDIR" "$BUNDLE" "$ASSETS"
 for so in librpm librpmbuild librpmio librpmsign; do
     # install name is @rpath/<so>.<major>.dylib; ship exactly that file name, no symlinks
-    real=$(find "$DESTDIR/usr/lib" -maxdepth 1 -name "$so.*.dylib" -type f | head -1)
+    real=$(find "$DESTDIR/usr/lib" -maxdepth 1 -name "$so.*.dylib" -type f | sed -n 1p)
     id=$(otool -D "$real" | tail -1)
     cp "$real" "$BUNDLE/lib/$(basename "$id")"
 done
@@ -135,7 +136,7 @@ echo "📝 VERSION.txt"
     echo "rpm: ${RPM_VERSION}"
     echo "sha256: ${RPM_SHA256}"
     echo "built-on: macOS $(sw_vers -productVersion) ($(uname -m))"
-    echo "compiler: $(clang --version | head -1)"
+    echo "compiler: $(clang --version | sed -n 1p)"
     echo "patches: $(cd "$ASSETS/patches" && printf '%s ' *.patch)"
     echo "max-minos: $max_minos"
     echo "homebrew: $(for f in "${FORMULAE[@]}"; do brew list --versions "$f"; done | tr '\n' ' ')"

@@ -33,7 +33,7 @@ OS=$(uname -s)
 
 echo "━━ rpm toolset smoke test on $( (. /etc/os-release 2>/dev/null && echo "$PRETTY_NAME") || sw_vers -productVersion) ($(uname -m))"
 [ -f "$BUNDLE_DIR/VERSION.txt" ] && sed 's/^/   /' "$BUNDLE_DIR/VERSION.txt"
-if [ "$OS" = "Linux" ]; then ldd --version 2>&1 | head -1 | sed 's/^/   host /'; fi
+if [ "$OS" = "Linux" ]; then ldd --version 2>&1 | sed -n 1p | sed 's/^/   host /'; fi
 
 echo "▶ Binaries"
 expect_eq "rpmbuild resolves to bundle" "$(command -v rpmbuild)" "$BUNDLE_DIR/bin/rpmbuild"

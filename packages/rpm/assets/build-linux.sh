@@ -34,9 +34,9 @@ if [ "$GCC_MAJOR" -lt 13 ]; then
     echo "   On manylinux_2_28 enable a newer toolset, e.g. 'source /opt/rh/gcc-toolset-14/enable'."
     exit 1
 fi
-echo "🛠️  $(g++ --version | head -1)"
-echo "🛠️  $(cmake --version | head -1)"
-ldd --version | head -1
+echo "🛠️  $(g++ --version | sed -n 1p)"
+echo "🛠️  $(cmake --version | sed -n 1p)"
+ldd --version | sed -n 1p
 
 # rpm's build requires scdoc for man pages; the bundle ships no man pages.
 if ! command -v scdoc >/dev/null 2>&1; then
@@ -58,7 +58,7 @@ DESTDIR="$DESTDIR" cmake --install "$WORK/build" >/dev/null
 echo "📁 Assembling bundle"
 install_bundle_skeleton "$DESTDIR" "$BUNDLE" "$ASSETS"
 for so in librpm librpmbuild librpmio librpmsign; do
-    real=$(find "$DESTDIR/usr/lib" -maxdepth 1 -name "$so.so.*" -type f | head -1)
+    real=$(find "$DESTDIR/usr/lib" -maxdepth 1 -name "$so.so.*" -type f | sed -n 1p)
     soname=$(objdump -p "$real" | awk '/SONAME/{print $2}')
     cp "$real" "$BUNDLE/lib/$soname"
 done
@@ -121,19 +121,19 @@ cp "$SRC/COPYING" "$BUNDLE/LICENSES/COPYING.rpm"
 if command -v rpm >/dev/null 2>&1 && rpm -q rpm >/dev/null 2>&1; then
     for lib in "$BUNDLE"/lib/*.so*; do
         case "$(basename "$lib")" in librpm*) continue ;; esac
-        sys=$(find /usr/lib64 /usr/lib /lib64 -maxdepth 1 -name "$(basename "$lib")" 2>/dev/null | head -1)
+        sys=$(find /usr/lib64 /usr/lib /lib64 -maxdepth 1 -name "$(basename "$lib")" 2>/dev/null | sed -n 1p)
         [ -n "$sys" ] || continue
-        pkg=$(rpm -qf --qf '%{NAME}\n' "$sys" 2>/dev/null | head -1) || continue
+        pkg=$(rpm -qf --qf '%{NAME}\n' "$sys" 2>/dev/null | sed -n 1p) || continue
         rpm -qL "$pkg" 2>/dev/null | while read -r lic; do
             [ -f "$lic" ] && cp "$lic" "$BUNDLE/LICENSES/$(basename "$lic").$pkg"
         done
     done
-    mfpkg=$(rpm -qf --qf '%{NAME}\n' "$MAGIC_SRC" | head -1)
+    mfpkg=$(rpm -qf --qf '%{NAME}\n' "$MAGIC_SRC" | sed -n 1p)
     rpm -qL "$mfpkg" 2>/dev/null | while read -r lic; do [ -f "$lic" ] && cp "$lic" "$BUNDLE/LICENSES/$(basename "$lic").$mfpkg"; done
 elif command -v dpkg >/dev/null 2>&1; then
     for lib in "$BUNDLE"/lib/*.so* "$MAGIC_SRC"; do
         case "$(basename "$lib")" in librpm*) continue ;; esac
-        pkg=$(dpkg -S "$(basename "$lib")" 2>/dev/null | head -1 | cut -d: -f1) || continue
+        pkg=$(dpkg -S "$(basename "$lib")" 2>/dev/null | sed -n 1p | cut -d: -f1) || continue
         [ -f "/usr/share/doc/$pkg/copyright" ] && cp "/usr/share/doc/$pkg/copyright" "$BUNDLE/LICENSES/copyright.$pkg"
     done
 fi
@@ -143,7 +143,7 @@ echo "📝 VERSION.txt"
     echo "rpm: ${RPM_VERSION}"
     echo "sha256: ${RPM_SHA256}"
     echo "built-on: $(. /etc/os-release && echo "$PRETTY_NAME") ($(uname -m))"
-    echo "compiler: $(g++ --version | head -1)"
+    echo "compiler: $(g++ --version | sed -n 1p)"
     echo "patches: $(cd "$ASSETS/patches" && printf '%s ' *.patch)"
     cat "$WORK/abi.txt"
     echo "bundled-libs: $(cd "$BUNDLE/lib" && printf '%s ' *.so*)"
