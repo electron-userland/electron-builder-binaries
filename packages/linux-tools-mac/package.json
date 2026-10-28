@@ -1,5 +1,5 @@
 {
     "name": "linux-tools-mac",
-    "version": "1.0.1",
+    "version": "1.1.0",
     "description": "Portable macOS bundle of the GNU tools (gtar, lzip, binutils ar) that electron-builder and fpm use when packaging Linux targets on macOS."
 }
