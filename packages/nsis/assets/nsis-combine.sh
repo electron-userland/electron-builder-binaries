@@ -14,8 +14,8 @@ OUT_DIR="${OUT_DIR:-$BASE_DIR/out/nsis}"
 BUILD_DIR="$(mktemp -d)"
 
 # Version info
-NSIS_VERSION=${NSIS_VERSION:-3.12}
-NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v312}
+NSIS_VERSION=${NSIS_VERSION:-3.13}
+NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v313}
 
 echo "🔗 Combining NSIS bundles..."
 echo "   Version: $NSIS_VERSION"

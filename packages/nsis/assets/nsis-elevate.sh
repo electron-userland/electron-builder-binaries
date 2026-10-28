@@ -17,7 +17,7 @@ BASE_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 OUT_DIR="$BASE_DIR/out/nsis"
 
 # Version configuration
-NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v312}
+NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v313}
 
 # Elevate source
 ELEVATE_VERSION="1.3.0"

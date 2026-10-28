@@ -15,8 +15,8 @@ BASE_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 OUT_DIR="$BASE_DIR/out/nsis"
 
 # Version configuration
-NSIS_VERSION=${NSIS_VERSION:-3.12}
-NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v312}
+NSIS_VERSION=${NSIS_VERSION:-3.13}
+NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v313}
 
 # Docker configuration
 IMAGE_NAME="nsis-windows-builder:${NSIS_BRANCH}"
@@ -164,7 +164,7 @@ WORKDIR /build/nsis
 # Replace with offsetof(struct, fixed_field) + runtime arithmetic, which is valid C++.
 RUN sed -i 's|FIELD_OFFSET(postbuild_cmd, cmd\[_tcsclen(cmdstr)+!0\])|offsetof(postbuild_cmd, cmd) + (_tcsclen(cmdstr) + 1) * sizeof(TCHAR)|' Source/build.cpp
 
-# Build halibut natively from NSIS source. The apt halibut is too old to parse NSIS v312's
+# Build halibut natively from NSIS source. The apt halibut is too old to parse NSIS v312+'s
 # .but documentation syntax. The NSIS-bundled halibut sources are the correct newer version.
 # We build a native Linux binary here; the gcc wrapper below redirects the cross-compiled
 # (Windows PE) halibut link step to this native binary instead.

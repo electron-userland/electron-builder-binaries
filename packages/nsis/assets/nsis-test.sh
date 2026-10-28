@@ -264,10 +264,26 @@ for lang in "${LANG_NAMES[@]}"; do
     assert_file "$LANG_DIR/${lang}.nsh" "${lang}.nsh present"
 done
 
-# Verify patch markers for the 5 .nsh-patched languages
-for lang in Finnish Hungarian Korean Thai Turkish; do
+# Verify patch markers for the 4 .nsh-patched languages
+for lang in Finnish Hungarian Thai Turkish; do
     [ -f "$LANG_DIR/${lang}.nsh" ] && assert_patch "$LANG_DIR/${lang}.nsh" "${lang}.nsh"
 done
+
+# Every language file must set each MultiUser string at most once. LANGFILE_SETSTRING (Include/LangFile.nsh) keeps the
+# first definition, so a fix appended after an upstream translation of the same string is silently ignored: once
+# upstream translates a string, drop its fix (NSIS 3.13 translated the Korean MultiUser strings, so Korean.nsh went).
+DUPLICATE_LANGS=()
+for lang in "${LANG_NAMES[@]}"; do
+    nsh="$LANG_DIR/${lang}.nsh"
+    [ -f "$nsh" ] || continue
+    dup=$(grep -oE 'LangFileString\} MULTIUSER_[A-Z_]+' "$nsh" | sort | uniq -d | head -1 || true)
+    [ -n "$dup" ] && DUPLICATE_LANGS+=("$lang (${dup#LangFileString\} })")
+done
+if [ ${#DUPLICATE_LANGS[@]} -eq 0 ]; then
+    pass "Language files: no MultiUser string set twice"
+else
+    fail "Language files: MultiUser string set twice in ${DUPLICATE_LANGS[*]}"
+fi
 
 # Verify patch marker for the 1 .nlf-patched language
 [ -f "$LANG_DIR/SimpChinese.nlf" ] && assert_patch "$LANG_DIR/SimpChinese.nlf" "SimpChinese.nlf"
@@ -358,7 +374,7 @@ echo ""
 echo "── Test 7: Version flag ────────────────────────────────────────"
 
 if VERSION_OUT=$(run_wrapper "$WRAPPER" -VERSION 2>&1); then
-    # Accept release tags (v3.12) and CVS date strings from source builds (20-May-2026.cvs)
+    # Accept release tags (v3.13) and CVS date strings from source builds (20-May-2026.cvs)
     if echo "$VERSION_OUT" | grep -qiE "v?3\.[0-9]|[0-9]+-[A-Za-z]+-[0-9]{4}"; then
         pass "Version flag: $(echo "$VERSION_OUT" | tr -d '\r\n')"
     else
