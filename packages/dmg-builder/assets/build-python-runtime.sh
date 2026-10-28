@@ -10,6 +10,8 @@ fi
 ### CONFIG
 ### ================================
 _DEFAULT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Repository root (for the shared scripts/verify-licenses.sh)
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 ROOT=""
 OUTPUT_DIR=""
 PYTHON_VERSION=""
@@ -72,6 +74,12 @@ PYTHON_SHA256="${PYTHON_SHA256:-9e4996c19ae5a3df31f10c37723661f71d3455d73bd005f7
 # Default value is for OpenSSL 3.5.9 (the version set in build.sh; same pin as win-codesign and Homebrew's openssl@3)
 OPENSSL_SHA256="${OPENSSL_SHA256:-603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a}"
 
+# SHA256 of https://files.pythonhosted.org/packages/source/p/pyobjc-core/pyobjc_core-<ver>.tar.gz, the sdist of the
+# pyobjc-core version pinned in dmgbuild-requirements.txt (only its License.txt is used: the wheel has no license file).
+# Re-pin when bumping pyobjc-core: curl -fsSL <url> | sha256sum
+# Default value is for pyobjc-core 12.2.2 (matches the "sha256" digest PyPI lists for pyobjc_core-12.2.2.tar.gz)
+PYOBJC_CORE_SDIST_SHA256="${PYOBJC_CORE_SDIST_SHA256:-3906452339cd06a3bb07df103c2511d4cb0f7a22d8771c0b802eba15d9a642b6}"
+
 if [[ "$ARCH" != "arm64" && "$ARCH" != "x86_64" ]]; then
     echo "❌ Unsupported ARCH: $ARCH"
     exit 1
@@ -115,8 +123,8 @@ curl -fsSL --retry 3 --retry-delay 2 --max-time 600 \
     -o "Python-${PYTHON_VERSION}.tgz"
 echo "  🔍 Verifying Python source checksum..."
 verify_sha256 "Python-${PYTHON_VERSION}.tgz" "$PYTHON_SHA256"
-tar xf Python-${PYTHON_VERSION}.tgz
-cd Python-${PYTHON_VERSION}
+tar xf "Python-${PYTHON_VERSION}.tgz"
+cd "Python-${PYTHON_VERSION}"
 
 ### ================================
 ### BUILD ENV (NO HOMEBREW)
@@ -270,15 +278,17 @@ run_arch "$PREFIX/bin/python3" -m pip install --no-warn-script-location --no-cac
 ###############################################################################
 
 test_dmgbuild() {
-    run_arch "$PREFIX/bin/python3" -c "
+    if run_arch "$PREFIX/bin/python3" -c "
 import dmgbuild
 import ds_store
 import mac_alias
 print('✓ All imports successful')
-    " && \
-    run_arch "$PREFIX/bin/python3" -m dmgbuild --help >/dev/null && \
-    echo "✅ dmgbuild works" || \
-    ( echo "❌ dmgbuild broken" && exit 1 )
+    " && run_arch "$PREFIX/bin/python3" -m dmgbuild --help >/dev/null; then
+        echo "✅ dmgbuild works"
+    else
+        echo "❌ dmgbuild broken"
+        exit 1
+    fi
 }
 
 PYTHON_LIB_DIR=$(find "$PREFIX/lib" -maxdepth 1 -type d -name "python3.*" | head -n 1)
@@ -290,7 +300,7 @@ for mod in asyncio concurrent curses dbm email html http idlelib \
     if [ -e "$PYTHON_LIB_DIR/$mod" ]; then
         cp -R "$PYTHON_LIB_DIR/$mod" "$TEST_STDLIB/"
     fi
-    rm -rf "$PYTHON_LIB_DIR/$mod"
+    rm -rf "${PYTHON_LIB_DIR:?}/$mod"
     test_dmgbuild
 done
 
@@ -308,6 +318,12 @@ rm -rf "$PREFIX/bin/pip"* "$PREFIX/bin/easy_install"*
 SITE_PACKAGES="$PYTHON_LIB_DIR/site-packages"
 rm -rf "$SITE_PACKAGES"/{pip,setuptools}*
 test_dmgbuild
+
+# The .dist-info directories (removed next) hold the packages' license files: keep them in LICENSES/<Name>/.
+# dmgbuild's LICENSE is fetched at the pinned commit and pyobjc-core's from its sdist (its wheel has none) below.
+echo "📄 Collecting Python package licenses…"
+bash "$ROOT/assets/collect-licenses.sh" dist-info "$SITE_PACKAGES" "$DIR_TO_ARCHIVE/LICENSES" \
+    --skip dmgbuild --no-license-ok pyobjc-core
 
 echo "Removing test files, bytecode, and metadata"
 find "$PREFIX" -type d \( -name test -o -name tests -o -name __pycache__ \) -exec rm -rf {} + 2>/dev/null || true
@@ -455,21 +471,46 @@ fi
 echo "✅ Guardrails passed (no Homebrew refs, minos=${MACOSX_DEPLOYMENT_TARGET})"
 
 ###############################################################################
+# LICENSES — LICENSES/<component>/ + LICENSES/MANIFEST.tsv, checked by scripts/verify-licenses.sh
+# (the Python packages' licenses were collected from their .dist-info above)
+###############################################################################
+echo "📄 Collecting component licenses…"
+LICENSES_DIR="${DIR_TO_ARCHIVE}/LICENSES"
+
+# CPython LICENSE, Doc/license.rst (third-party code built into the interpreter) and the HACL* notice, from the
+# checksum-verified source tree
+bash "$ROOT/assets/collect-licenses.sh" cpython "$SRC_DIR/Python-${PYTHON_VERSION}" "$LICENSES_DIR"
+
+mkdir -p "$LICENSES_DIR/openssl" "$LICENSES_DIR/dmgbuild" "$LICENSES_DIR/pyobjc-core"
+cp "$OPENSSL_SRC/LICENSE.txt" "$LICENSES_DIR/openssl/LICENSE.txt"
+
+# dmgbuild: at the pinned commit, not master
+curl -fsSL --retry 3 --retry-delay 2 --max-time 60 \
+    "https://raw.githubusercontent.com/dmgbuild/dmgbuild/${DMGBUILD_VERSION}/LICENSE" \
+    -o "$LICENSES_DIR/dmgbuild/LICENSE"
+
+# pyobjc-core: its wheel ships no license file; License.txt is in the sdist of the pinned version
+PYOBJC_CORE_VERSION="$(sed -n 's/^pyobjc-core==//p' "$ROOT/assets/dmgbuild-requirements.txt" | tr -d '\r')"
+[ -n "$PYOBJC_CORE_VERSION" ] || { echo "❌ pyobjc-core is not pinned in dmgbuild-requirements.txt"; exit 1; }
+PYOBJC_CORE_SDIST="$BUILD_DIR/pyobjc-core-sdist/pyobjc_core-${PYOBJC_CORE_VERSION}.tar.gz"
+mkdir -p "$(dirname "$PYOBJC_CORE_SDIST")"
+curl -fsSL --retry 3 --retry-delay 2 --max-time 120 \
+    "https://files.pythonhosted.org/packages/source/p/pyobjc-core/pyobjc_core-${PYOBJC_CORE_VERSION}.tar.gz" \
+    -o "$PYOBJC_CORE_SDIST"
+echo "  🔍 Verifying pyobjc-core sdist checksum..."
+verify_sha256 "$PYOBJC_CORE_SDIST" "$PYOBJC_CORE_SDIST_SHA256"
+tar -xzf "$PYOBJC_CORE_SDIST" -C "$(dirname "$PYOBJC_CORE_SDIST")" "pyobjc_core-${PYOBJC_CORE_VERSION}/License.txt"
+cp "$(dirname "$PYOBJC_CORE_SDIST")/pyobjc_core-${PYOBJC_CORE_VERSION}/License.txt" "$LICENSES_DIR/pyobjc-core/License.txt"
+
+bash "$ROOT/assets/collect-licenses.sh" manifest "$DIR_TO_ARCHIVE"
+
+# Fail the build if any binary in the bundle lacks its license
+bash "$REPO_ROOT/scripts/verify-licenses.sh" "$DIR_TO_ARCHIVE"
+echo "  ✓ Licenses collected"
+
+###############################################################################
 # ARCHIVE (do it now to avoid including later test and cache files)
 ###############################################################################
-
-echo "📄 Downloading component licenses..."
-mkdir -p "${DIR_TO_ARCHIVE}/LICENSES"
-curl -fsSL --retry 3 --retry-delay 2 --max-time 60 \
-    "https://raw.githubusercontent.com/dmgbuild/dmgbuild/master/LICENSE" \
-    -o "${DIR_TO_ARCHIVE}/LICENSES/LICENSE.dmgbuild"
-if [ ! -f "${DIR_TO_ARCHIVE}/python/LICENSE.txt" ]; then
-  curl -fsSL --retry 3 --retry-delay 2 --max-time 60 \
-      "https://raw.githubusercontent.com/python/cpython/v${PYTHON_VERSION}/LICENSE" \
-      -o "${DIR_TO_ARCHIVE}/LICENSES/LICENSE.python"
-fi
-cp "$OPENSSL_SRC/LICENSE.txt" "${DIR_TO_ARCHIVE}/LICENSES/LICENSE.openssl"
-echo "  ✓ Licenses downloaded"
 
 echo "📦 Creating archive…"
 cd "${DIR_TO_ARCHIVE}"

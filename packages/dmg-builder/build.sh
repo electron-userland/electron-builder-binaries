@@ -30,7 +30,8 @@ sanitize_path() {
   done
   ( IFS=':'; echo "${out[*]}" )
 }
-export PATH="$(sanitize_path)"
+PATH="$(sanitize_path)"
+export PATH
 unset CPATH C_INCLUDE_PATH CPLUS_INCLUDE_PATH \
       LIBRARY_PATH DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH \
       PKG_CONFIG_PATH PKG_CONFIG_LIBDIR \
@@ -87,4 +88,15 @@ if [ "${#ARCHIVES[@]}" -eq 0 ]; then
   exit 1
 fi
 bash "$ROOT/assets/verify-bundle.sh" --macos-target "${MACOSX_DEPLOYMENT_TARGET}" "${ARCHIVES[@]}"
+
+# Every binary in what ships must carry its license (LICENSES/MANIFEST.tsv, see assets/collect-licenses.sh)
+echo "🔎 Verifying every binary in the artifacts has its license"
+LICENSE_CHECK_DIR="$(mktemp -d)"
+trap 'rm -rf "$LICENSE_CHECK_DIR"' EXIT
+for a in "${ARCHIVES[@]}"; do
+  d="$(mktemp -d "$LICENSE_CHECK_DIR/bundle.XXXXXX")"
+  tar -xzf "$a" -C "$d"
+  echo "📦 $(basename "$a")"
+  bash "$ROOT/../../scripts/verify-licenses.sh" "$d"
+done
 echo "✅ Artifact is clean."
