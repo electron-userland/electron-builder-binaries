@@ -92,6 +92,11 @@ if [ -n "${DOTNET_SHA256}" ]; then
     echo "  🔍 Verifying checksum..."
     verify_sha256 "$DOTNET_ZIP" "$DOTNET_SHA256"
 fi
+# Microsoft publishes only SHA-512 hashes (dotnet/core release-notes/<major>/releases.json);
+# log it so a new SHA-256 pin can be cross-checked against the official hash.
+if command -v sha512sum >/dev/null 2>&1; then
+    echo "  sha512: $(sha512sum "$DOTNET_ZIP" | awk '{print $1}')"
+fi
 
 # ── Extract and repackage ─────────────────────────────────────────────────────
 # The zip layout (dotnet.exe at root, host/fxr/<ver>/, shared/Microsoft.NETCore.App/<ver>/)
