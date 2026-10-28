@@ -173,7 +173,8 @@ for MODE in bash od; do
     B="$(new_bundle crlf)"
     awk '{printf "%s\r\n", $0}' "$B/LICENSES/MANIFEST.tsv" > "$B/LICENSES/MANIFEST.crlf"
     mv "$B/LICENSES/MANIFEST.crlf" "$B/LICENSES/MANIFEST.tsv"
-    grep -q "$(printf '\r')" "$B/LICENSES/MANIFEST.tsv" || { echo "❌ fixture: expected CRLF manifest"; exit 1; }
+    # Look for the CR with od: grep on Git Bash strips CRs from DOS-style text before matching.
+    od -An -c "$B/LICENSES/MANIFEST.tsv" | grep -q '\\r' || { echo "❌ fixture: expected CRLF manifest"; exit 1; }
     expect pass "CRLF manifest passes" "$B" "All 5 binaries"
 
     # 11. Usage errors.

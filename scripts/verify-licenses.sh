@@ -37,8 +37,9 @@ set -euo pipefail
 # Byte-wise strings, reads and sorting
 export LC_ALL=C
 
-TAB=$(printf '\t')
-CR=$(printf '\r')
+# ANSI-C quoting, not $(printf ...): Git Bash may drop carriage returns from command substitution output
+TAB=$'\t'
+CR=$'\r'
 
 usage() {
     echo "Usage: $0 [--list] <bundle-dir>" >&2
