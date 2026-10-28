@@ -132,17 +132,28 @@ copy_arch_files "$SDK_BASE/$VERSION" "$BUNDLE_DIR" "${FILES[@]}"
 report_missing "Windows SDK file(s)"
 
 # ── Licenses ──────────────────────────────────────────────────────────────────
-# The SDK tools are still copied from the runner's Windows SDK as before. Whether their license terms allow
-# redistributing them is undecided (the proposal is to fetch Microsoft.Windows.SDK.BuildTools from NuGet instead),
-# so they are listed in LICENSES/EXEMPT.tsv, which the guard reports on every run, rather than given license files.
+# The SDK tools ship under the Windows SDK's own license terms, which the SDK installer puts next to bin/ as
+# Licenses/<version>/ (e.g. C:/Program Files (x86)/Windows Kits/10/Licenses/10.0.26100.0/). Every file in the
+# directory of the SDK version the tools were copied from is shipped verbatim as LICENSES/windows-sdk/; the build
+# fails if that directory is missing or empty.
 # shellcheck source=licenses.sh
 source "$SCRIPT_DIR/assets/licenses.sh"
-KITS_EXEMPT_REASON="Windows SDK redistribution terms pending decision (NuGet fetch proposed)"
-license_init "$BUNDLE_DIR/LICENSES"
+SDK_LICENSE_DIR="$(dirname "$SDK_BASE")/Licenses/$VERSION"
+echo "Windows SDK license terms: $SDK_LICENSE_DIR"
+if ! license_add_dir "$BUNDLE_DIR/LICENSES" windows-sdk "$SDK_LICENSE_DIR"; then
+    echo "Contents of $(dirname "$SDK_LICENSE_DIR"):"
+    ls -1R "$(dirname "$SDK_LICENSE_DIR")" 2>/dev/null || echo "(directory listing failed)"
+    exit 1
+fi
 for f in "${FILES[@]}"; do
     case "$f" in
-        *.exe|*.dll) license_exempt "$BUNDLE_DIR/LICENSES" "$KITS_EXEMPT_REASON" "*/$f" ;;
+        *.exe|*.dll) license_map "$BUNDLE_DIR/LICENSES" windows-sdk "*/$f" ;;
     esac
+done
+license_source "$BUNDLE_DIR/LICENSES" windows-sdk "$VERSION" \
+    "Windows SDK $VERSION (https://developer.microsoft.com/windows/downloads/windows-sdk/)"
+for f in "$BUNDLE_DIR/LICENSES/windows-sdk"/*; do
+    echo "  📄 LICENSES/windows-sdk/${f##*/}"
 done
 
 # ── ZIP ───────────────────────────────────────────────────────────────────────
@@ -159,7 +170,7 @@ ASSETS_ZIP="$OUTPUT_DIR/windows-kits-bundle-${VERSION//./_}.zip"
 (cd "$BUNDLE_DIR" && zip -r -9 "$ASSETS_ZIP" .)
 rm -rf "$BUNDLE_DIR"
 
-# Every binary in the zip must ship its license or be exempted (scripts/verify-licenses.sh).
+# Every binary in the zip must ship its license (scripts/verify-licenses.sh).
 license_verify "$ASSETS_ZIP"
 
 echo "✅ Created bundle: $ASSETS_ZIP"

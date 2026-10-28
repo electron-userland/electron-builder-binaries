@@ -191,7 +191,7 @@ jobs:
             --target ats \
             --target rcedit
 
-      # The Windows SDK binaries are exempted (LICENSES/EXEMPT.tsv) pending the NuGet decision; the check lists them.
+      # The Windows SDK binaries ship with the installed SDK's license terms (LICENSES/windows-sdk/).
       - name: Check Windows kits + ats + rcedit bundle licenses
         run: |
           bash ./packages/win-codesign/assets/verify-bundle-licenses.sh ./packages/win-codesign/out/win-codesign/*.zip
