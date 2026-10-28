@@ -88,65 +88,128 @@ foreach ($src in $copyMap.Keys) {
 }
 Write-Host "`n✅ Squirrel executables copied."
 
+# --- Pinned downloads
+# Download a file and fail unless its SHA-256 matches the pinned value. Retries transient network
+# failures (connection resets, timeouts) — these throw rather than returning an HTTP status, so
+# Invoke-WebRequest's own -MaximumRetryCount would not cover them.
+function Get-PinnedFile {
+    param (
+        [Parameter(Mandatory)][string]$Url,
+        [Parameter(Mandatory)][string]$Sha256,
+        [Parameter(Mandatory)][string]$OutFile
+    )
+    $maxAttempts = 3
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+        try {
+            Invoke-WebRequest -Uri $Url -OutFile $OutFile -UseBasicParsing
+            break
+        } catch {
+            if ($attempt -eq $maxAttempts) {
+                Write-Error "Failed to download $Url after $maxAttempts attempts: $_"
+                exit 1
+            }
+            Write-Warning "Download attempt $attempt/$maxAttempts for $Url failed: $_. Retrying in 5s..."
+            Start-Sleep -Seconds 5
+        }
+    }
+    $actualSha = (Get-FileHash -Path $OutFile -Algorithm SHA256).Hash
+    if ($actualSha -ne $Sha256) {
+        Write-Error "Checksum mismatch for ${Url}: expected $Sha256, got $actualSha"
+        exit 1
+    }
+    Write-Host "  Source: $Url (sha256 verified)"
+}
+
+# Read the COFF Machine field from a PE image (0x8664 = x64, 0xAA64 = arm64, 0x014C = x86).
+function Get-PeMachine {
+    param ([Parameter(Mandatory)][string]$Path)
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    $peOffset = [System.BitConverter]::ToInt32($bytes, 0x3C)
+    return [System.BitConverter]::ToUInt16($bytes, $peOffset + 4)
+}
+
 # --- nuget.exe
 # Ship a pinned, checksum-verified standalone nuget.exe. The Chocolatey shim (bin\nuget.exe) resolves
 # the real binary relative to its own install path and breaks once relocated to an arbitrary temp dir,
 # so the standalone NuGet.CommandLine exe is required. Pinning the download — rather than copying
 # whatever version the runner happens to have installed — keeps the bundled binary reproducible and
 # in lockstep with the version electron-builder provisions at runtime.
-$nugetVersion = "6.14.0"
-$nugetSha256  = "92DBED160DDEE0F64B901E907439E021211B428E57C089ECC12FC38DCC4BD9A5"
-$nugetUrl     = "https://dist.nuget.org/win-x86-commandline/v$nugetVersion/nuget.exe"
-$nugetDest    = Join-Path $vendorDir "nuget.exe"
+$nugetVersion = "7.9.0"
+$nugetSha256  = "992D70CAC5B06C38EFEC91806CABA64CDCC07E6D963A0959DBBBAF264D33B800"
 Write-Host "`n📦 Downloading pinned nuget.exe v$nugetVersion..."
-# Retry transient network failures (connection resets, timeouts) — these throw rather than returning an
-# HTTP status, so Invoke-WebRequest's own -MaximumRetryCount would not cover them.
-$maxAttempts = 3
-for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
-    try {
-        Invoke-WebRequest -Uri $nugetUrl -OutFile $nugetDest -UseBasicParsing
-        break
-    } catch {
-        if ($attempt -eq $maxAttempts) {
-            Write-Error "Failed to download nuget.exe from $nugetUrl after $maxAttempts attempts: $_"
-            exit 1
-        }
-        Write-Warning "nuget.exe download attempt $attempt/$maxAttempts failed: $_. Retrying in 5s..."
-        Start-Sleep -Seconds 5
-    }
-}
-$actualSha = (Get-FileHash -Path $nugetDest -Algorithm SHA256).Hash
-if ($actualSha -ne $nugetSha256) {
-    Write-Error "nuget.exe checksum mismatch: expected $nugetSha256, got $actualSha"
-    exit 1
-}
-Write-Host "  Source: $nugetUrl (sha256 verified)"
+Get-PinnedFile -Url "https://dist.nuget.org/win-x86-commandline/v$nugetVersion/nuget.exe" `
+    -Sha256 $nugetSha256 -OutFile (Join-Path $vendorDir "nuget.exe")
 
 # --- 7-Zip binaries
-# Ship both a pre-selected 7z.exe/dll (x64, the host arch on GitHub Actions windows runners)
-# and the arch-specific named copies that select7zipArch in electron-builder uses when
-# cross-compiling for a different target arch.
-Write-Host "`n📦 Bundling 7-Zip binaries..."
-$7zDir = "C:\Program Files\7-Zip"
-if (-not (Test-Path "$7zDir\7z.exe")) {
-    Write-Error "7-Zip not found at $7zDir — ensure 7-Zip is installed on the runner."
+# Squirrel shells out to the full 7-Zip console build (7z.exe + 7z.dll) sitting next to Squirrel.exe
+# to pack and unpack nupkgs. Download the official 7-Zip installers at a pinned version and SHA-256
+# and extract them, rather than copying whatever 7-Zip the runner happens to have installed.
+#
+# Ship a pre-selected 7z.exe/dll (x64) plus the arch-specific named copies that select7zipArch in
+# electron-builder copies over it to match the build host (os.arch()). Without a matching copy
+# (e.g. ia32), the x64 7z.exe is used as-is. arm64 hosts get a native build instead of emulated x64.
+# The installers are 7z self-extracting archives; the runner's 7-Zip is only used to unpack them.
+$sevenZipVersion = "26.05"
+$sevenZipTag     = $sevenZipVersion -replace '\.', ''
+$sevenZipBuilds  = [ordered]@{
+    # arch  = installer suffix, SHA-256 of https://github.com/ip7z/7zip/releases/download/<ver>/7z<tag>-<suffix>.exe, PE machine
+    "x64"   = @{ Suffix = "x64";   Sha256 = "FD99E86F57D8F429EF5ED045BF98315AF962E2309B0F1BA87A147A44C71647D0"; Machine = 0x8664 }
+    "arm64" = @{ Suffix = "arm64"; Sha256 = "86D5790D5DD84CAB4636C3BB7FAB10D3ED7CD3E57E6119401BD2769E28165268"; Machine = 0xAA64 }
+}
+$extract7z = Join-Path $env:ProgramFiles "7-Zip\7z.exe"
+if (-not (Test-Path $extract7z)) {
+    Write-Error "7-Zip not found at $extract7z — it is needed to unpack the 7-Zip installers."
     exit 1
 }
-foreach ($f in @("7z.exe", "7z.dll")) {
-    Copy-Item "$7zDir\$f" (Join-Path $vendorDir $f) -Force
+$sevenZipWork = Join-Path $env:TEMP "7zip-$sevenZipVersion"
+if (Test-Path $sevenZipWork) {
+    Remove-Item $sevenZipWork -Recurse -Force
 }
-# x64 arch-specific copies (mirrors what electron-winstaller's npm postinstall script does)
-Copy-Item "$7zDir\7z.exe" (Join-Path $vendorDir "7z-x64.exe") -Force
-Copy-Item "$7zDir\7z.dll" (Join-Path $vendorDir "7z-x64.dll") -Force
-# Bundle 7-Zip license files alongside the binaries
-$7zLicenseSrc = @("License.txt", "license.txt") | ForEach-Object { Join-Path $7zDir $_ } | Where-Object { Test-Path $_ } | Select-Object -First 1
-if ($7zLicenseSrc) {
-    Copy-Item $7zLicenseSrc (Join-Path $vendorDir "7z-LICENSE.txt") -Force
-    Write-Host "  7z x64 binaries and license bundled."
-} else {
-    Write-Warning "7-Zip License.txt not found at $7zDir — skipping."
-    Write-Host "  7z x64 binaries bundled (no license file found)."
+New-Item -ItemType Directory -Force -Path $sevenZipWork | Out-Null
+
+foreach ($arch in $sevenZipBuilds.Keys) {
+    $build = $sevenZipBuilds[$arch]
+    Write-Host "`n📦 Downloading pinned 7-Zip $sevenZipVersion ($arch)..."
+    $installer = Join-Path $sevenZipWork "7z$sevenZipTag-$($build.Suffix).exe"
+    Get-PinnedFile -Url "https://github.com/ip7z/7zip/releases/download/$sevenZipVersion/7z$sevenZipTag-$($build.Suffix).exe" `
+        -Sha256 $build.Sha256 -OutFile $installer
+
+    $extractDir = Join-Path $sevenZipWork $arch
+    & $extract7z x -y -bd "-o$extractDir" $installer | Out-Null
+    if ($LASTEXITCODE -ne 0) { Write-Error "Failed to extract $installer (exit $LASTEXITCODE)"; exit $LASTEXITCODE }
+
+    foreach ($f in @("7z.exe", "7z.dll")) {
+        $bin = Join-Path $extractDir $f
+        if (-not (Test-Path $bin)) { Write-Error "$f not found in $installer"; exit 1 }
+        $fileVersion = (Get-Item $bin).VersionInfo.FileVersion
+        if (-not $fileVersion -or -not $fileVersion.StartsWith($sevenZipVersion)) {
+            Write-Error "$f from $installer has FileVersion '$fileVersion', expected $sevenZipVersion"
+            exit 1
+        }
+        $machine = Get-PeMachine $bin
+        if ($machine -ne $build.Machine) {
+            Write-Error ("{0} from {1} has PE machine 0x{2:X4}, expected 0x{3:X4}" -f $f, $installer, $machine, $build.Machine)
+            exit 1
+        }
+        $base = [System.IO.Path]::GetFileNameWithoutExtension($f)
+        $ext  = [System.IO.Path]::GetExtension($f)
+        Copy-Item $bin (Join-Path $vendorDir "$base-$arch$ext") -Force
+        if ($arch -eq "x64") {
+            # Pre-selected default for hosts without a matching arch-specific copy.
+            Copy-Item $bin (Join-Path $vendorDir $f) -Force
+        }
+    }
+    Write-Host ("  7z.exe/7z.dll {0} ({1}) bundled." -f $sevenZipVersion, $arch)
 }
+
+$7zLicenseSrc = @("License.txt", "license.txt") | ForEach-Object { Join-Path $sevenZipWork "x64\$_" } | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $7zLicenseSrc) {
+    Write-Error "7-Zip License.txt not found in the x64 installer"
+    exit 1
+}
+Copy-Item $7zLicenseSrc (Join-Path $vendorDir "7z-LICENSE.txt") -Force
+Write-Host "  7-Zip license bundled."
+Remove-Item $sevenZipWork -Recurse -Force -ErrorAction SilentlyContinue
 
 # --- LICENSE (Squirrel.Windows)
 # The Squirrel.Windows repo uses COPYING (not LICENSE) as its license file name.
