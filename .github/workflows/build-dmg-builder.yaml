@@ -4,10 +4,14 @@ on:
   workflow_dispatch:
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   dmg-builder:
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 25
+    # Includes building OpenSSL from source.
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -15,6 +19,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Test bundle verifier
+        run: |
+          bash ./packages/dmg-builder/assets/tests/verify-bundle-test.sh
       - name: Build
         run: |
           bash ./packages/dmg-builder/build.sh

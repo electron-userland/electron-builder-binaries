@@ -379,21 +379,8 @@ codesign --force \
 ###############################################################################
 echo "🔎 Asserting no Homebrew leak and correct deployment target"
 
-# 1) No Mach-O in the bundle may reference /usr/local/... or /opt/homebrew/...
-LEAKS=""
-while IFS= read -r f; do
-    refs=$(otool -L "$f" 2>/dev/null \
-        | awk 'NR>1 {print $1}' \
-        | grep -E '^(/usr/local/|/opt/homebrew/)' || true)
-    if [ -n "$refs" ]; then
-        LEAKS+=$'\n'"$f:"$'\n'"$refs"
-    fi
-done < <(find "$DIR_TO_ARCHIVE" -type f \( -name "*.so" -o -name "*.dylib" -o -perm +111 \))
-
-if [ -n "$LEAKS" ]; then
-    echo "❌ Homebrew dylib reference leaked into binary:${LEAKS}"
-    exit 1
-fi
+# 1) No Mach-O in the bundle may link a Homebrew library or have a minos newer than MACOSX_DEPLOYMENT_TARGET
+bash "$ROOT/assets/verify-bundle.sh" --macos-target "$MACOSX_DEPLOYMENT_TARGET" "$DIR_TO_ARCHIVE"
 
 # 2) python3 must advertise minos == MACOSX_DEPLOYMENT_TARGET
 VTOUT="$(vtool -show-build "$DIR_TO_ARCHIVE/python/bin/python3" 2>/dev/null || true)"
