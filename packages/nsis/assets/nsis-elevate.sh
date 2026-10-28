@@ -102,7 +102,7 @@ RUN mkdir -p /output/LICENSES/elevate /redist && \
     7z x elevate-redist.7z -o/redist -y >/dev/null && \
     find /redist -type f \( -iname '*licen[cs]e*' -o -iname 'copying*' -o -iname 'readme*' \) \
         -exec cp {} /output/LICENSES/elevate/ \; && \
-    awk 'NR == 1 && $0 !~ /^[[:space:]]*\/\*/ {exit} {print} /\*\// {exit}' src/elevate.c \
+    awk 'NR == 1 {sub(/^\357\273\277/, "")} NR == 1 && $0 !~ /^[[:space:]]*\/\*/ {exit} {print} /\*\// {exit}' src/elevate.c \
         > /output/LICENSES/elevate/elevate.c-header.txt && \
     if [ ! -s /output/LICENSES/elevate/elevate.c-header.txt ]; then rm /output/LICENSES/elevate/elevate.c-header.txt; fi && \
     ls -la /output/LICENSES/elevate
@@ -185,6 +185,11 @@ echo "  ✓ elevate.exe extracted"
 docker cp "$CONTAINER_NAME:/output/LICENSES" "$TEMP_DIR/nsis-bundle/LICENSES"
 if ! grep -rqiE 'licen[cs]e|permission is (hereby )?granted|public domain' "$TEMP_DIR/nsis-bundle/LICENSES/elevate" 2>/dev/null; then
     echo "❌ No license terms for elevate.exe found in the elevate ${ELEVATE_VERSION} redist archive"
+    # Show what the redist does carry, so the terms can be found and pinned
+    docker run --rm "$IMAGE_NAME" sh -c '
+        echo "--- redist contents"; find /redist -type f | sort
+        for f in /output/LICENSES/elevate/*; do [ -f "$f" ] && { echo "--- $f"; cat "$f"; }; done
+        echo "--- head of src/elevate.c"; head -n 40 src/elevate.c | cat -A | head -n 40' || true
     exit 1
 fi
 echo "  ✓ elevate license files extracted: $(find "$TEMP_DIR/nsis-bundle/LICENSES/elevate" -type f -exec basename {} \; | sort | xargs)"
