@@ -73,6 +73,12 @@ build_elevate() {
     bash "$ASSETS_DIR/nsis-elevate.sh"
 }
 
+build_spiderbanner() {
+    echo "🕷️  Building SpiderBanner plugin (Docker)..."
+    echo ""
+    bash "$ASSETS_DIR/nsis-spiderbanner.sh"
+}
+
 build_all() {
     echo "🌍 Building all available platforms..."
     echo ""
@@ -80,6 +86,7 @@ build_all() {
     build_mac
     build_linux
     build_elevate
+    build_spiderbanner
     combine
 }
 
@@ -113,9 +120,10 @@ Targets:
   linux             Build Linux native binary (requires Docker)
   mac, macos        Build macOS native binary (requires macOS)
   elevate           Build elevate.exe from source (requires Docker)
+  spiderbanner      Build the SpiderBanner plugin from source (requires Docker)
   combine           Combine previously built platform bundles into final archive
   test              Run the test suite against the combined bundle
-  all               Build all platforms (base + mac + linux + elevate + combine)
+  all               Build all platforms (base + mac + linux + elevate + spiderbanner + combine)
 
 Examples:
   ./build.sh --target all     # Build all platforms, combine, and run test suite
@@ -174,6 +182,9 @@ case "$BUILD_TARGET" in
         ;;
     elevate)
         build_elevate
+        ;;
+    spiderbanner)
+        build_spiderbanner
         ;;
     combine)
         combine

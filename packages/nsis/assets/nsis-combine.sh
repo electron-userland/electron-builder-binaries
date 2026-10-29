@@ -49,6 +49,7 @@ while IFS= read -r _line; do
     [[ -n "$_line" ]] && MAC_BUNDLES+=("$_line")
 done < <(find "$OUT_DIR" -name "nsis-bundle-mac-*.tar.gz" -type f)
 ELEVATE_BUNDLE=$(find "$OUT_DIR" -name "nsis-bundle-elevate-*.tar.gz" -type f | head -1)
+SPIDERBANNER_BUNDLE=$(find "$OUT_DIR" -name "nsis-bundle-spiderbanner-*.tar.gz" -type f | head -1)
 # Validate base bundle
 if [ -z "$BASE_BUNDLE" ] || [ ! -f "$BASE_BUNDLE" ]; then
     echo "❌ Base bundle not found in $OUT_DIR"
@@ -77,6 +78,12 @@ if [ -z "$ELEVATE_BUNDLE" ] || [ ! -f "$ELEVATE_BUNDLE" ]; then
     exit 1
 fi
 echo "  ✓ Elevate:      $(basename "$ELEVATE_BUNDLE")"
+
+if [ -z "$SPIDERBANNER_BUNDLE" ] || [ ! -f "$SPIDERBANNER_BUNDLE" ]; then
+    echo "❌ SpiderBanner bundle not found in $OUT_DIR"
+    exit 1
+fi
+echo "  ✓ SpiderBanner: $(basename "$SPIDERBANNER_BUNDLE")"
 
 # =============================================================================
 # Extract Base Bundle
@@ -121,6 +128,38 @@ mkdir -p "$BUILD_DIR/nsis-bundle/LICENSES"
 cp -R "$TEMP_ELEVATE/nsis-bundle/LICENSES/elevate" "$BUILD_DIR/nsis-bundle/LICENSES/"
 rm -rf "$TEMP_ELEVATE" "$ELEVATE_BUNDLE"
 echo "  ✓ elevate.exe (and its license files) injected"
+
+# =============================================================================
+# Inject SpiderBanner plugin (compiled from source). It replaces the prebuilt
+# x86 DLLs the base bundle installs from the same NSIS wiki zip, which also
+# supplies SpiderBanner's license notice (LICENSES/SpiderBanner).
+# =============================================================================
+
+echo ""
+echo "🕷️  Injecting SpiderBanner plugin..."
+# shellcheck source=nsis-plugin-licenses.sh
+source "$SCRIPT_DIR/nsis-plugin-licenses.sh"
+if [ ! -d "$BUILD_DIR/nsis-bundle/LICENSES/SpiderBanner" ]; then
+    echo "❌ SpiderBanner license files not found in base bundle: $BUILD_DIR/nsis-bundle/LICENSES/SpiderBanner"
+    exit 1
+fi
+TEMP_SPIDERBANNER="$BUILD_DIR/temp-spiderbanner"
+mkdir -p "$TEMP_SPIDERBANNER"
+tar -xzf "$SPIDERBANNER_BUNDLE" -C "$TEMP_SPIDERBANNER"
+plugin_dll_snapshot "$BUILD_DIR/nsis-bundle/windows/Plugins" > "$TEMP_SPIDERBANNER/plugin-dlls.snapshot"
+for variant in x86-unicode x86-ansi amd64-unicode; do
+    SRC_DLL="$TEMP_SPIDERBANNER/nsis-bundle/windows/Plugins/$variant/SpiderBanner.dll"
+    if [ ! -f "$SRC_DLL" ]; then
+        echo "❌ SpiderBanner.dll not found at expected path in bundle: $SRC_DLL"
+        exit 1
+    fi
+    mkdir -p "$BUILD_DIR/nsis-bundle/windows/Plugins/$variant"
+    cp "$SRC_DLL" "$BUILD_DIR/nsis-bundle/windows/Plugins/$variant/SpiderBanner.dll"
+done
+record_plugin_dlls "SpiderBanner" "$TEMP_SPIDERBANNER/plugin-dlls.snapshot" \
+    "$BUILD_DIR/nsis-bundle/windows/Plugins" "$BUILD_DIR/nsis-bundle/LICENSES"
+rm -rf "$TEMP_SPIDERBANNER" "$SPIDERBANNER_BUNDLE"
+echo "  ✓ SpiderBanner.dll injected (x86-unicode, x86-ansi, amd64-unicode)"
 
 # =============================================================================
 # Inject Linux Binary
@@ -405,7 +444,7 @@ This bundle includes 10 additional community plugins:
 
 1. INetC - HTTP/HTTPS download plugin
 2. StdUtils - Standard utilities (strings, math, system)
-3. SpiderBanner - Animated splash/banner
+3. SpiderBanner - Animated splash/banner (compiled from source)
 4. NsProcess - Process management (list, kill)
 5. UAC - User Account Control elevation
 6. WinShell - Shell integration (file associations, shortcuts)
