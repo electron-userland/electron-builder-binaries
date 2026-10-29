@@ -39,14 +39,17 @@ echo "🍎 Native tools for the fpm toolset on macOS $(sw_vers -productVersion) 
 # --- rpm ---------------------------------------------------------------------
 # brew_formula_of <dylib name>: the formula whose keg the dylib was copied from
 brew_formula_of() {
-    local name="$1" candidate real formulae
-    formulae=$(for candidate in "$BREW_PREFIX"/opt/*/lib/"$name"; do
+    local name="$1" candidate real formulae=""
+    # (no case statement inside $(...): bash 3.2 cannot parse it)
+    for candidate in "$BREW_PREFIX"/opt/*/lib/"$name"; do
         [ -e "$candidate" ] || continue
         real=$(grealpath "$candidate")
-        case "$real" in
-            "$BREW_PREFIX"/Cellar/*) real="${real#"$BREW_PREFIX"/Cellar/}"; echo "${real%%/*}" ;;
-        esac
-    done | sort -u)
+        if [[ "$real" == "$BREW_PREFIX"/Cellar/* ]]; then
+            real="${real#"$BREW_PREFIX"/Cellar/}"
+            formulae="$formulae${real%%/*}"$'\n'
+        fi
+    done
+    formulae=$(printf '%s' "$formulae" | sort -u)
     [ -n "$formulae" ] && [ "$(printf '%s\n' "$formulae" | awk 'END {print NR}')" -eq 1 ] ||
         die "$name: expected one Homebrew formula to provide it, got: $(echo "$formulae" | tr '\n' ' ')"
     echo "$formulae"
