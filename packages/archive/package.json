@@ -1,0 +1,5 @@
+{
+    "name": "archive",
+    "version": "0.0.0",
+    "description": "Self-contained archive and packaging tools for Linux and macOS (xz, lzip, GNU tar, GNU ar, bsdtar, and rpm/rpmbuild on linux amd64/arm64 and darwin arm64) that electron-builder puts first on PATH for fpm and its archive targets. Replaces the rpm and linux-tools-mac toolsets."
+}

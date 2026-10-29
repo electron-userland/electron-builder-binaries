@@ -28,10 +28,9 @@ stub_relative_path() {
     win-codesign)     echo "win-codesign/stub.zip" ;;
     ran)              echo "ran/stub.zip" ;;
     dmg-builder)      echo "dmg-builder/stub.tar.gz" ;;
-    linux-tools-mac)  echo "linux-tools-mac/stub.tar.gz" ;;
     squirrel.windows) echo "squirrel.windows/stub.7z" ;;
     7zip)             echo "7zip/stub.tar.gz" ;;
-    rpm)              echo "rpm/stub.7z" ;;
+    archive)          echo "archive/stub.7z" ;;
     *)
       echo "Error: Unrecognized package name '$1'" >&2
       exit 1
