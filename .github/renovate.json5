@@ -1,0 +1,247 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: [
+    "config:recommended",
+    ":semanticCommitType(chore)",
+    ":label(renovate)",
+    ":prHourlyLimit2",
+    ":prConcurrentLimit10",
+    ":prNotPending",
+    "group:recommended",
+    "group:monorepos",
+    ":enableVulnerabilityAlerts",
+    "helpers:pinGitHubActionDigests",
+  ],
+  // Every update waits on the Dependency Dashboard: nothing opens until a maintainer ticks it.
+  // Most toolset bumps also need checksums, license pins and a changeset updated by hand.
+  dependencyDashboard: true,
+  dependencyDashboardApproval: true,
+  vulnerabilityAlerts: {
+    dependencyDashboardApproval: true,
+  },
+
+  // Upstream versions pinned in build scripts, Dockerfiles and workflows are annotated with a comment on the line above:
+  //   # renovate: datasource=<datasource> depName=<name> [packageName=<name>] [versioning=<v>] [extractVersion=<re>] [registryUrl=<url>]
+  // (keys in this order). Add currentValue=<tag> when the next line pins a 40-char commit of that tag instead of the tag itself.
+  // scripts/tests/renovate-annotations-test.mjs checks that every annotation is picked up by one of the managers below.
+  customManagers: [
+    {
+      customType: "regex",
+      description: "Annotated version pins (shell/PowerShell assignments, ARG/ENV, workflow inputs, release URLs, FROM in heredocs)",
+      managerFilePatterns: [
+        "/^packages/.+\\.(sh|ps1)$/",
+        "/^packages/(.+/)?Dockerfile$/",
+        "/^\\.github/workflows/.+\\.ya?ml$/",
+      ],
+      matchStrings: [
+        "# renovate: datasource=(?<datasource>[a-z][a-z0-9.-]*) depName=(?<depName>\\S+)(?: packageName=(?<packageName>\\S+))?(?: versioning=(?<versioning>\\S+))?(?: extractVersion=(?<extractVersion>\\S+))?(?: registryUrl=(?<registryUrl>\\S+))?[ \\t]*\\r?\\n[^\\n]*?(?:=|:-|: |\\|\\| |-v |-Version |FROM [^\\s:]+:|/download/|githubusercontent\\.com/[^/\\s]+/[^/\\s]+/)[ \\t]*[\"']?(?<currentValue>[A-Za-z0-9][^\\s\"'`}|/]*)",
+      ],
+    },
+    {
+      customType: "regex",
+      description: "Annotated commit pins of an upstream tag (the tag is kept in the annotation's currentValue)",
+      managerFilePatterns: [
+        "/^packages/.+\\.(sh|ps1)$/",
+      ],
+      matchStrings: [
+        "# renovate: datasource=(?<datasource>[a-z][a-z0-9.-]*) depName=(?<depName>\\S+)(?: packageName=(?<packageName>\\S+))?(?: versioning=(?<versioning>\\S+))?(?: extractVersion=(?<extractVersion>\\S+))? currentValue=(?<currentValue>\\S+)[ \\t]*\\r?\\n[^\\n]*?[\"'=](?<currentDigest>[0-9a-f]{40})\\b",
+      ],
+    },
+    {
+      customType: "regex",
+      description: "dmgbuild is built from a master commit (no release after v1.6.7); keep the 7-char hash used in the bundle name",
+      managerFilePatterns: [
+        "/^packages/dmg-builder/build\\.sh$/",
+      ],
+      matchStrings: [
+        "DMGBUILD_VERSION_OR_HASH=\"(?<currentDigest>[0-9a-f]{7,40})\"",
+      ],
+      datasourceTemplate: "git-refs",
+      depNameTemplate: "dmgbuild/dmgbuild",
+      packageNameTemplate: "https://github.com/dmgbuild/dmgbuild",
+      currentValueTemplate: "master",
+      autoReplaceStringTemplate: "DMGBUILD_VERSION_OR_HASH=\"{{{newDigestShort}}}\"",
+    },
+  ],
+
+  npm: {
+    extends: [
+      ":noUnscheduledUpdates",
+      ":maintainLockFilesWeekly",
+      "security:minimumReleaseAgeNpm",
+      "helpers:disableTypesNodeMajor",
+    ],
+    schedule: ["before 3am on the first day of the month"],
+  },
+
+  packageRules: [
+    {
+      matchManagers: ["github-actions"],
+      groupName: "GitHub Actions",
+      semanticCommitScope: "ci",
+    },
+
+    // One branch, label and commit scope per toolset ("fix(nsis): update ..."), so a bump lines up with the package's changeset.
+    // Workflow files are included for their version inputs, but not their actions (grouped above).
+    {
+      matchFileNames: ["packages/7zip/**", ".github/workflows/build-7zip.yaml"],
+      matchManagers: ["custom.regex", "dockerfile", "npm", "pip_requirements"],
+      additionalBranchPrefix: "7zip-",
+      semanticCommitType: "fix",
+      semanticCommitScope: "7zip",
+      addLabels: ["toolset: 7zip"],
+    },
+    {
+      matchFileNames: ["packages/appimage/**", ".github/workflows/build-appimage.yaml"],
+      matchManagers: ["custom.regex", "dockerfile", "npm", "pip_requirements"],
+      additionalBranchPrefix: "appimage-",
+      semanticCommitType: "fix",
+      semanticCommitScope: "appimage",
+      addLabels: ["toolset: appimage"],
+    },
+    {
+      matchFileNames: ["packages/dmg-builder/**", ".github/workflows/build-dmg-builder.yaml"],
+      matchManagers: ["custom.regex", "dockerfile", "npm", "pip_requirements"],
+      additionalBranchPrefix: "dmg-builder-",
+      semanticCommitType: "fix",
+      semanticCommitScope: "dmg-builder",
+      addLabels: ["toolset: dmg-builder"],
+    },
+    {
+      matchFileNames: ["packages/fpm/**", ".github/workflows/build-fpm.yaml"],
+      matchManagers: ["custom.regex", "dockerfile", "npm", "pip_requirements"],
+      additionalBranchPrefix: "fpm-",
+      semanticCommitType: "fix",
+      semanticCommitScope: "fpm",
+      addLabels: ["toolset: fpm"],
+    },
+    {
+      matchFileNames: ["packages/icons/**", ".github/workflows/build-icons.yaml"],
+      matchManagers: ["custom.regex", "dockerfile", "npm", "pip_requirements"],
+      additionalBranchPrefix: "icons-",
+      semanticCommitType: "fix",
+      semanticCommitScope: "icons",
+      addLabels: ["toolset: icons"],
+    },
+    {
+      matchFileNames: ["packages/linux-tools-mac/**", ".github/workflows/build-linux-tools-mac.yaml"],
+      matchManagers: ["custom.regex", "dockerfile", "npm", "pip_requirements"],
+      additionalBranchPrefix: "linux-tools-mac-",
+      semanticCommitType: "fix",
+      semanticCommitScope: "linux-tools-mac",
+      addLabels: ["toolset: linux-tools-mac"],
+    },
+    {
+      matchFileNames: ["packages/nsis/**", ".github/workflows/build-nsis.yaml"],
+      matchManagers: ["custom.regex", "dockerfile", "npm", "pip_requirements"],
+      additionalBranchPrefix: "nsis-",
+      semanticCommitType: "fix",
+      semanticCommitScope: "nsis",
+      addLabels: ["toolset: nsis"],
+    },
+    {
+      matchFileNames: ["packages/ran/**", ".github/workflows/build-ran.yaml"],
+      matchManagers: ["custom.regex", "dockerfile", "npm", "pip_requirements"],
+      additionalBranchPrefix: "ran-",
+      semanticCommitType: "fix",
+      semanticCommitScope: "ran",
+      addLabels: ["toolset: ran"],
+    },
+    {
+      matchFileNames: ["packages/rpm/**", ".github/workflows/build-rpm.yaml"],
+      matchManagers: ["custom.regex", "dockerfile", "npm", "pip_requirements"],
+      additionalBranchPrefix: "rpm-",
+      semanticCommitType: "fix",
+      semanticCommitScope: "rpm",
+      addLabels: ["toolset: rpm"],
+    },
+    {
+      matchFileNames: ["packages/squirrel.windows/**", ".github/workflows/build-squirrel.yaml"],
+      matchManagers: ["custom.regex", "dockerfile", "npm", "pip_requirements"],
+      additionalBranchPrefix: "squirrel.windows-",
+      semanticCommitType: "fix",
+      semanticCommitScope: "squirrel.windows",
+      addLabels: ["toolset: squirrel.windows"],
+    },
+    {
+      matchFileNames: ["packages/win-codesign/**", ".github/workflows/build-wincodesign.yaml"],
+      matchManagers: ["custom.regex", "dockerfile", "npm", "pip_requirements"],
+      additionalBranchPrefix: "win-codesign-",
+      semanticCommitType: "fix",
+      semanticCommitScope: "win-codesign",
+      addLabels: ["toolset: win-codesign"],
+    },
+    {
+      matchFileNames: ["packages/wine/**", ".github/workflows/build-wine.yaml"],
+      matchManagers: ["custom.regex", "dockerfile", "npm", "pip_requirements"],
+      additionalBranchPrefix: "wine-",
+      semanticCommitType: "fix",
+      semanticCommitScope: "wine",
+      addLabels: ["toolset: wine"],
+    },
+    {
+      matchFileNames: ["packages/wix/**", ".github/workflows/build-wix.yaml"],
+      matchManagers: ["custom.regex", "dockerfile", "npm", "pip_requirements"],
+      additionalBranchPrefix: "wix-",
+      semanticCommitType: "fix",
+      semanticCommitScope: "wix",
+      addLabels: ["toolset: wix"],
+    },
+
+    {
+      matchManagers: ["custom.regex"],
+      prBodyNotes: [
+        "This bumps an upstream version pinned in a toolset's build scripts. Before merging: re-pin every SHA-256, commit or license pin tied to it (see the `Re-pin` comments next to the version) and add a changeset for the toolset (`pnpm changeset`) so CI builds, tests and releases it.",
+      ],
+    },
+    {
+      // The base image sets the oldest distro / glibc the bundled binaries run on
+      matchDatasources: ["docker"],
+      matchManagers: ["dockerfile", "custom.regex"],
+      prBodyNotes: [
+        "The base image sets the oldest distro and glibc the bundled binaries run on: a newer image raises that floor for electron-builder users.",
+      ],
+    },
+    {
+      // OpenSSL 3.5 is the LTS line (supported until 2030-04-08) used by dmg-builder, fpm and win-codesign
+      matchDepNames: ["openssl/openssl"],
+      allowedVersions: "/^3\\.5\\./",
+    },
+    {
+      // NSIS_VERSION (via Repology) and the NSIS-Dev/nsis tag / commit move together
+      matchDepNames: ["NSIS", "NSIS-Dev/nsis"],
+      groupName: "NSIS",
+      prBodyNotes: [
+        "Also check that `NSIS_BRANCH_OR_COMMIT` in `packages/nsis/build.sh` is the commit of the new tag and that `packages/nsis/assets/nsis-lang-fixes` still applies.",
+      ],
+    },
+    {
+      matchDepNames: ["lordmulder/stdutils"],
+      prBodyNotes: ["The StdUtils release zip name carries a date (`StdUtils.<date>.zip`): update it in `packages/nsis/assets/nsis-windows.sh`."],
+    },
+    {
+      matchDepNames: ["AppImage/type2-runtime"],
+      prBodyNotes: ["Update the CHECKSUMS in `download-runtime.sh`, the signing key if it changed, and `# type2-runtime-release:` in `assets/runtime-licenses.tsv` (its test fails until they match)."],
+    },
+    {
+      matchDepNames: ["plougher/squashfs-tools"],
+      prBodyNotes: ["Check that `SQUASHFS_TOOLS_PATCHES` in `assets/build-appimage.sh` are still needed and still apply on the new tag."],
+    },
+    {
+      matchDepNames: ["Squirrel/Squirrel.Windows"],
+      prBodyNotes: ["Re-check every version and SHA-256 in `licenses/UPSTREAM.tsv` and its `# squirrel-version:` line (the build fails until it matches), and `patches/`."],
+    },
+    {
+      matchDepNames: ["wine/wine"],
+      prBodyNotes: ["Add the new tarball's SHA-256 to `get_checksum()` in `packages/wine/assets/build-wine.sh` and regenerate the Brewfile if the build dependencies changed."],
+    },
+    {
+      matchDepNames: ["wixtoolset/wix3"],
+      prBodyNotes: ["Update `WIX_VERSION` and the zip name in `WIX_ZIP_URL` in `packages/wix/build.sh` by hand: they do not follow the tag."],
+    },
+    {
+      matchDepNames: ["rpm-software-management/rpm"],
+      prBodyNotes: ["Check that `packages/rpm/assets/patches/` still applies."],
+    },
+  ],
+}

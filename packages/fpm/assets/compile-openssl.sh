@@ -11,6 +11,7 @@
 
 set -euo pipefail
 
+# renovate: datasource=github-releases depName=openssl/openssl extractVersion=^openssl-(?<version>.+)$
 OPENSSL_VERSION="${OPENSSL_VERSION:-3.5.9}"
 # SHA256 of https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VERSION}/openssl-${OPENSSL_VERSION}.tar.gz
 # Re-pin when bumping OPENSSL_VERSION (compare against the .sha256 file published next to the tarball).

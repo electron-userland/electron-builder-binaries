@@ -17,6 +17,7 @@ BASE_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 OUT_DIR="$BASE_DIR/out/nsis"
 
 # Version configuration
+# renovate: datasource=github-tags depName=NSIS-Dev/nsis versioning=regex:^v(?<major>\d)(?<minor>\d{2})(?<patch>\d)?$
 NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v313}
 
 # Elevate source
@@ -82,6 +83,7 @@ echo "📝 Creating Dockerfile for elevate.exe build..."
 DOCKERFILE="$OUT_DIR/Dockerfile.elevate"
 
 cat > "$DOCKERFILE" <<'DOCKERFILE_END'
+# renovate: datasource=docker depName=ubuntu
 FROM ubuntu:22.04
 
 ARG ELEVATE_VERSION

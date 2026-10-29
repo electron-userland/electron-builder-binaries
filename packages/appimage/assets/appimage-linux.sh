@@ -2,8 +2,11 @@
 
 set -eo pipefail
 
+# renovate: datasource=github-tags depName=plougher/squashfs-tools
 SQUASHFS_TOOLS_VERSION_TAG=${SQUASHFS_TOOLS_VERSION_TAG:-"4.7.5"}
+# renovate: datasource=gitlab-tags depName=xdg/desktop-file-utils registryUrl=https://gitlab.freedesktop.org
 DESKTOP_UTILS_DEPS_VERSION_TAG=${DESKTOP_UTILS_DEPS_VERSION_TAG:-"0.28"}
+# renovate: datasource=github-releases depName=uclouvain/openjpeg extractVersion=^v(?<version>.+)$
 OPENJPEG_VERSION=${OPENJPEG_VERSION:-"2.5.4"}
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)

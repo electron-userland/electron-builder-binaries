@@ -44,6 +44,7 @@ EOF
 }
 
 # SHA256 of the pre-built EXEs from electron/rcedit v2.0.0.
+# renovate: datasource=github-releases depName=electron/rcedit extractVersion=^v(?<version>.+)$
 RCEDIT_VERSION="${RCEDIT_VERSION:-2.0.0}"
 RCEDIT_X64_SHA256="${RCEDIT_X64_SHA256:-3e7801db1a5edbec91b49a24a094aad776cb4515488ea5a4ca2289c400eade2a}"
 RCEDIT_X86_SHA256="${RCEDIT_X86_SHA256:-38fb5e935d7cb58d7a98b4ed8f876c83f5db032bcd0329b0a4de4e4a1de876b6}"

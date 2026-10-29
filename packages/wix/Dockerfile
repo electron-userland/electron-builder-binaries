@@ -32,6 +32,7 @@ RUN dpkg --add-architecture i386 && \
 # Pre-stage wine-mono so `wineboot --init` installs the .NET Framework runtime
 # offline. Ubuntu 24.04 ships wine 9.0, which expects wine-mono 9.0.0; placing
 # the matching MSI in Wine's shared mono dir makes wineboot auto-install it.
+# renovate: datasource=github-tags depName=wine-mono/wine-mono extractVersion=^wine-mono-(?<version>.+)$
 ARG WINE_MONO_VERSION=9.0.0
 ARG WINE_MONO_SHA256=79f6c43100675566c112f4199b9ea7b944d338164b34bd91fa11b0b0a414e1c4
 RUN mkdir -p /usr/share/wine/mono && \

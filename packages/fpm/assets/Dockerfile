@@ -2,6 +2,7 @@
 
 ARG TARGET_ARCH=x86_64
 ARG PLATFORM_ARCH
+# renovate: datasource=ruby-version depName=ruby
 ARG RUBY_VERSION=3.4.12
 
 FROM --platform=linux/${PLATFORM_ARCH:-amd64} debian:buster

@@ -4,6 +4,7 @@
 
 # Upstream release: https://github.com/rpm-software-management/rpm/releases/tag/rpm-6.1.0-release
 # Re-pin when bumping RPM_VERSION: curl -fsSL "$RPM_URL" | sha256sum
+# renovate: datasource=github-releases depName=rpm-software-management/rpm extractVersion=^rpm-(?<version>.+)-release$
 RPM_VERSION="${RPM_VERSION:-6.1.0}"
 RPM_SHA256="${RPM_SHA256:-f520810d27c74bf1c5d8b8885845c61e0c845f62d33e68b02e020633a8b62fe3}"
 RPM_URL="${RPM_URL:-https://github.com/rpm-software-management/rpm/releases/download/rpm-${RPM_VERSION}-release/rpm-${RPM_VERSION}.tar.bz2}"

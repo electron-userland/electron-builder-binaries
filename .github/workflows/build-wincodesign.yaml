@@ -5,10 +5,12 @@ on:
     inputs:
       osslsigncode_ver:
         description: "osslsigncode version tag to build"
+        # renovate: datasource=github-tags depName=mtrojnar/osslsigncode
         default: "2.14"
         required: false
       rcedit_version:
         description: "rcedit release version"
+        # renovate: datasource=github-releases depName=electron/rcedit extractVersion=^v(?<version>.+)$
         default: "2.0.0"
         required: false
   workflow_call:
@@ -63,6 +65,7 @@ jobs:
       - name: Build win-codesign Linux (${{ matrix.arch }})
         env:
           ARCH: ${{ matrix.arch }}
+          # renovate: datasource=github-tags depName=mtrojnar/osslsigncode
           OSSLSIGNCODE_VER: ${{ inputs.osslsigncode_ver || '2.14' }}
         run: |
           bash ./packages/win-codesign/build.sh \
@@ -127,6 +130,7 @@ jobs:
       - name: Build osslsigncode for Windows (${{ matrix.arch }})
         env:
           ARCH: ${{ matrix.arch }}
+          # renovate: datasource=github-tags depName=mtrojnar/osslsigncode
           OSSLSIGNCODE_VER: ${{ inputs.osslsigncode_ver || '2.14' }}
         run: |
           bash ./packages/win-codesign/build.sh \
@@ -182,6 +186,7 @@ jobs:
 
       - name: Build Windows kits + ats + rcedit (x64 only)
         env:
+          # renovate: datasource=github-releases depName=electron/rcedit extractVersion=^v(?<version>.+)$
           RCEDIT_VERSION: ${{ inputs.rcedit_version || '2.0.0' }}
         run: |
           bash ./packages/win-codesign/build.sh \
@@ -252,6 +257,7 @@ jobs:
         shell: bash
         env:
           ARCH: ${{ matrix.arch }}
+          # renovate: datasource=github-tags depName=mtrojnar/osslsigncode
           OSSLSIGNCODE_VER: ${{ inputs.osslsigncode_ver || '2.14' }}
         run: |
           bash packages/win-codesign/build.sh \

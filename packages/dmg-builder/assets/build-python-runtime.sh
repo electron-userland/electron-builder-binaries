@@ -60,8 +60,11 @@ done
 
 ROOT="${ROOT:-$_DEFAULT_ROOT}"
 OUTPUT_DIR="${OUTPUT_DIR:-${ROOT}/dist}"
+# renovate: datasource=python-version depName=python
 PYTHON_VERSION="${PYTHON_VERSION:-3.14.10}"
+# renovate: datasource=github-releases depName=openssl/openssl extractVersion=^openssl-(?<version>.+)$
 OPENSSL_VERSION="${OPENSSL_VERSION:-3.5.9}"
+# renovate: datasource=pypi depName=dmgbuild
 DMGBUILD_VERSION="${DMGBUILD_VERSION:-1.6.6}"
 ARCH="${ARCH:-$(uname -m)}"
 
@@ -271,6 +274,7 @@ TEST_STDLIB="$TEST_DIR/stdlib"
 mkdir -p "$TEST_PYDEPS" "$TEST_STDLIB"
 echo "🧪 Installing pytest into ${TEST_PYDEPS} (test-only)"
 run_arch "$PREFIX/bin/python3" -m pip install --no-warn-script-location --no-cache \
+    # renovate: datasource=pypi depName=pytest
     --target "$TEST_PYDEPS" "pytest==9.2.0"
 
 ###############################################################################

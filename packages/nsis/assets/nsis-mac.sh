@@ -16,7 +16,9 @@ OUT_DIR="$BASE_DIR/out/nsis"
 BUILD_DIR="$OUT_DIR/build-mac"
 
 # Version configuration
+# renovate: datasource=repology depName=NSIS packageName=homebrew/makensis
 NSIS_VERSION=${NSIS_VERSION:-3.13}
+# renovate: datasource=github-tags depName=NSIS-Dev/nsis versioning=regex:^v(?<major>\d)(?<minor>\d{2})(?<patch>\d)?$
 NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v313}
 
 # Detect architecture
