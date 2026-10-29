@@ -162,7 +162,10 @@ jobs:
           command -v 7z || { sudo apt-get update && sudo apt-get install -y p7zip-full; }
           ls -la dl/rpm
           7z x -bd -obundle dl/rpm/rpm-*.7z >/dev/null
-          7z x -bd -ofpmtk "artifacts/fpm/fpm-1.17.0-ruby-3.4.3-${FPM_TOOLSET}.7z" >/dev/null
+          # the released fpm toolset, whatever its fpm/Ruby version (only its ./fpm is used; the rpm under test is bundle/)
+          set -- artifacts/fpm/fpm-*-"${FPM_TOOLSET}".7z
+          if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then echo "expected one released fpm toolset for ${FPM_TOOLSET}, found: $*"; exit 1; fi
+          7z x -bd -ofpmtk "$1" >/dev/null
           du -sh bundle
 
       - name: Smoke test in ${{ matrix.image }}
@@ -222,7 +225,10 @@ jobs:
           SZ="$(command -v 7zz || command -v 7z || command -v 7za || true)"
           if [ -z "$SZ" ]; then brew install -q sevenzip; SZ="$(command -v 7zz)"; fi
           "$SZ" x -bd -obundle dl/rpm/rpm-*.7z >/dev/null
-          "$SZ" x -bd -ofpmtk artifacts/fpm/fpm-1.17.0-ruby-3.4.3-darwin-arm64.7z >/dev/null
+          # the released fpm toolset, whatever its fpm/Ruby version (only its ./fpm is used; the rpm under test is bundle/)
+          set -- artifacts/fpm/fpm-*-darwin-arm64.7z
+          if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then echo "expected one released darwin-arm64 fpm toolset, found: $*"; exit 1; fi
+          "$SZ" x -bd -ofpmtk "$1" >/dev/null
           du -sh bundle
 
       - name: Smoke test
