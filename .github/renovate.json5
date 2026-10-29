@@ -100,6 +100,14 @@
       addLabels: ["toolset: appimage"],
     },
     {
+      matchFileNames: ["packages/archive/**", ".github/workflows/build-archive.yaml"],
+      matchManagers: ["custom.regex", "dockerfile", "npm", "pip_requirements"],
+      additionalBranchPrefix: "archive-",
+      semanticCommitType: "fix",
+      semanticCommitScope: "archive",
+      addLabels: ["toolset: archive"],
+    },
+    {
       matchFileNames: ["packages/dmg-builder/**", ".github/workflows/build-dmg-builder.yaml"],
       matchManagers: ["custom.regex", "dockerfile", "npm", "pip_requirements"],
       additionalBranchPrefix: "dmg-builder-",
@@ -124,14 +132,6 @@
       addLabels: ["toolset: icons"],
     },
     {
-      matchFileNames: ["packages/linux-tools-mac/**", ".github/workflows/build-linux-tools-mac.yaml"],
-      matchManagers: ["custom.regex", "dockerfile", "npm", "pip_requirements"],
-      additionalBranchPrefix: "linux-tools-mac-",
-      semanticCommitType: "fix",
-      semanticCommitScope: "linux-tools-mac",
-      addLabels: ["toolset: linux-tools-mac"],
-    },
-    {
       matchFileNames: ["packages/nsis/**", ".github/workflows/build-nsis.yaml"],
       matchManagers: ["custom.regex", "dockerfile", "npm", "pip_requirements"],
       additionalBranchPrefix: "nsis-",
@@ -146,14 +146,6 @@
       semanticCommitType: "fix",
       semanticCommitScope: "ran",
       addLabels: ["toolset: ran"],
-    },
-    {
-      matchFileNames: ["packages/rpm/**", ".github/workflows/build-rpm.yaml"],
-      matchManagers: ["custom.regex", "dockerfile", "npm", "pip_requirements"],
-      additionalBranchPrefix: "rpm-",
-      semanticCommitType: "fix",
-      semanticCommitScope: "rpm",
-      addLabels: ["toolset: rpm"],
     },
     {
       matchFileNames: ["packages/squirrel.windows/**", ".github/workflows/build-squirrel.yaml"],
@@ -241,7 +233,7 @@
     },
     {
       matchDepNames: ["rpm-software-management/rpm"],
-      prBodyNotes: ["Check that `packages/rpm/assets/patches/` still applies."],
+      prBodyNotes: ["Check that `packages/archive/assets/rpm/patches/` still applies."],
     },
   ],
 }

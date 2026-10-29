@@ -46,6 +46,8 @@ importers:
 
   packages/7zip: {}
 
+  packages/archive: {}
+
   packages/appimage: {}
 
   packages/dmg-builder: {}
@@ -61,13 +63,9 @@ importers:
         specifier: ^0.0.17
         version: 0.0.17
 
-  packages/linux-tools-mac: {}
-
   packages/nsis: {}
 
   packages/ran: {}
-
-  packages/rpm: {}
 
   packages/snap-template: {}
 
