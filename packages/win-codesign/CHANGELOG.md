@@ -1,5 +1,11 @@
 # win-codesign
 
+## 1.3.3
+
+### Patch Changes
+
+- [#251](https://github.com/electron-userland/electron-builder-binaries/pull/251) [`987b1db`](https://github.com/electron-userland/electron-builder-binaries/commit/987b1dbf1e144b85fae30110680bf479c26103e3) Thanks [@claude](https://github.com/apps/claude)! - fix(win-codesign): ship the third-party licenses of every bundled binary. Each bundle now has a `LICENSES/` directory (`MANIFEST.tsv` mapping every binary to its component, `LICENSES/<component>/` with the license files, `SOURCES.tsv` with each component's version and source), and every build and the CI bundle tests fail if a binary is shipped without its license (`scripts/verify-licenses.sh`). The macOS and Linux `osslsigncode` bundles now include `COPYING.txt`, the full GPLv3 text, as well as `LICENSE.txt`. Both are taken from the `osslsigncode` tag that was built rather than from `master`. The OpenSSL and libp11 licenses move from `lib/LICENSE.*.txt` to `LICENSES/openssl/` and `LICENSES/libp11/`. The Windows `osslsigncode` bundles, which shipped no license at all, now include the `osslsigncode` license and the OpenSSL and zlib licenses of the MSYS2 packages that provide the bundled DLLs. The rcedit `LICENSE` is fetched from the `v<version>` release tag instead of `master` and moves to `LICENSES/rcedit/`. The ATS bundle keeps the package's `LICENSE.md`, which was dropped before. The .NET runtime bundle also lays out its `LICENSE.txt` and `ThirdPartyNotices.txt` under `LICENSES/dotnet-runtime/`. The Windows SDK tools in the Windows Kits bundle now ship with the Windows SDK's license terms, copied verbatim from the installed SDK's `Licenses/<version>/` directory for the SDK version the tools come from into `LICENSES/windows-sdk/`, and the build fails if that directory is missing or empty.
+
 ## 1.3.2
 
 ### Patch Changes

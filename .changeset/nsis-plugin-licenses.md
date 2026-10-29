@@ -1,5 +1,0 @@
----
-"nsis": patch
----
-
-fix(nsis): ship the license terms of every bundled community plugin and of `elevate.exe` in `LICENSES/`. Until now the plugin build kept only the DLLs and headers of each download and dropped its license files (StdUtils' `LGPL.txt` among them), so only NSIS's own `LICENSE` shipped. Each plugin's license / readme files are now copied from its download to `LICENSES/<plugin>/`. INetC's and StdUtils' licenses (plus the RHash and BLAKE2 licenses of code StdUtils compiles in) and elevate's BSD 2-clause license (published with the Chocolatey `elevate.native` package) are pinned by SHA256. NsProcess, SpiderBanner, WinShell and NSISunzU (the Unicode build of Nsisunz), whose downloads carry no license terms of their own, get a `NOTICE-plugin-api.txt` quoting the zlib/libpng header of the NSIS plugin API `api.h`; NSISunzU's also points to Nsisunz's license files. `LICENSES/plugin-dlls.tsv` records which plugin each DLL came from, and the build and test suite fail when a plugin DLL has no license terms.

@@ -1,5 +1,11 @@
 # squirrel.windows
 
+## 1.2.1
+
+### Patch Changes
+
+- [#251](https://github.com/electron-userland/electron-builder-binaries/pull/251) [`987b1db`](https://github.com/electron-userland/electron-builder-binaries/commit/987b1dbf1e144b85fae30110680bf479c26103e3) Thanks [@claude](https://github.com/apps/claude)! - fix(squirrel.windows): ship the license of every binary in the bundle. A new `LICENSES/` directory at the zip root has `MANIFEST.tsv`, which maps each binary to its components, and a license directory per component: Squirrel.Windows (MIT), 7-Zip, NuGet (`nuget.exe` now comes from the pinned NuGet.CommandLine 7.9.0 package, the same file, so its `NOTICES.txt` ships with it), the assemblies ILRepack merges into `Squirrel.exe`, `Squirrel-Mono.exe` and `SyncReleases.exe` (NuGet.Squirrel, SharpCompress, Mono.Cecil, DeltaCompressionDotNet, Microsoft.Web.Xdt, WpfAnimatedGif, Octokit), the sources Squirrel.Windows vendors (Mono.Options, SimpleJson, Splat, MarkdownSharp, bsdiff), semver in `StubExecutable.exe`, and WTL and the zlib-derived unzip in `Setup.exe`. Each text is downloaded at build time from the upstream source at the version Squirrel.Windows 2.0.1 pins and checked against its SHA-256 (`LICENSES/UPSTREAM.tsv` lists the URLs and checksums, `LICENSES/SOURCES.md` says why); no license text is kept in this repository. The zip no longer contains the unused `squirrel.windows.2.0.1.nupkg`, which carried a stale 7-Zip 16.04, WiX 3.10, rcedit and signtool without their licenses, or `Squirrel.com` (a renamed Visual Studio `devenv.com` that electron-builder never runs). The build fails if a binary has no license entry (`scripts/verify-licenses.sh`), and CI checks the uploaded zip again
+
 ## 1.2.0
 
 ### Minor Changes

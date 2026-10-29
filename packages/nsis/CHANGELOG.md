@@ -1,5 +1,13 @@
 # nsis
 
+## 2.0.4
+
+### Patch Changes
+
+- [#250](https://github.com/electron-userland/electron-builder-binaries/pull/250) [`cda6281`](https://github.com/electron-userland/electron-builder-binaries/commit/cda6281a5b811aa530f741d2a23056621541209b) Thanks [@claude](https://github.com/apps/claude)! - fix(nsis): ship the Unicode build of `nsisunz.dll` in `Plugins/x86-unicode`. In nsis@2.0.3 the ANSI build from `Nsisunz.zip` was installed after the Unicode build from `NSISunzU.zip` and overwrote it, so `x86-unicode/nsisunz.dll` was byte-identical to `x86-ansi/nsisunz.dll` and Unicode installers (the NSIS default) loaded an ANSI plugin. `Nsisunz.zip` now installs to `x86-ansi` only and `NSISunzU.zip` to `x86-unicode` only, whatever order they are processed in, and the test suite fails unless `x86-unicode/nsisunz.dll` differs from the ANSI one and imports the wide-char API (`CreateDirectoryW`) while the ANSI one imports `CreateDirectoryA`.
+
+- [#251](https://github.com/electron-userland/electron-builder-binaries/pull/251) [`987b1db`](https://github.com/electron-userland/electron-builder-binaries/commit/987b1dbf1e144b85fae30110680bf479c26103e3) Thanks [@claude](https://github.com/apps/claude)! - fix(nsis): ship the license terms of every bundled community plugin and of `elevate.exe` in `LICENSES/`. Until now the plugin build kept only the DLLs and headers of each download and dropped its license files (StdUtils' `LGPL.txt` among them), so only NSIS's own `LICENSE` shipped. Each plugin's license / readme files are now copied from its download to `LICENSES/<plugin>/`. INetC's and StdUtils' licenses (plus the RHash and BLAKE2 licenses of code StdUtils compiles in) and elevate's BSD 2-clause license (published with the Chocolatey `elevate.native` package) are pinned by SHA256. NsProcess, SpiderBanner, WinShell and NSISunzU (the Unicode build of Nsisunz), whose downloads carry no license terms of their own, get a `NOTICE-plugin-api.txt` quoting the zlib/libpng header of the NSIS plugin API `api.h`; NSISunzU's also points to Nsisunz's license files. `LICENSES/plugin-dlls.tsv` records which plugin each DLL came from, and the build and test suite fail when a plugin DLL has no license terms.
+
 ## 2.0.3
 
 ### Patch Changes
