@@ -41,6 +41,8 @@ pass=0 fail=0
 ok() { echo "  ✅ $1"; pass=$((pass + 1)); }
 ko() { echo "  ❌ $1"; fail=$((fail + 1)); }
 expect_eq() { if [ "$2" = "$3" ]; then ok "$1 = '$3'"; else ko "$1: expected '$3', got '$2'"; fi; }
+# same_content <file> <file>: cmp without diffutils (not in every image, e.g. almalinux:8)
+same_content() { [ "$(cksum <"$1" | awk '{print $1, $2}')" = "$(cksum <"$2" | awk '{print $1, $2}')" ]; }
 # run <description> <log> <command...>: ok/ko on the exit status, printing the log on failure
 run() {
     local desc="$1" log="$2"
@@ -163,7 +165,7 @@ if [ -f "$DEB" ]; then
     expect_eq "ar t (bundled GNU ar)" "$members" "debian-binary control.tar.xz data.tar.xz"
     if ar p "$DEB" data.tar.xz | xz -dc | tar -tf - | grep 'opt/ebsmoke/hello.txt' >/dev/null; then ok "data.tar.xz extracts (ar p | xz -dc | tar)"; else ko "data.tar.xz unreadable"; fi
     mkdir -p "$WORK/deb-x"
-    if (cd "$WORK/deb-x" && ar x "$DEB" && tar -xJf data.tar.xz) && cmp -s "$WORK/deb-x/opt/ebsmoke/blob.bin" "$WORK/root/opt/ebsmoke/blob.bin"; then
+    if (cd "$WORK/deb-x" && ar x "$DEB" && tar -xJf data.tar.xz) && same_content "$WORK/deb-x/opt/ebsmoke/blob.bin" "$WORK/root/opt/ebsmoke/blob.bin"; then
         ok "deb payload round-trips (ar x, tar -xJf)"
     else
         ko "deb payload differs after extraction"
@@ -201,24 +203,27 @@ if [ "$EXPECT_RPM" = "1" ]; then
     RPM="$WORK/ebsmoke-1.0.0-1.$RPM_ARCH.rpm"
     run "fpm -t rpm --rpm-compression xzmt" "$WORK/rpm.log" "$FPM" "${FPM_ARGS[@]}" -t rpm --rpm-os linux -a "$RPM_ARCH" --rpm-compression xzmt -p "$RPM" .
     if [ -f "$RPM" ]; then
-        expect_eq "rpm payload compressor" "$(rpm -qp --qf '%{PAYLOADCOMPRESSOR}' "$RPM" 2>&1)" "xz"
-        expect_eq "RPMFORMAT" "$(rpm -qp --qf '%{RPMFORMAT}' "$RPM" 2>&1)" "4"
+        # stdout only: on macOS rpm also warns that it cannot lock the (absent) /var/lib/rpm keyring; queries work
+        expect_eq "rpm payload compressor" "$(rpm -qp --qf '%{PAYLOADCOMPRESSOR}' "$RPM" 2>/dev/null)" "xz"
+        expect_eq "RPMFORMAT" "$(rpm -qp --qf '%{RPMFORMAT}' "$RPM" 2>/dev/null)" "4"
         if rpm -qlp "$RPM" 2>/dev/null | grep '/opt/ebsmoke/hello.txt' >/dev/null; then ok "rpm payload present"; else ko "rpm payload missing"; fi
     fi
 fi
 
 # --- lzip (electron-builder's tar.lz target) ------------------------------------------------------------------------
 echo "▶ lzip round trip"
+# (one && chain: errexit does not apply inside a subshell that is tested)
 (
-    cd "$WORK"
-    tar -cf lz.tar -C root opt
-    lzip -9 -k lz.tar
-    lzip -t lz.tar.lz
-    lzip -dc lz.tar.lz | cmp - lz.tar
-    tar --lzip -tf lz.tar.lz | grep 'opt/ebsmoke/blob.bin'
-    mkdir -p lz-x
-    tar --lzip -xf lz.tar.lz -C lz-x
-    cmp lz-x/opt/ebsmoke/blob.bin root/opt/ebsmoke/blob.bin
+    cd "$WORK" &&
+        tar -cf lz.tar -C root opt &&
+        lzip -9 -k lz.tar &&
+        lzip -t lz.tar.lz &&
+        lzip -dc lz.tar.lz >lz.out.tar &&
+        same_content lz.out.tar lz.tar &&
+        tar --lzip -tf lz.tar.lz | grep 'opt/ebsmoke/blob.bin' &&
+        mkdir -p lz-x &&
+        tar --lzip -xf lz.tar.lz -C lz-x &&
+        same_content lz-x/opt/ebsmoke/blob.bin root/opt/ebsmoke/blob.bin
 ) >"$WORK/lzip.log" 2>&1 && ok "tar | lzip -9, lzip -t, lzip -d and tar --lzip -x round-trip" || { ko "lzip round trip"; sed 's/^/     /' "$WORK/lzip.log"; }
 
 if [ "$EXPECT_RPM" = "1" ]; then

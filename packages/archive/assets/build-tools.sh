@@ -182,12 +182,15 @@ fi
 SRC=$(extract_source TAR "$SOURCES" "$WORK")
 echo "🔨 GNU tar $TAR_VERSION"
 TAR_LDFLAGS="$LDFLAGS"
+TAR_ARGS=()
 # tar 1.35 detects iconv but does not link it on macOS (https://savannah.gnu.org/bugs/?64441)
 if [ "$OS" = "Darwin" ]; then TAR_LDFLAGS="$LDFLAGS -liconv"; fi
+# i386 is built against glibc 2.17, which has no 64-bit time_t for 32-bit code (that needs glibc >= 2.34)
+if [ "$OS" != "Darwin" ] && [ "$(getconf LONG_BIT)" = "32" ]; then TAR_ARGS+=(--disable-year2038); fi
 (
     cd "$SRC"
     run_logged "$WORK/tar-configure.log" ./configure --prefix="$PREFIX" --disable-nls --disable-dependency-tracking \
-        --without-selinux --without-posix-acls --without-xattrs LDFLAGS="$TAR_LDFLAGS"
+        --without-selinux --without-posix-acls --without-xattrs ${TAR_ARGS[@]+"${TAR_ARGS[@]}"} LDFLAGS="$TAR_LDFLAGS"
     run_logged "$WORK/tar-make.log" make -j"$JOBS"
 )
 install_bin "$SRC/src/tar" tar gtar
