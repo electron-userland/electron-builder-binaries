@@ -3,6 +3,9 @@ name: Build FPM
 on:
   workflow_call:
   workflow_dispatch:
+
+permissions:
+  contents: read
     
 jobs:
   linux:
@@ -19,26 +22,28 @@ jobs:
           ]
     steps:
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226
+        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
       - name: Enable Corepack for pnpm
         run: |
           corepack enable
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with: { submodules: true }
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with: { submodules: true, persist-credentials: false }
       - name: Setup Node.js
-        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
         with: { node-version: '22', check-latest: true }
       - name: Install dependencies & build (${{ matrix.arch }})
+        env:
+          MATRIX_ARCH: ${{ matrix.arch }}
         run: |
           pnpm i --frozen-lockfile
-          export ARCH=${{ matrix.arch }}
+          export ARCH="$MATRIX_ARCH"
           bash packages/fpm/build.sh
-          echo "ARCH_KEY=$(echo $ARCH | tr '/' '-')" >> $GITHUB_ENV
+          echo "ARCH_KEY=$(echo "$ARCH" | tr '/' '-')" >> "$GITHUB_ENV"
       - name: Upload FPM Linux artifact
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: fpm-linux-${{ env.ARCH_KEY }}
           path: packages/fpm/out
@@ -59,10 +64,10 @@ jobs:
           corepack enable
         shell: bash
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with: { submodules: true }
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with: { submodules: true, persist-credentials: false }
       - name: Setup Node.js
-        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
         with: { node-version: '22', check-latest: true }
       - name: Install dependencies
         run: pnpm i --frozen-lockfile
@@ -71,7 +76,7 @@ jobs:
         shell: bash
         env: { OS_TARGET: darwin }
       - name: Upload FPM macOS artifact
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: fpm-mac-${{ matrix.node }}
           path: packages/fpm/out
