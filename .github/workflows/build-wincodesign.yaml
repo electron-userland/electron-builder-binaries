@@ -23,7 +23,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -50,13 +50,13 @@ jobs:
         arch: [amd64, i386, arm64]
     steps:
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -80,7 +80,7 @@ jobs:
             "$ARCH"
 
       - name: Upload win-codesign Linux artifact
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: win-codesign-linux-${{ matrix.arch }}
           path: ./packages/win-codesign/out/**/*.zip
@@ -101,12 +101,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Setup MSYS2
-        uses: msys2/setup-msys2@fb197b72ce45fb24f17bf3f807a388985654d1f2 # v2.29.0
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2.33.0
         with:
           msystem: ${{ matrix.arch == 'arm64' && 'CLANGARM64' || 'MINGW64' }}
           update: true
@@ -142,7 +142,7 @@ jobs:
             "./packages/win-codesign/out/win-codesign/win-codesign-windows-$ARCH.zip"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: win-codesign-windows-${{ matrix.arch }}
           path: ./packages/win-codesign/out/**/*.zip
@@ -157,12 +157,12 @@ jobs:
         shell: msys2 {0}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Setup MSYS2
-        uses: msys2/setup-msys2@fb197b72ce45fb24f17bf3f807a388985654d1f2 # v2.29.0
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2.33.0
         with:
           msystem: MINGW64
           update: true
@@ -197,7 +197,7 @@ jobs:
           bash ./packages/win-codesign/assets/verify-bundle-licenses.sh ./packages/win-codesign/out/win-codesign/*.zip
 
       - name: Upload artifact
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: win-codesign-windows-kits-rcedit
           path: ./packages/win-codesign/out/**/*.zip
@@ -209,7 +209,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -223,7 +223,7 @@ jobs:
         run: xvfb-run --auto-servernum bash ./packages/win-codesign/test/build-win-dotnet-test.sh
 
       - name: Upload artifact
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: win-codesign-dotnet-runtime
           path: ./packages/win-codesign/out/**/*.zip
@@ -244,7 +244,7 @@ jobs:
             node: macos-15
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -279,7 +279,7 @@ jobs:
             "packages/win-codesign/out/win-codesign/win-codesign-darwin-$ARCH.zip"
 
       - name: Upload win-codesign macOS artifact
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: win-codesign-darwin-${{ matrix.arch }}
           path: ./packages/win-codesign/out/**/*.zip

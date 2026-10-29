@@ -26,7 +26,7 @@ jobs:
             runner: ubuntu-24.04-arm
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -60,7 +60,7 @@ jobs:
           JOB_STATUS: ${{ job.status }}
 
       - name: Upload rpm Linux artifact
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: rpm-linux-${{ matrix.arch }}
           path: packages/rpm/out
@@ -76,7 +76,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -120,7 +120,7 @@ jobs:
           JOB_STATUS: ${{ job.status }}
 
       - name: Upload rpm macOS artifact
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: rpm-darwin-arm64
           path: packages/rpm/out
@@ -145,12 +145,12 @@ jobs:
           - { arch: amd64, runner: ubuntu-latest, fpm: linux-amd64, image: "almalinux:8" }
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Download rpm bundle
-        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: rpm-linux-${{ matrix.arch }}
           path: dl
@@ -210,12 +210,12 @@ jobs:
         runner: [macos-15, macos-26]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Download rpm bundle
-        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: rpm-darwin-arm64
           path: dl
