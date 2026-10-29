@@ -6,9 +6,11 @@ export RUBY_VERSION=3.4.12
 CWD=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 OS_TARGET=${OS_TARGET:-$(uname | tr '[:upper:]' '[:lower:]')}
 
-# Fast check of the license collection before the long build
+# Fast checks of the license collection and the native tools merge before the long build
 echo "🧪 Testing the license collection (tests/collect-licenses-test.sh)..."
 bash "$CWD/tests/collect-licenses-test.sh"
+echo "🧪 Testing the native tools merge (tests/add-native-tools-test.sh)..."
+bash "$CWD/tests/add-native-tools-test.sh"
 
 # Archives older than this marker come from earlier builds and are not checked at the end
 BUILD_MARKER="$(mktemp "${TMPDIR:-/tmp}/fpm-build-marker.XXXXXX")"
@@ -28,10 +30,14 @@ if [ "$OS_TARGET" = "darwin" ]; then
     echo "Building for macOS"
     bash "$CWD/assets/compile-portable-ruby.sh"
     bash "$CWD/assets/patch-portable-ruby.sh"
+
+    # Native tools for the bundle's bin/: xz, and rpm on arm64
+    NATIVE_STAGE="$CWD/build/native-darwin-$(uname -m)"
+    WORK_DIR="$CWD/build/work-native-darwin" bash "$CWD/assets/build-native-mac.sh" "$NATIVE_STAGE"
 else
-    # These are the --platform linux/ARCH options available
-    # Pulled from: https://hub.docker.com/_/debian/tags?name=buster
-    ARCH_OPTIONS="i386 amd64 arm/v5 arm/v7 arm64/v8"
+    # These are the --platform linux/ARCH options supported: debian:buster (Ruby) and a manylinux image for
+    # the native tools (native-constants.sh) exist for each
+    ARCH_OPTIONS="i386 amd64 arm64/v8"
     echo "Building for Linux"
     if [ -z "$ARCH" ]; then
         echo "Architecture not specified. Options are: $ARCH_OPTIONS."
@@ -98,18 +104,43 @@ else
     docker cp -a "$containerId":/tmp/out "$FPM_OUTPUT_DIR"
 
     cleanup
+
+    # Native tools for the bundle's bin/: xz, and rpm on amd64/arm64 (manylinux_2_28 has no i686)
+    # shellcheck source=SCRIPTDIR/assets/native-constants.sh
+    source "$CWD/assets/native-constants.sh"
+    case "$ARCH" in
+        amd64) NATIVE_PLATFORM=linux/amd64; NATIVE_IMAGE="$NATIVE_IMAGE_amd64"; WITH_RPM=1 ;;
+        arm64/v8) NATIVE_PLATFORM=linux/arm64; NATIVE_IMAGE="$NATIVE_IMAGE_arm64"; WITH_RPM=1 ;;
+        i386) NATIVE_PLATFORM=linux/386; NATIVE_IMAGE="$NATIVE_IMAGE_i386"; WITH_RPM=0 ;;
+    esac
+    REPO_DIR=$(cd "$CWD/../.." && pwd)
+    NATIVE_STAGE="$CWD/build/native-linux-$ARCH_KEY"
+    echo "🐧 Building the native tools for $NATIVE_PLATFORM in $NATIVE_IMAGE"
+    docker pull --platform "$NATIVE_PLATFORM" "$NATIVE_IMAGE"
+    docker image inspect --format '🐳 {{index .RepoDigests 0}}' "$NATIVE_IMAGE" || true
+    mkdir -p "$CWD/build"
+    # WORK_DIR on the bind mount keeps the build logs on the host for CI failure reports
+    docker run --rm --platform "$NATIVE_PLATFORM" \
+        -v "$REPO_DIR:/repo" -w /repo \
+        -e WITH_RPM="$WITH_RPM" \
+        -e WORK_DIR="/repo/packages/fpm/build/work-native-$ARCH_KEY" \
+        "$NATIVE_IMAGE" \
+        bash -c "rc=0; bash /repo/packages/fpm/assets/build-native-linux.sh /repo/packages/fpm/build/native-linux-$ARCH_KEY || rc=\$?; chown -R $(id -u):$(id -g) /repo/packages/fpm/build; exit \$rc"
 fi
 
-# The build itself fails on a missing license (patch-portable-ruby.sh); check the archives that ship as well
-echo "🔍 Checking the licenses in the built archives..."
 NEW_ARCHIVES=()
 while IFS= read -r archive; do
     NEW_ARCHIVES+=("$archive")
 done < <(find "$CWD/out/fpm" -name '*.7z' -newer "$BUILD_MARKER" | sort)
 rm -f "$BUILD_MARKER"
-if [ "${#NEW_ARCHIVES[@]}" -eq 0 ]; then
-    echo "❌ No archive was built in $CWD/out/fpm" >&2
+if [ "${#NEW_ARCHIVES[@]}" -ne 1 ]; then
+    echo "❌ Expected one archive built in $CWD/out/fpm, found ${#NEW_ARCHIVES[@]}: ${NEW_ARCHIVES[*]:-none}" >&2
     exit 1
 fi
+
+bash "$CWD/assets/add-native-tools.sh" "${NEW_ARCHIVES[0]}" "$NATIVE_STAGE"
+
+# The build itself fails on a missing license (patch-portable-ruby.sh); check the archives that ship as well
+echo "🔍 Checking the licenses in the built archives..."
 bash "$CWD/assets/verify-archive-licenses.sh" "${NEW_ARCHIVES[@]}"
 echo "Build completed successfully."

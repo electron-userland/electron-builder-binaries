@@ -3,42 +3,65 @@ name: Build FPM
 on:
   workflow_call:
   workflow_dispatch:
-    
+
+permissions:
+  contents: read
+
+# The fpm toolset: portable Ruby + fpm, plus native tools in the bundle's root bin/ (xz everywhere; rpm/rpmbuild
+# from packages/rpm on linux amd64/arm64 and darwin arm64). Each archive is then smoke-tested with every other xz
+# removed from PATH, in the images electron-builder users build in.
+
 jobs:
   linux:
-    runs-on: ubuntu-latest
-    # arm64 runs under QEMU and now also compiles OpenSSL; it took ~33 min before that
+    name: Build linux-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    # Ruby (with a static OpenSSL) and, on amd64/arm64, rpm are compiled from source
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
-        arch: [
-          amd64,
-          i386,
-          arm64/v8
-          ]
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: i386
+            runner: ubuntu-latest
+          # native arm64 runner: rpm's C++ build is too slow under QEMU
+          - arch: arm64/v8
+            runner: ubuntu-24.04-arm
     steps:
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226
+        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
       - name: Enable Corepack for pnpm
         run: |
           corepack enable
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with: { submodules: true }
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with: { submodules: true, persist-credentials: false }
       - name: Setup Node.js
-        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
         with: { node-version: '22', check-latest: true }
+      - name: Ensure 7-Zip
+        run: command -v 7za || command -v 7zz || command -v 7z || { sudo apt-get update && sudo apt-get install -y p7zip-full; }
       - name: Install dependencies & build (${{ matrix.arch }})
+        env:
+          MATRIX_ARCH: ${{ matrix.arch }}
         run: |
+          set -o pipefail
           pnpm i --frozen-lockfile
-          export ARCH=${{ matrix.arch }}
-          bash packages/fpm/build.sh
-          echo "ARCH_KEY=$(echo $ARCH | tr '/' '-')" >> $GITHUB_ENV
+          export ARCH="$MATRIX_ARCH"
+          echo "ARCH_KEY=$(echo "$ARCH" | tr '/' '-')" >> "$GITHUB_ENV"
+          mkdir -p packages/fpm/build
+          bash packages/fpm/build.sh 2>&1 | tee packages/fpm/build/build.log
+
+      # Job logs are not always retrievable through the API (e.g. by automation); annotations are.
+      - name: Report build result as annotations
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: bash packages/fpm/tests/report-build.sh
+
       - name: Upload FPM Linux artifact
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: fpm-linux-${{ env.ARCH_KEY }}
           path: packages/fpm/out
@@ -46,12 +69,15 @@ jobs:
           retention-days: 1
 
   mac:
+    name: Build ${{ matrix.node }}
     runs-on: ${{ matrix.node }}
+    timeout-minutes: 90
     strategy:
+      fail-fast: false
       matrix:
         node: [
-          macos-15-intel, # intel
-          macos-15 # arm64
+          macos-15-intel, # intel: xz only
+          macos-15 # arm64: xz and rpm
         ]
     steps:
       - name: Enable Corepack for pnpm
@@ -59,21 +85,161 @@ jobs:
           corepack enable
         shell: bash
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with: { submodules: true }
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with: { submodules: true, persist-credentials: false }
       - name: Setup Node.js
-        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
         with: { node-version: '22', check-latest: true }
       - name: Install dependencies
         run: pnpm i --frozen-lockfile
       - name: Build for macOS
-        run: bash packages/fpm/build.sh
+        run: |
+          set -o pipefail
+          mkdir -p packages/fpm/build
+          bash packages/fpm/build.sh 2>&1 | tee packages/fpm/build/build.log
         shell: bash
         env: { OS_TARGET: darwin }
+
+      # Job logs are not always retrievable through the API (e.g. by automation); annotations are.
+      - name: Report build result as annotations
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: bash packages/fpm/tests/report-build.sh
+
       - name: Upload FPM macOS artifact
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: fpm-mac-${{ matrix.node }}
           path: packages/fpm/out
           if-no-files-found: error
           retention-days: 1
+
+  test-linux:
+    name: Test ${{ matrix.archive }} in ${{ matrix.image }}
+    needs: linux
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Base of electron-builder's docker/base/Dockerfile (FROM buildpack-deps:22.04-curl)
+          - { archive: linux-amd64, artifact: fpm-linux-amd64, runner: ubuntu-latest, platform: linux/amd64, image: "buildpack-deps:22.04-curl", rpm: true }
+          - { archive: linux-arm64v8, artifact: fpm-linux-arm64-v8, runner: ubuntu-24.04-arm, platform: linux/arm64, image: "buildpack-deps:22.04-curl", rpm: true }
+          # Older Debian userland (glibc 2.31)
+          - { archive: linux-amd64, artifact: fpm-linux-amd64, runner: ubuntu-latest, platform: linux/amd64, image: "debian:bullseye", rpm: true }
+          - { archive: linux-i386, artifact: fpm-linux-i386, runner: ubuntu-latest, platform: linux/386, image: "debian:bullseye", rpm: false }
+          # glibc 2.28 floor, rpm 4.14 reading the output
+          - { archive: linux-amd64, artifact: fpm-linux-amd64, runner: ubuntu-latest, platform: linux/amd64, image: "almalinux:8", rpm: true }
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Download fpm toolset
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          name: ${{ matrix.artifact }}
+          path: dl
+
+      - name: Extract fpm toolset
+        env:
+          ARCHIVE: ${{ matrix.archive }}
+        run: |
+          command -v 7z || { sudo apt-get update && sudo apt-get install -y p7zip-full; }
+          ls -la dl/fpm
+          7z x -bd -obundle dl/fpm/fpm-*-"$ARCHIVE".7z >/dev/null
+          du -sh bundle
+
+      - name: Smoke test in ${{ matrix.image }}
+        env:
+          IMAGE: ${{ matrix.image }}
+          PLATFORM: ${{ matrix.platform }}
+          EXPECT_RPM: ${{ matrix.rpm }}
+        run: |
+          set -o pipefail
+          docker run --rm --platform "$PLATFORM" -v "$PWD:/w" -w /w -e EXPECT_RPM "$IMAGE" bash -c '
+            set -e
+            # ar (binutils) for deb, tar for freebsd/pacman, bsdtar for pacman. The distro rpm 4.x is an
+            # independent reader of the rpm output; it is optional so that a stale mirror does not hide the result.
+            if command -v apt-get >/dev/null; then
+              apt-get update -qq
+              apt-get install -y -qq --no-install-recommends binutils tar >/dev/null
+              apt-get install -y -qq --no-install-recommends libarchive-tools rpm >/dev/null ||
+                echo "::warning::could not install bsdtar/rpm in $IMAGE"
+            elif command -v dnf >/dev/null; then
+              dnf -y -q install binutils tar >/dev/null
+              dnf -y -q install bsdtar >/dev/null || echo "::warning::could not install bsdtar in $IMAGE"
+            fi
+            args=(--bundle-dir /w/bundle --remove-host-xz)
+            if [ "$EXPECT_RPM" = "true" ]; then args+=(--expect-rpm); fi
+            bash packages/fpm/tests/smoke-test.sh "${args[@]}"
+            if [ "$EXPECT_RPM" = "true" ]; then
+              host_rpm=()
+              if [ -x /usr/bin/rpm ]; then host_rpm=(--host-rpm /usr/bin/rpm); fi
+              bash packages/rpm/assets/test.sh --bundle-dir /w/bundle --fpm /w/bundle/fpm --plant-host-macros "${host_rpm[@]}"
+            fi
+          ' 2>&1 | tee test.log
+
+      - name: Report test result as annotation
+        if: always()
+        env:
+          LABEL: ${{ matrix.archive }} in ${{ matrix.image }}
+        run: bash packages/fpm/tests/report-test.sh test.log
+
+  test-mac:
+    name: Test ${{ matrix.archive }} on ${{ matrix.runner }}
+    needs: mac
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { archive: darwin-arm64, artifact: fpm-mac-macos-15, runner: macos-15, rpm: true }
+          - { archive: darwin-arm64, artifact: fpm-mac-macos-15, runner: macos-26, rpm: true }
+          - { archive: darwin-x86_64, artifact: fpm-mac-macos-15-intel, runner: macos-15-intel, rpm: false }
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Download fpm toolset
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          name: ${{ matrix.artifact }}
+          path: dl
+
+      - name: Extract fpm toolset
+        env:
+          ARCHIVE: ${{ matrix.archive }}
+        run: |
+          SZ="$(command -v 7zz || command -v 7z || command -v 7za || true)"
+          if [ -z "$SZ" ]; then brew install -q sevenzip; SZ="$(command -v 7zz)"; fi
+          "$SZ" x -bd -obundle dl/fpm/fpm-*-"$ARCHIVE".7z >/dev/null
+          du -sh bundle
+          # fpm's freebsd target needs GNU tar (electron-builder provides gtar through linux-tools-mac)
+          command -v gtar || brew install -q gnu-tar
+
+      - name: Smoke test
+        env:
+          EXPECT_RPM: ${{ matrix.rpm }}
+        run: |
+          set -o pipefail
+          args=(--bundle-dir bundle --remove-host-xz)
+          if [ "$EXPECT_RPM" = "true" ]; then args+=(--expect-rpm); fi
+          {
+            bash packages/fpm/tests/smoke-test.sh "${args[@]}"
+            if [ "$EXPECT_RPM" = "true" ]; then
+              bash packages/rpm/assets/test.sh --bundle-dir bundle --fpm "$PWD/bundle/fpm" --plant-host-macros
+            fi
+          } 2>&1 | tee test.log
+
+      - name: Report test result as annotation
+        if: always()
+        env:
+          LABEL: ${{ matrix.archive }} on ${{ matrix.runner }}
+        run: bash packages/fpm/tests/report-test.sh test.log
