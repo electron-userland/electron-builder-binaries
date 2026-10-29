@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared configuration for the rpm toolset build scripts. Sourced, not executed.
+# Shared configuration for the rpm build scripts of the archive toolset. Sourced, not executed.
 # shellcheck disable=SC2034 # variables are consumed by the scripts that source this file
 
 # Upstream release: https://github.com/rpm-software-management/rpm/releases/tag/rpm-6.1.0-release
@@ -13,7 +13,7 @@ MAX_GLIBC="${MAX_GLIBC:-2.28}"
 MAX_GLIBCXX="${MAX_GLIBCXX:-3.4.25}"
 MAX_CXXABI="${MAX_CXXABI:-1.3.11}"
 
-# macOS floor. Matches the macos-15 runners used for linux-tools-mac: Homebrew
+# macOS floor. Matches the macos-15 runners the archive toolset is built on: Homebrew
 # bottles copied into the bundle carry the runner OS as their minimum version.
 MACOS_MIN="${MACOS_MIN:-15.0}"
 

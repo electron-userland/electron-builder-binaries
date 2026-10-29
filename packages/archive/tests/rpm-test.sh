@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Smoke test for an extracted rpm toolset bundle.
+# rpm checks for an extracted archive toolset that ships rpm (run by smoke-test.sh --expect-rpm).
 #
-# Usage: test.sh --bundle-dir <dir> [--fpm <fpm-executable>] [--plant-host-macros] [--host-rpm <path>]
+# Usage: rpm-test.sh --bundle-dir <dir> [--fpm <fpm-executable>] [--plant-host-macros] [--host-rpm <path>]
 #   --fpm                fpm entrypoint (e.g. the extracted fpm toolset's ./fpm). Default: `fpm` on PATH.
 #   --plant-host-macros  write poisoned /etc/rpm/macros.zz-poison and ~/.rpmmacros (needs write access
 #                        to /etc, uses sudo when available) and assert the bundle ignores them.
@@ -31,7 +31,7 @@ trap 'rm -rf "$WORK"' EXIT
 export PATH="$BUNDLE_DIR/bin:$PATH"
 OS=$(uname -s)
 
-echo "━━ rpm toolset smoke test on $( (. /etc/os-release 2>/dev/null && echo "$PRETTY_NAME") || sw_vers -productVersion) ($(uname -m))"
+echo "━━ rpm test on $( (. /etc/os-release 2>/dev/null && echo "$PRETTY_NAME") || sw_vers -productVersion) ($(uname -m))"
 [ -f "$BUNDLE_DIR/VERSION.txt" ] && sed 's/^/   /' "$BUNDLE_DIR/VERSION.txt"
 if [ "$OS" = "Linux" ]; then ldd --version 2>&1 | sed -n 1p | sed 's/^/   host /'; fi
 

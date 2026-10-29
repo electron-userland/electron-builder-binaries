@@ -1,5 +1,0 @@
-{
-    "name": "rpm",
-    "version": "1.0.0",
-    "description": "Portable, relocatable rpmbuild (rpm 6.1.x) for Linux and macOS arm64 with host macro isolation and pinned electron-builder defaults (_rpmformat 4, _build_id_links none), used by electron-builder's fpm-based rpm target."
-}

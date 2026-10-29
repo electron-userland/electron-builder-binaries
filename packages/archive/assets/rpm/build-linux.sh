@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds the portable rpm bundle for Linux. Intended to run inside a
-# manylinux_2_28 container (AlmaLinux 8, glibc 2.28, gcc-toolset >= 13), see ../build.sh.
+# manylinux_2_28 container (AlmaLinux 8, glibc 2.28, gcc-toolset >= 13), see ../build-linux.sh.
 #
 # Usage: build-linux.sh <output-stage-dir>
 # Env:   INSTALL_DEPS=0  skip dnf (for local builds on a host that already has the -devel deps)
