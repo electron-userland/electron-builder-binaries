@@ -1,7 +1,9 @@
 name: "Semantic Versioning enforcer"
 
 on:
-  pull_request_target:
+  # `pull_request` (not `pull_request_target`): the action only reads the PR title from the
+  # event payload / API, so it needs no write access or secrets, even for PRs from forks.
+  pull_request:
     types:
       - opened
       - edited
@@ -14,7 +16,7 @@ jobs:
   main:
     permissions:
       pull-requests: read  # for amannn/action-semantic-pull-request to analyze PRs
-      statuses: write  # for amannn/action-semantic-pull-request to mark status of analyzed PR
+      # statuses: write is only needed for the action's `wip` option, which is not enabled here
     runs-on: ubuntu-latest
     steps:
       # Please look up the latest version from
