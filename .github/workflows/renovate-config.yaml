@@ -1,0 +1,43 @@
+name: Renovate config
+
+# Validates .github/renovate.json5 and checks that every "# renovate:" annotation next to a pinned
+# upstream version is picked up by its customManagers (scripts/tests/renovate-annotations-test.mjs).
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    paths:
+      - ".github/renovate.json5"
+      - ".github/workflows/**"
+      - "packages/**"
+      - "scripts/tests/renovate-annotations-test.mjs"
+      - "package.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  renovate-config:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Renovate requires Node.js 24
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: "24", check-latest: true }
+
+      - name: Enable Corepack for pnpm
+        run: corepack enable
+
+      - name: Validate the Renovate config
+        run: pnpm test:renovate-config
+
+      - name: Check every renovate annotation is extracted
+        run: pnpm test:renovate-annotations

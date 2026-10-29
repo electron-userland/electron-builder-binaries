@@ -2,6 +2,7 @@
 set -euo pipefail
 
 # Configuration
+# renovate: datasource=github-releases depName=m3ng9i/ran
 VERSION="${VERSION:-v0.1.6}"
 BASE_URL="https://github.com/m3ng9i/ran/releases/download/${VERSION}"
 

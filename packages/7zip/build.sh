@@ -19,6 +19,7 @@ set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 ASSETS_DIR="$SCRIPT_DIR/assets"
 
+# renovate: datasource=github-releases depName=ip7z/7zip
 SEVEN_ZIP_VERSION="${SEVEN_ZIP_VERSION:-26.05}"
 OUT_DIR="${OUT_DIR:-$SCRIPT_DIR/out/7zip}"
 BUILD_TARGET=""

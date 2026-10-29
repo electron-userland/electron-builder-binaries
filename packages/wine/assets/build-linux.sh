@@ -6,6 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="${ROOT_DIR:-$SCRIPT_DIR/..}"
+# renovate: datasource=gitlab-tags depName=wine/wine extractVersion=^wine-(?<version>\d+\.0(\.\d+)?)$ registryUrl=https://gitlab.winehq.org
 WINE_VERSION="${WINE_VERSION:-11.0}"
 OUTPUT_DIR="${OUTPUT_DIR:-$ROOT_DIR/out}"
 

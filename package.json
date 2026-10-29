@@ -12,7 +12,10 @@
     "ci:validate-staging": "bash scripts/validate-staging.sh",
     "ci:detect-changes": "bash ./scripts/detect-packages.sh",
     "ci:version:dry-run": "node scripts/changeset-publish.js --dry-run",
-    "test:license-guard": "bash scripts/tests/verify-licenses-test.sh"
+    "test:license-guard": "bash scripts/tests/verify-licenses-test.sh",
+    "test:renovate": "pnpm test:renovate-config && pnpm test:renovate-annotations",
+    "test:renovate-config": "pnpm dlx --package renovate@44.176.2 renovate-config-validator --strict",
+    "test:renovate-annotations": "pnpm --silent dlx json5@2.2.3 .github/renovate.json5 | node scripts/tests/renovate-annotations-test.mjs"
   },
   "devDependencies": {
     "@actions/attest": "^3.2.0",

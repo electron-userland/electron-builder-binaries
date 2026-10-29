@@ -14,7 +14,9 @@ BASE_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 OUT_DIR="$BASE_DIR/out/nsis"
 
 # Version configuration
+# renovate: datasource=repology depName=NSIS packageName=homebrew/makensis
 NSIS_VERSION=${NSIS_VERSION:-3.13}
+# renovate: datasource=github-tags depName=NSIS-Dev/nsis versioning=regex:^v(?<major>\d)(?<minor>\d{2})(?<patch>\d)?$
 NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v313}
 
 OUTPUT_ARCHIVE="$OUT_DIR/nsis-bundle-linux-$NSIS_BRANCH.tar.gz"
@@ -67,6 +69,7 @@ echo "📝 Creating Dockerfile for Linux build..."
 DOCKERFILE="$OUT_DIR/Dockerfile.linux"
 
 cat > "$DOCKERFILE" <<'DOCKERFILE_END'
+# renovate: datasource=docker depName=ubuntu
 FROM ubuntu:22.04 AS builder
 
 ARG NSIS_BRANCH

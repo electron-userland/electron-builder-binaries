@@ -45,8 +45,10 @@ verify_sha256() {
     fi
 }
 
+# renovate: datasource=github-tags depName=plougher/squashfs-tools
 SQUASHFS_TOOLS_VERSION_TAG=${SQUASHFS_TOOLS_VERSION_TAG:-"4.7.5"}
 # Commit the tag must resolve to. Re-pin together with SQUASHFS_TOOLS_VERSION_TAG.
+# renovate: datasource=github-tags depName=plougher/squashfs-tools currentValue=4.7.5
 SQUASHFS_TOOLS_COMMIT=${SQUASHFS_TOOLS_COMMIT:-"708c59ae80853b0845017c33b42e56061cc546cd"}
 # Upstream master commits applied on top of the tag (git cherry-pick --no-commit, in order)
 SQUASHFS_TOOLS_PATCHES=(
@@ -58,11 +60,14 @@ SQUASHFS_TOOLS_PATCHES=(
 SQUASHFS_COMPRESSORS=(gzip xz lzo lz4 zstd)
 # zstd is built from source and linked statically into squashfs-tools so every host
 # (Linux distro / Homebrew) uses the same zstd and produces byte-identical zstd images.
+# renovate: datasource=github-releases depName=facebook/zstd extractVersion=^v(?<version>.+)$
 ZSTD_VERSION=${ZSTD_VERSION:-"1.5.7"}
 # SHA256 of https://github.com/facebook/zstd/releases/download/v${ZSTD_VERSION}/zstd-${ZSTD_VERSION}.tar.gz
 # Re-pin when bumping ZSTD_VERSION: curl -fsSL <url> | sha256sum
 ZSTD_SHA256=${ZSTD_SHA256:-"eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3"}
+# renovate: datasource=gitlab-tags depName=xdg/desktop-file-utils registryUrl=https://gitlab.freedesktop.org
 DESKTOP_UTILS_DEPS_VERSION_TAG=${DESKTOP_UTILS_DEPS_VERSION_TAG:-"0.28"}
+# renovate: datasource=github-releases depName=uclouvain/openjpeg extractVersion=^v(?<version>.+)$
 OPENJPEG_VERSION=${OPENJPEG_VERSION:-"2.5.4"}
 # SHA256 of https://github.com/uclouvain/openjpeg/archive/v${OPENJPEG_VERSION}.tar.gz
 # Re-pin when bumping OPENJPEG_VERSION: curl -fsSL <url> | sha256sum

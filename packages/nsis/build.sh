@@ -19,7 +19,9 @@ ASSETS_DIR="$SCRIPT_DIR/assets"
 OUT_DIR="$SCRIPT_DIR/out"
 
 # Build configuration
+# renovate: datasource=repology depName=NSIS packageName=homebrew/makensis
 export NSIS_VERSION="3.13"
+# renovate: datasource=github-tags depName=NSIS-Dev/nsis versioning=regex:^v(?<major>\d)(?<minor>\d{2})(?<patch>\d)?$ currentValue=v313
 export NSIS_BRANCH_OR_COMMIT="a4ba28e60bd9e7c271cd2bfc1558889ce3355653" # v3.13 stable release
 
 # Detect current OS

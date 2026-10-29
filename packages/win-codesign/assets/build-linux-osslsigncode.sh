@@ -25,6 +25,7 @@ EOF
 }
 
 PLATFORM_ARCH="${PLATFORM_ARCH:-amd64}"
+# renovate: datasource=github-tags depName=mtrojnar/osslsigncode
 OSSLSIGNCODE_VER="${OSSLSIGNCODE_VER:-2.14}"
 OUTPUT_DIR="/out/linux/osslsigncode"
 # Oldest glibc the bundle may require: that of the Ubuntu 20.04 builder image.
