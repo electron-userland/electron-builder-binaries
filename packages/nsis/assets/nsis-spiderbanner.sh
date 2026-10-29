@@ -9,9 +9,10 @@ set -euo pipefail
 # inside a Docker container, replacing the prebuilt DLLs previously downloaded
 # from the NSIS wiki.
 #
-# Source: https://github.com/nsis-community/plugin-spiderbanner (the original
-# NSIS wiki source, unmodified), pinned to a commit. The plugin API
-# (pluginapi.c and headers) comes from the same NSIS branch as makensis.
+# Source: the plugin's archive on the NSIS wiki (the same SpiderBanner_plugin.zip
+# the prebuilt DLLs came from), pinned by SHA-256. Only its Contrib/SpiderBanner
+# sources are used. The plugin API (pluginapi.c and headers) comes from the same
+# NSIS branch as makensis.
 #
 # Does NOT download or merge with base bundle.
 # Output: Single tar.gz with windows/Plugins/{x86-unicode,x86-ansi,amd64-unicode}/SpiderBanner.dll.
@@ -26,9 +27,9 @@ OUT_DIR="$BASE_DIR/out/nsis"
 # Version configuration
 NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v312}
 
-# SpiderBanner source (git commit SHA pins the exact content)
-SPIDERBANNER_REPO="https://github.com/nsis-community/plugin-spiderbanner.git"
-SPIDERBANNER_COMMIT="0395850e280b2877864835676fe6664427164aed"
+# SpiderBanner source
+SPIDERBANNER_URL="https://nsis.sourceforge.io/mediawiki/images/4/4c/SpiderBanner_plugin.zip"
+SPIDERBANNER_SHA256="45c79a024e5122834a3473a87649757bc11958a11602a3ce2d9f7ce006f0e2b7"
 
 # Docker configuration
 IMAGE_TAG="${NSIS_BRANCH//\//_}"
@@ -38,7 +39,7 @@ CONTAINER_NAME="nsis-spiderbanner-build-$$"
 OUTPUT_ARCHIVE="$OUT_DIR/nsis-bundle-spiderbanner-$NSIS_BRANCH.tar.gz"
 
 echo "🕷️  Building SpiderBanner plugin from source (Docker)..."
-echo "   SpiderBanner commit: $SPIDERBANNER_COMMIT"
+echo "   SpiderBanner SHA256: $SPIDERBANNER_SHA256"
 echo "   NSIS branch:         $NSIS_BRANCH"
 echo ""
 
@@ -83,24 +84,25 @@ cat > "$DOCKERFILE" <<'DOCKERFILE_END'
 FROM ubuntu:22.04
 
 ARG NSIS_BRANCH
-ARG SPIDERBANNER_REPO
-ARG SPIDERBANNER_COMMIT
+ARG SPIDERBANNER_URL
+ARG SPIDERBANNER_SHA256
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
     ca-certificates \
+    curl \
     git \
     mingw-w64 \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
 
-# Fetch the plugin source at the pinned commit (the SHA verifies the content).
-RUN git init -q spiderbanner && \
-    git -C spiderbanner remote add origin "${SPIDERBANNER_REPO}" && \
-    git -C spiderbanner fetch -q --depth=1 origin "${SPIDERBANNER_COMMIT}" && \
-    git -C spiderbanner checkout -q FETCH_HEAD && \
-    test "$(git -C spiderbanner rev-parse HEAD)" = "${SPIDERBANNER_COMMIT}"
+# Download and SHA256-verify the plugin archive, then extract only its sources
+# (not the prebuilt DLLs).
+RUN curl -fsSL --retry 3 --retry-delay 2 "${SPIDERBANNER_URL}" -o spiderbanner.zip && \
+    echo "${SPIDERBANNER_SHA256}  spiderbanner.zip" | sha256sum -c && \
+    unzip -q spiderbanner.zip 'Contrib/SpiderBanner/*' -d spiderbanner
 
 # Fetch the NSIS plugin API from the same branch makensis is built from.
 RUN git init -q nsis && \
@@ -159,8 +161,8 @@ echo "🔨 Building Docker image..."
 
 docker build \
     --build-arg NSIS_BRANCH="$NSIS_BRANCH" \
-    --build-arg SPIDERBANNER_REPO="$SPIDERBANNER_REPO" \
-    --build-arg SPIDERBANNER_COMMIT="$SPIDERBANNER_COMMIT" \
+    --build-arg SPIDERBANNER_URL="$SPIDERBANNER_URL" \
+    --build-arg SPIDERBANNER_SHA256="$SPIDERBANNER_SHA256" \
     -t "$IMAGE_NAME" \
     - < "$DOCKERFILE"
 
