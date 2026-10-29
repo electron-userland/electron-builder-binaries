@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build-artifacts:
-    uses: ./.github/workflows/build.yaml
+    uses: $/.github/workflows/build.yaml
 
   release:
     runs-on: macos-latest
@@ -49,7 +49,7 @@ jobs:
           tree artifacts-staging
   
       - name: Setup node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
           check-latest: true
@@ -60,7 +60,7 @@ jobs:
         shell: bash
 
       - name: Generate GitHub App token
-        uses: electron/github-app-auth-action@384fd19694fe7b6dcc9a684746c6976ad78228ae
+        uses: electron/github-app-auth-action@384fd19694fe7b6dcc9a684746c6976ad78228ae # v1.1.1
         id: generate-token
         with:
           export-git-user: true
@@ -82,7 +82,7 @@ jobs:
       - name: Create scoped releases
         if: steps.changesets.outputs.published == 'true'
         run: |
-          echo "Releases created with tags: ${{ steps.changesets.outputs.publishedPackages }}"
+          echo "Releases created with tags: $PUBLISHED_PACKAGES"
           node scripts/changeset-publish.js
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
