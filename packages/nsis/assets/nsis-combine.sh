@@ -130,15 +130,23 @@ rm -rf "$TEMP_ELEVATE" "$ELEVATE_BUNDLE"
 echo "  ✓ elevate.exe (and its license files) injected"
 
 # =============================================================================
-# Inject SpiderBanner plugin (compiled from source; the base bundle no longer
-# downloads the prebuilt DLLs from the NSIS wiki)
+# Inject SpiderBanner plugin (compiled from source). It replaces the prebuilt
+# x86 DLLs the base bundle installs from the same NSIS wiki zip, which also
+# supplies SpiderBanner's license notice (LICENSES/SpiderBanner).
 # =============================================================================
 
 echo ""
 echo "🕷️  Injecting SpiderBanner plugin..."
+# shellcheck source=nsis-plugin-licenses.sh
+source "$SCRIPT_DIR/nsis-plugin-licenses.sh"
+if [ ! -d "$BUILD_DIR/nsis-bundle/LICENSES/SpiderBanner" ]; then
+    echo "❌ SpiderBanner license files not found in base bundle: $BUILD_DIR/nsis-bundle/LICENSES/SpiderBanner"
+    exit 1
+fi
 TEMP_SPIDERBANNER="$BUILD_DIR/temp-spiderbanner"
 mkdir -p "$TEMP_SPIDERBANNER"
 tar -xzf "$SPIDERBANNER_BUNDLE" -C "$TEMP_SPIDERBANNER"
+plugin_dll_snapshot "$BUILD_DIR/nsis-bundle/windows/Plugins" > "$TEMP_SPIDERBANNER/plugin-dlls.snapshot"
 for variant in x86-unicode x86-ansi amd64-unicode; do
     SRC_DLL="$TEMP_SPIDERBANNER/nsis-bundle/windows/Plugins/$variant/SpiderBanner.dll"
     if [ ! -f "$SRC_DLL" ]; then
@@ -148,6 +156,8 @@ for variant in x86-unicode x86-ansi amd64-unicode; do
     mkdir -p "$BUILD_DIR/nsis-bundle/windows/Plugins/$variant"
     cp "$SRC_DLL" "$BUILD_DIR/nsis-bundle/windows/Plugins/$variant/SpiderBanner.dll"
 done
+record_plugin_dlls "SpiderBanner" "$TEMP_SPIDERBANNER/plugin-dlls.snapshot" \
+    "$BUILD_DIR/nsis-bundle/windows/Plugins" "$BUILD_DIR/nsis-bundle/LICENSES"
 rm -rf "$TEMP_SPIDERBANNER" "$SPIDERBANNER_BUNDLE"
 echo "  ✓ SpiderBanner.dll injected (x86-unicode, x86-ansi, amd64-unicode)"
 

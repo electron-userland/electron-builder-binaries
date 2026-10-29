@@ -5,9 +5,9 @@ set -euo pipefail
 # SpiderBanner Plugin Builder (Docker-based)
 # =============================================================================
 # Compiles the SpiderBanner NSIS plugin (x86-unicode, x86-ansi and amd64-unicode)
-# from source
-# inside a Docker container, replacing the prebuilt DLLs previously downloaded
-# from the NSIS wiki.
+# from source inside a Docker container. nsis-combine.sh puts the DLLs in place of
+# the prebuilt ones the base bundle installs from the same NSIS wiki zip; the base
+# bundle also ships SpiderBanner's license notice (LICENSES/SpiderBanner).
 #
 # Source: the plugin's archive on the NSIS wiki (the same SpiderBanner_plugin.zip
 # the prebuilt DLLs came from), pinned by SHA-256. Only its Contrib/SpiderBanner
@@ -25,7 +25,7 @@ BASE_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 OUT_DIR="$BASE_DIR/out/nsis"
 
 # Version configuration
-NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v312}
+NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v313}
 
 # SpiderBanner source
 SPIDERBANNER_URL="https://nsis.sourceforge.io/mediawiki/images/4/4c/SpiderBanner_plugin.zip"
@@ -125,26 +125,28 @@ RUN mkdir -p src/nsis && \
     sed -i 's|"nsis\\pluginapi.h"|"nsis/pluginapi.h"|' src/SpiderBanner.c && \
     sed -i 's|"afxres.h"|"winresrc.h"|' src/SpiderBanner.rc
 
-# Variants: <NSIS plugin dir>:<MinGW toolchain prefix>:<entry symbol>:<defines>
+# Variants: <NSIS plugin dir>:<MinGW toolchain prefix>:<entry symbol>:<PE format>:<defines>
 # amd64-unicode is the folder NSIS uses for 64-bit installers (Target amd64-unicode);
 # NSIS has no 64-bit ANSI target. The plugin defines its own _DllMainCRTStartup,
 # mirroring how it was built with MSVC (no CRT); on x86 its stdcall name is decorated.
 RUN printf '%s\n' \
-      "x86-unicode:i686:__DllMainCRTStartup@12:-DUNICODE -D_UNICODE" \
-      "x86-ansi:i686:__DllMainCRTStartup@12:" \
-      "amd64-unicode:x86_64:_DllMainCRTStartup:-DUNICODE -D_UNICODE" \
-    | while IFS=: read -r dir arch entry defs; do \
+      "x86-unicode:i686:__DllMainCRTStartup@12:pei-i386:-DUNICODE -D_UNICODE" \
+      "x86-ansi:i686:__DllMainCRTStartup@12:pei-i386:" \
+      "amd64-unicode:x86_64:_DllMainCRTStartup:pei-x86-64:-DUNICODE -D_UNICODE" \
+    | while IFS=: read -r dir arch entry format defs; do \
       mkdir -p "/output/$dir" && \
       "$arch-w64-mingw32-windres" -I src src/SpiderBanner.rc -O coff -o "src/SpiderBanner-res-$dir.o" && \
       "$arch-w64-mingw32-gcc" \
           $defs \
           -O2 -s -shared \
-          -nostdlib "-Wl,-e,$entry" \
+          -nostdlib "-Wl,-e,$entry" -Wl,--no-insert-timestamp \
           -I src -I src/nsis \
           -o "/output/$dir/SpiderBanner.dll" \
           src/SpiderBanner.c src/ProgressClass.c src/nsis/pluginapi.c "src/SpiderBanner-res-$dir.o" \
           -lkernel32 -luser32 -lgdi32 -lmsvcrt \
           -lgcc || exit 1; \
+      "$arch-w64-mingw32-objdump" -f "/output/$dir/SpiderBanner.dll" | grep -q "file format $format\$" \
+        || { echo "$dir: not a $format DLL"; exit 1; }; \
       exports=$("$arch-w64-mingw32-objdump" -p "/output/$dir/SpiderBanner.dll"); \
       for fn in Show ShowPBOnly Destroy; do \
         echo "$exports" | grep -Eq "\] ${fn}\$" || { echo "$dir: export $fn missing"; exit 1; }; \
