@@ -1,69 +1,60 @@
 #!/usr/bin/env bash
-# Builds the archive toolset: one 7z per platform whose bin/ electron-builder puts first on PATH (xz, lzip, GNU tar
-# as tar and gtar, GNU ar as ar and gar, bsdtar; rpm and rpmbuild on linux amd64/arm64 and darwin arm64).
-#   Linux:  ARCH=amd64|arm64|i386 bash packages/archive/build.sh   (docker, manylinux; use a native-arch runner)
+# Builds packages/archive/out/archive/archive-<os>-<arch>.7z, whose bin/ electron-builder puts first on PATH:
+# xz, lzip, GNU tar (tar, gtar), GNU ar (ar, gar), bsdtar, and rpm/rpmbuild on linux amd64/arm64 and darwin arm64.
+#   Linux:  ARCH=amd64|arm64|i386 bash packages/archive/build.sh   (manylinux container; use a native-arch runner)
 #   macOS:  bash packages/archive/build.sh                         (the runner's architecture)
-# Output: packages/archive/out/archive/archive-<os>-<arch>.7z
-# The sources are downloaded and verified on this host first (assets/fetch-sources.sh, needs curl and gpg).
 set -euo pipefail
 
-CWD=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-REPO=$(cd "$CWD/../.." && pwd)
-# shellcheck source=SCRIPTDIR/assets/constants.sh
-source "$CWD/assets/constants.sh"
-OS_TARGET=${OS_TARGET:-$(uname | tr '[:upper:]' '[:lower:]')}
-OUTPUT_DIR="$CWD/out/archive"
-SOURCES="$CWD/build/sources"
-mkdir -p "$OUTPUT_DIR" "$SOURCES"
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+REPO=$(cd "$ROOT/../.." && pwd)
+source "$ROOT/assets/constants.sh"
+SOURCES="$ROOT/build/sources"
+mkdir -p "$SOURCES" "$ROOT/out/archive"
 
-compress() {
-    local stage="$1" archive="$2" sz
-    sz=$(command -v 7za || command -v 7zz || command -v 7z || true)
-    [ -n "$sz" ] || die "7za/7zz/7z not found"
-    rm -f "$archive"
-    (cd "$stage" && "$sz" a -bd -mx=9 -mfb=64 "$archive" ./* >/dev/null)
-    echo "📦 $(basename "$archive"): $(wc -c <"$archive" | tr -d ' ') bytes (unpacked $(du -sk "$stage" | cut -f1) KiB)"
-}
-
-if [ "$OS_TARGET" = "darwin" ]; then
+if [ "$(uname -s)" = "Darwin" ]; then
     case "$(uname -m)" in
-        arm64) ARCHIVE_ARCH=arm64; COMPONENTS="XZ LZIP TAR BINUTILS LIBARCHIVE RPM" ;;
-        x86_64) ARCHIVE_ARCH=x86_64; COMPONENTS="XZ LZIP TAR BINUTILS LIBARCHIVE" ;;
-        *) die "Unsupported macOS architecture: $(uname -m)" ;;
+        arm64) NAME=darwin-arm64 WITH_RPM=1 ;;
+        *) NAME=darwin-x86_64 WITH_RPM=0 ;;
     esac
-    # shellcheck disable=SC2086 # the component list is space separated
-    bash "$CWD/assets/fetch-sources.sh" "$SOURCES" $COMPONENTS
-    STAGE="$CWD/build/stage-darwin-$ARCHIVE_ARCH"
-    WORK_DIR="$CWD/build/work-darwin-$ARCHIVE_ARCH" bash "$CWD/assets/build-mac.sh" "$SOURCES" "$STAGE"
-    compress "$STAGE" "$OUTPUT_DIR/archive-darwin-$ARCHIVE_ARCH.7z"
 else
-    ARCH=${ARCH:-amd64}
-    case "$ARCH" in
-        amd64) PLATFORM=linux/amd64; ARCHIVE_ARCH=amd64; IMAGE="$IMAGE_amd64"; WITH_RPM=1 ;;
-        arm64 | arm64/v8) PLATFORM=linux/arm64; ARCHIVE_ARCH=arm64v8; IMAGE="$IMAGE_arm64"; WITH_RPM=1 ;;
-        # manylinux2014 (glibc 2.17): the i386 binaries need nothing newer
-        i386) PLATFORM=linux/386; ARCHIVE_ARCH=i386; IMAGE="$IMAGE_i386"; WITH_RPM=0
-            export MAX_GLIBC=2.17 MAX_GLIBCXX=3.4.19 MAX_CXXABI=1.3.7 ;;
-        *) die "Unsupported ARCH: $ARCH (amd64, arm64, i386)" ;;
+    case "${ARCH:-amd64}" in
+        amd64) NAME=linux-amd64 WITH_RPM=1 PLATFORM=linux/amd64 IMAGE=quay.io/pypa/manylinux_2_28_x86_64 ;;
+        arm64) NAME=linux-arm64v8 WITH_RPM=1 PLATFORM=linux/arm64 IMAGE=quay.io/pypa/manylinux_2_28_aarch64 ;;
+        # manylinux_2_28 has no i686 image; i386 ships no rpm
+        i386) NAME=linux-i386 WITH_RPM=0 PLATFORM=linux/386 IMAGE=quay.io/pypa/manylinux2014_i686 ;;
+        *) echo "Unsupported ARCH: $ARCH (amd64, arm64, i386)"; exit 1 ;;
     esac
-    COMPONENTS="XZ LZIP TAR BINUTILS ZLIB LIBMD LIBARCHIVE"
-    if [ "$WITH_RPM" = "1" ]; then COMPONENTS="$COMPONENTS RPM"; fi
-    # shellcheck disable=SC2086 # the component list is space separated
-    bash "$CWD/assets/fetch-sources.sh" "$SOURCES" $COMPONENTS
-
-    STAGE="$CWD/build/stage-linux-$ARCHIVE_ARCH"
-    echo "🐧 Building the archive toolset for $PLATFORM in $IMAGE"
-    docker pull --platform "$PLATFORM" "$IMAGE"
-    docker image inspect --format '🐳 {{index .RepoDigests 0}}' "$IMAGE" || true
-    rm -rf "$STAGE"
-    # The repository is mounted (the build uses scripts/verify-licenses.sh); WORK_DIR on the mount keeps the
-    # configure/make logs on the host for CI failure reports. The manylinux entrypoint runs i686 under linux32.
-    rel="packages/archive"
-    docker run --rm --platform "$PLATFORM" -v "$REPO:/repo" -w /repo \
-        -e WITH_RPM="$WITH_RPM" -e WORK_DIR="/repo/$rel/build/work-linux-$ARCHIVE_ARCH" -e GITHUB_SHA="${GITHUB_SHA:-}" \
-        -e MAX_GLIBC="${MAX_GLIBC:-2.28}" -e MAX_GLIBCXX="${MAX_GLIBCXX:-3.4.25}" -e MAX_CXXABI="${MAX_CXXABI:-1.3.11}" \
-        "$IMAGE" \
-        bash -c "status=0; bash /repo/$rel/assets/build-linux.sh /repo/$rel/build/sources /repo/$rel/build/stage-linux-$ARCHIVE_ARCH || status=\$?; chown -R $(id -u):$(id -g) /repo/$rel/build; exit \$status"
-    compress "$STAGE" "$OUTPUT_DIR/archive-linux-$ARCHIVE_ARCH.7z"
 fi
-echo "✅ Build completed: $(ls "$OUTPUT_DIR")"
+STAGE="$ROOT/build/stage-$NAME"
+
+# Download every source here, on the host, and check its sha256 pin
+fetch() {
+    local file
+    file="$SOURCES/$(basename "$1")"
+    [ -f "$file" ] || curl -fsSL --retry 5 --retry-all-errors -o "$file" "$1"
+    echo "$2  $file" | shasum -a 256 -c -
+}
+fetch "$XZ_URL" "$XZ_SHA256"
+fetch "$LZIP_URL" "$LZIP_SHA256"
+fetch "$TAR_URL" "$TAR_SHA256"
+fetch "$BINUTILS_URL" "$BINUTILS_SHA256"
+fetch "$LIBARCHIVE_URL" "$LIBARCHIVE_SHA256"
+if [ "$(uname -s)" != "Darwin" ]; then
+    fetch "$ZLIB_URL" "$ZLIB_SHA256"
+    fetch "$LIBMD_URL" "$LIBMD_SHA256"
+fi
+if [ "$WITH_RPM" = 1 ]; then fetch "$RPM_URL" "$RPM_SHA256"; fi
+
+if [ "$(uname -s)" = "Darwin" ]; then
+    WITH_RPM=$WITH_RPM bash "$ROOT/assets/build-mac.sh" "$STAGE"
+else
+    docker run --rm --platform "$PLATFORM" -v "$REPO:/repo" -e WITH_RPM="$WITH_RPM" "$IMAGE" bash -c \
+        "bash /repo/packages/archive/assets/build-linux.sh /repo/packages/archive/build/stage-$NAME; status=\$?; chown -R $(id -u):$(id -g) /repo/packages/archive/build; exit \$status"
+fi
+
+bash "$REPO/scripts/verify-licenses.sh" "$STAGE"
+ARCHIVE="$ROOT/out/archive/archive-$NAME.7z"
+rm -f "$ARCHIVE"
+(cd "$STAGE" && "$(command -v 7za || command -v 7zz || command -v 7z)" a -bd -mx=9 -mfb=64 "$ARCHIVE" ./* >/dev/null)
+echo "📦 $(basename "$ARCHIVE"): $(wc -c <"$ARCHIVE" | tr -d ' ') bytes"
+cat "$STAGE/VERSION.txt"
