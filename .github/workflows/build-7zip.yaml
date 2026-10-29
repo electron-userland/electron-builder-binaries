@@ -14,6 +14,9 @@ on:
         required: false
         default: "26.05"
 
+permissions:
+  contents: read
+
 # ─── Build ────────────────────────────────────────────────────────────────────
 # Assembles all 8 platform bundles inside a single Docker container on one Linux
 # runner, then uploads them all in one artifact for the test matrix to pick from.
@@ -25,7 +28,9 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
       - name: Build all platform bundles
         env:
@@ -43,7 +48,7 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
       - name: Upload all bundles
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: 7zip-bundles
           path: packages/7zip/out/7zip/7zip-*.*
@@ -103,27 +108,34 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
       - name: Download bundles
-        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           name: 7zip-bundles
           path: bundles
 
       - name: Extract bundle
         shell: bash
+        env:
+          BUNDLE: ${{ matrix.bundle }}
         run: |
           mkdir -p extracted
-          tar -xzf "bundles/${{ matrix.bundle }}.tar.gz" -C extracted --strip-components=1
+          tar -xzf "bundles/${BUNDLE}.tar.gz" -C extracted --strip-components=1
 
       - name: Run test suite
         shell: bash
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          EXTRA_FLAGS: ${{ matrix.extra_flags || '' }}
         run: |
           bash packages/7zip/assets/test.sh \
             --bundle-dir extracted \
-            --platform ${{ matrix.platform }} \
-            ${{ matrix.extra_flags || '' }}
+            --platform "$PLATFORM" \
+            ${EXTRA_FLAGS:+"$EXTRA_FLAGS"}
 
 # ─── Consolidate ──────────────────────────────────────────────────────────────
 # Repackages the flat 7zip-bundles artifact into a 7zip/ subdirectory so that
@@ -136,18 +148,18 @@ jobs:
     needs: test
     steps:
       - name: Download build artifact
-        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           name: 7zip-bundles
           path: packages/7zip/out/7zip
 
       - name: Delete intermediate artifact
-        uses: geekyeggo/delete-artifact@f275313e70c08f6120db482d7a6b98377786765b
+        uses: geekyeggo/delete-artifact@f275313e70c08f6120db482d7a6b98377786765b # v5.1.0
         with:
           name: 7zip-bundles
 
       - name: Upload consolidated staging artifact
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: 7zip
           path: packages/7zip/out/**
