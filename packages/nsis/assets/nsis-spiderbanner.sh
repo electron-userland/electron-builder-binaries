@@ -110,10 +110,10 @@ RUN git init -q nsis && \
     git -C nsis fetch -q --depth=1 origin "${NSIS_BRANCH}" && \
     git -C nsis checkout -q FETCH_HEAD
 
-# Assemble the sources. The plugin ships an older copy of the plugin API headers;
-# use the current ones (with pluginapi.c) so the API matches this NSIS version.
-# GCC does not normalise backslashes in #include paths, and MinGW has no MFC
-# afxres.h, so patch those two lines (build fixes only, no behaviour change).
+# Assemble the sources, unmodified. The plugin ships an older copy of the plugin API
+# headers; use the current ones (with pluginapi.c) so the API matches this NSIS version.
+# SpiderBanner.c includes "nsis\pluginapi.h" and GCC does not treat the backslash as a
+# path separator, so a symlink with that literal name points to the header.
 RUN mkdir -p src/nsis && \
     cp spiderbanner/Contrib/SpiderBanner/*.c \
        spiderbanner/Contrib/SpiderBanner/*.h \
@@ -122,8 +122,7 @@ RUN mkdir -p src/nsis && \
        nsis/Contrib/ExDLL/pluginapi.h \
        nsis/Contrib/ExDLL/nsis_tchar.h \
        nsis/Source/exehead/api.h src/nsis/ && \
-    sed -i 's|"nsis\\pluginapi.h"|"nsis/pluginapi.h"|' src/SpiderBanner.c && \
-    sed -i 's|"afxres.h"|"winresrc.h"|' src/SpiderBanner.rc
+    ln -s nsis/pluginapi.h 'src/nsis\pluginapi.h'
 
 # Variants: <NSIS plugin dir>:<MinGW toolchain prefix>:<entry symbol>:<PE format>:<defines>
 # amd64-unicode is the folder NSIS uses for 64-bit installers (Target amd64-unicode);
