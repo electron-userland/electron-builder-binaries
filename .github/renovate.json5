@@ -19,6 +19,9 @@
   vulnerabilityAlerts: {
     dependencyDashboardApproval: true,
   },
+  // Never auto-rebase; only rebase when the rebase checkbox in the PR description is ticked, so merges
+  // to master don't re-trigger CI on every open Renovate PR.
+  rebaseWhen: "never",
 
   // Upstream versions pinned in build scripts, Dockerfiles and workflows are annotated with a comment on the line above:
   //   # renovate: datasource=<datasource> depName=<name> [packageName=<name>] [versioning=<v>] [extractVersion=<re>] [registryUrl=<url>]
