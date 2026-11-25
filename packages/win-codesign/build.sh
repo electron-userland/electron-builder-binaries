@@ -21,7 +21,9 @@ EOF
 }
 
 PLATFORM_ARCH="${PLATFORM_ARCH:-x86_64}"
+# renovate: datasource=github-tags depName=mtrojnar/osslsigncode
 OSSLSIGNCODE_VER="${OSSLSIGNCODE_VER:-2.14}"
+# renovate: datasource=github-releases depName=electron/rcedit extractVersion=^v(?<version>.+)$
 RCEDIT_VERSION="${RCEDIT_VERSION:-2.0.0}"
 OS_TARGET="${OS_TARGET:-}"
 TARGETS=()

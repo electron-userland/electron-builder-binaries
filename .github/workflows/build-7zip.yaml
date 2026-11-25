@@ -6,12 +6,14 @@ on:
       seven_zip_version:
         description: "7-Zip version to package (e.g. 26.05)"
         required: false
+        # renovate: datasource=github-releases depName=ip7z/7zip
         default: "26.05"
   workflow_call:
     inputs:
       seven_zip_version:
         type: string
         required: false
+        # renovate: datasource=github-releases depName=ip7z/7zip
         default: "26.05"
 
 permissions:
@@ -34,6 +36,7 @@ jobs:
 
       - name: Build all platform bundles
         env:
+          # renovate: datasource=github-releases depName=ip7z/7zip
           SEVEN_ZIP_VERSION: ${{ inputs.seven_zip_version || '26.05' }}
         run: |
           bash ./packages/7zip/build.sh \

@@ -102,12 +102,15 @@ RUN mkdir -p /project/build
 
 WORKDIR /project/build
 
+# renovate: datasource=gitlab-tags depName=xdg/desktop-file-utils registryUrl=https://gitlab.freedesktop.org
 ARG DESKTOP_UTILS_DEPS_VERSION_TAG="0.28"
 ENV DESKTOP_UTILS_DEPS_VERSION_TAG=${DESKTOP_UTILS_DEPS_VERSION_TAG}
 
+# renovate: datasource=github-tags depName=plougher/squashfs-tools
 ARG SQUASHFS_TOOLS_VERSION_TAG="4.7.5"
 ENV SQUASHFS_TOOLS_VERSION_TAG=${SQUASHFS_TOOLS_VERSION_TAG}
 
+# renovate: datasource=github-releases depName=uclouvain/openjpeg extractVersion=^v(?<version>.+)$
 ARG OPENJPEG_VERSION="2.5.4"
 ENV OPENJPEG_VERSION=${OPENJPEG_VERSION}
 

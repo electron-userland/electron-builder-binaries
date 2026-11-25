@@ -22,6 +22,7 @@ EOF
 }
 
 ARCH="${PLATFORM_ARCH:-$(uname -m)}"
+# renovate: datasource=github-tags depName=mtrojnar/osslsigncode
 OSSLSIGNCODE_VER="${OSSLSIGNCODE_VER:-2.14}"
 # OPENSSL_VER/OPENSSL_SHA256 and LIBP11_VER/LIBP11_SHA256 (shared with the Linux build).
 # shellcheck source=deps-versions.sh

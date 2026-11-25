@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# renovate: datasource=ruby-version depName=ruby
 export RUBY_VERSION=3.4.12
 
 CWD=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)

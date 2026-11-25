@@ -1,4 +1,5 @@
 param (
+    # renovate: datasource=github-tags depName=Squirrel/Squirrel.Windows
     [string]$SquirrelVersion = "2.0.1",
     [string]$PatchPath
 )
@@ -48,6 +49,7 @@ if ($PatchPath -and (Test-Path $PatchPath) -and (Get-Item $PatchPath).PSIsContai
 # install the package explicitly and pass FrameworkPathOverride to MSBuild.
 Write-Host "`n📦 Installing .NET 4.5 reference assemblies..."
 $net45PkgDir = Join-Path $env:TEMP "net45-refassemblies"
+# renovate: datasource=nuget depName=Microsoft.NETFramework.ReferenceAssemblies.net45
 nuget install Microsoft.NETFramework.ReferenceAssemblies.net45 -Version 1.0.3 `
     -NonInteractive -OutputDirectory $net45PkgDir | Out-Null
 if ($LASTEXITCODE -ne 0) { Write-Error "Failed to install .NET 4.5 reference assemblies (exit $LASTEXITCODE)"; exit $LASTEXITCODE }
@@ -117,6 +119,7 @@ function Get-PeMachine {
 # in lockstep with the version electron-builder provisions at runtime.
 # It is taken from the NuGet.CommandLine package rather than dist.nuget.org's bare nuget.exe (the same
 # file) because the package also carries NOTICES.txt for the third-party code built into nuget.exe.
+# renovate: datasource=nuget depName=NuGet.CommandLine
 $nugetVersion       = "7.9.0"
 $nugetPackageSha256 = "FB2074E4427BBF8105F9A5C3DF6DD77105FB82D696C0FC72FC25DA903D1A63B2"
 $nugetSha256        = "992D70CAC5B06C38EFEC91806CABA64CDCC07E6D963A0959DBBBAF264D33B800"  # tools\NuGet.exe
@@ -135,6 +138,7 @@ Copy-Item $nuget.Exe (Join-Path $vendorDir "nuget.exe") -Force
 # electron-builder copies over it to match the build host (os.arch()). Without a matching copy
 # (e.g. ia32), the x64 7z.exe is used as-is. arm64 hosts get a native build instead of emulated x64.
 # The installers are 7z self-extracting archives; the runner's 7-Zip is only used to unpack them.
+# renovate: datasource=github-releases depName=ip7z/7zip
 $sevenZipVersion = "26.05"
 $sevenZipTag     = $sevenZipVersion -replace '\.', ''
 $sevenZipBuilds  = [ordered]@{

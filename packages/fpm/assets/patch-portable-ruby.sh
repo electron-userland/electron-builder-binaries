@@ -6,6 +6,7 @@ CWD=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=SCRIPTDIR/constants.sh
 source "$CWD/constants.sh"
 
+# renovate: datasource=rubygems depName=fpm
 GEM_LIST=("fpm -v 1.18.0" "ruby-xz") # Add other gems (with or without version arg) here
 ENTRYPOINT_GEMS=("fpm")
 

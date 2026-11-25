@@ -2,12 +2,15 @@
 set -euo pipefail
 
 # CONFIG
+# renovate: datasource=python-version depName=python
 PYTHON_VERSION="3.14.10"
 # OpenSSL for the _ssl/_hashlib modules, built from source for MACOSX_DEPLOYMENT_TARGET.
 # 3.5 is the current LTS line (supported until 2030-04-08).
+# renovate: datasource=github-releases depName=openssl/openssl extractVersion=^openssl-(?<version>.+)$
 OPENSSL_VERSION="3.5.9"
 # https://github.com/dmgbuild/dmgbuild — base: v1.6.7 (no newer release)
 # commit cc96fa235365b787ad0d73e4802a1f3953a62b19
+# Renovate proposes newer master commits for this hash (the dmgbuild customManager in .github/renovate.json5)
 DMGBUILD_VERSION_OR_HASH="cc96fa2"
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)

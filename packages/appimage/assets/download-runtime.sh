@@ -15,6 +15,7 @@ set -eu
 # CHECKSUMS block and commit to source control).
 
 # note: "20251108" match checksums hardcoded below
+# renovate: datasource=github-releases depName=AppImage/type2-runtime versioning=regex:^(?<major>\d{8})$
 APPIMAGE_TYPE2_RELEASE="${APPIMAGE_TYPE2_RELEASE:-20251108}"
 
 BASE_URL="https://github.com/AppImage/type2-runtime/releases/download/${APPIMAGE_TYPE2_RELEASE}"

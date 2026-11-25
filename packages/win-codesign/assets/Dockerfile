@@ -1,7 +1,9 @@
 # syntax=docker/dockerfile:1
 
 ARG PLATFORM_ARCH=amd64
+# renovate: datasource=github-tags depName=mtrojnar/osslsigncode
 ARG OSSLSIGNCODE_VER=2.14
+# renovate: datasource=github-releases depName=Kitware/CMake extractVersion=^v(?<version>.+)$
 ARG CMAKE_VERSION=3.28.3
 
 # For i386, we build on amd64 with multilib. For others, use native platform.
