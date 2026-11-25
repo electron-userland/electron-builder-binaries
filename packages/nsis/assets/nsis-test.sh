@@ -144,6 +144,26 @@ assert_file "$BUNDLE_DIR/windows/makensis.exe"          "windows/makensis.exe pr
 assert_file "$BUNDLE_DIR/linux/x64/makensis"            "linux/x64/makensis present"
 assert_file "$BUNDLE_DIR/linux/arm64/makensis"          "linux/arm64/makensis present"
 assert_file "$BUNDLE_DIR/elevate.exe"              "elevate.exe present at bundle root"
+for sb_variant in x86-unicode x86-ansi amd64-unicode; do
+    assert_file "$BUNDLE_DIR/windows/Plugins/$sb_variant/SpiderBanner.dll" "SpiderBanner.dll ($sb_variant, compiled from source) present"
+done
+# The base bundle installs the wiki zip's prebuilt x86 DLLs; the combine step must have replaced them
+for sb_prebuilt in \
+    "x86-unicode:996a259e53ca18b89ec36d038c40148957c978c0fd600a268497d4c92f882a93" \
+    "x86-ansi:35a523fe649201442c9fa00d875cf9acf8ced7c11347726cc0c6df5b0eda9f95"; do
+    sb_dll="$BUNDLE_DIR/windows/Plugins/${sb_prebuilt%%:*}/SpiderBanner.dll"
+    [ -f "$sb_dll" ] || continue
+    if command -v sha256sum &> /dev/null; then
+        sb_sha=$(sha256sum "$sb_dll" | awk '{print $1}')
+    else
+        sb_sha=$(shasum -a 256 "$sb_dll" | awk '{print $1}')
+    fi
+    if [ "$sb_sha" = "${sb_prebuilt#*:}" ]; then
+        fail "SpiderBanner.dll (${sb_prebuilt%%:*}) is still the prebuilt wiki DLL"
+    else
+        pass "SpiderBanner.dll (${sb_prebuilt%%:*}) replaced by the source build"
+    fi
+done
 
 if [ -f "$BUNDLE_DIR/elevate.exe" ]; then
     MZ_ELV=$(od -N 2 -A n -t x1 "$BUNDLE_DIR/elevate.exe" 2>/dev/null | tr -d ' \n')

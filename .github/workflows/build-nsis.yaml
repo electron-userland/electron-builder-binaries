@@ -129,11 +129,36 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  spiderbanner:
+    name: Build SpiderBanner plugin
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build SpiderBanner plugin
+        run: bash ./build.sh --target spiderbanner
+        shell: bash
+        working-directory: ./packages/nsis
+
+      - name: Upload SpiderBanner artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: nsis-temp-spiderbanner
+          path: packages/nsis/out/**/*.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
   # Combine all artifacts into final bundle
   combine-artifacts:
     name: Combine All Bundles
     runs-on: macos-latest
-    needs: [base, mac, linux, elevate]
+    needs: [base, mac, linux, elevate, spiderbanner]
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
