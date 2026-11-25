@@ -22,7 +22,9 @@ EOF
 }
 
 BUILD_ARCH="${PLATFORM_ARCH:-x64}"
+# renovate: datasource=github-tags depName=mtrojnar/osslsigncode
 OSSLSIGNCODE_VER="${OSSLSIGNCODE_VER:-2.14}"
+# renovate: datasource=github-releases depName=Kitware/CMake extractVersion=^v(?<version>.+)$
 CMAKE_VERSION="${CMAKE_VERSION:-3.28.3}"
 OUTPUT_DIR="$SCRIPT_DIR/out/win-codesign"
 

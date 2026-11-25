@@ -31,6 +31,7 @@ ASSETS_DIR="$SCRIPT_DIR/assets"
 OUT_DIR="$SCRIPT_DIR/out/wix"
 
 WIX_VERSION="3.14.1"
+# renovate: datasource=github-releases depName=wixtoolset/wix3 versioning=regex:^wix(?<major>\d)(?<minor>\d{2})(?<patch>\d)?rtm$
 WIX_TAG="wix3141rtm"
 WIX_ZIP_URL="https://github.com/wixtoolset/wix3/releases/download/${WIX_TAG}/wix314-binaries.zip"
 WIX_SHA256="6ac824e1642d6f7277d0ed7ea09411a508f6116ba6fae0aa5f2c7daa2ff43d31"

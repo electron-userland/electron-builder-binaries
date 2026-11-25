@@ -17,7 +17,9 @@ BASE_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 OUT_DIR="$BASE_DIR/out/nsis"
 
 # Version configuration
+# renovate: datasource=repology depName=NSIS packageName=homebrew/makensis
 NSIS_VERSION=${NSIS_VERSION:-3.13}
+# renovate: datasource=github-tags depName=NSIS-Dev/nsis versioning=regex:^v(?<major>\d)(?<minor>\d{2})(?<patch>\d)?$
 NSIS_BRANCH=${NSIS_BRANCH_OR_COMMIT:-v313}
 
 # Docker configuration
@@ -139,6 +141,7 @@ echo "📝 Creating Dockerfile for Windows cross-compile build..."
 DOCKERFILE="$OUT_DIR/Dockerfile.windows"
 
 cat > "$DOCKERFILE" <<'DOCKERFILE_END'
+# renovate: datasource=docker depName=ubuntu
 FROM ubuntu:22.04
 
 ARG NSIS_BRANCH
@@ -368,7 +371,9 @@ PLUGIN_NAMES=(
 )
 
 PLUGIN_URLS=(
+    # renovate: datasource=github-releases depName=DigitalMediaServer/NSIS-INetC-plugin
     "https://github.com/DigitalMediaServer/NSIS-INetC-plugin/releases/download/v1.0.5.7/INetC.zip"
+    # renovate: datasource=github-releases depName=lordmulder/stdutils
     "https://github.com/lordmulder/stdutils/releases/download/1.14/StdUtils.2018-10-27.zip"
     "https://nsis.sourceforge.io/mediawiki/images/4/4c/SpiderBanner_plugin.zip"
     "https://nsis.sourceforge.io/mediawiki/images/1/18/NsProcess.zip"
@@ -399,10 +404,15 @@ NSIS7Z_SHA256="6f2f3730049926f40442ee0c8b7d3e3dee7ace544d82467ff8059ea3f4201c58"
 # download does not carry (or may not): "<plugin>|<url>|<sha256>|<path under LICENSES/<plugin>/>".
 # Every other plugin's license files come from its own download (see collect_plugin_licenses).
 PLUGIN_LICENSE_FILES=(
+    # renovate: datasource=github-releases depName=DigitalMediaServer/NSIS-INetC-plugin
     "INetC|https://raw.githubusercontent.com/DigitalMediaServer/NSIS-INetC-plugin/v1.0.5.7/LICENSE.md|c5ee66863fcea719d3b4badeb81fcf0021796b693b4b8b3821d9ce53e447cdf3|LICENSE.md"
+    # renovate: datasource=github-releases depName=lordmulder/stdutils
     "StdUtils|https://raw.githubusercontent.com/lordmulder/stdutils/1.14/LGPL.txt|dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551|LGPL.txt"
+    # renovate: datasource=github-releases depName=lordmulder/stdutils
     "StdUtils|https://raw.githubusercontent.com/lordmulder/stdutils/1.14/LGPL_CLARIFICATION.txt|49287ffa37d51910a8cb595d7ab64ebd2d42525384b16d4322783a0e57a77194|LGPL_CLARIFICATION.txt"
+    # renovate: datasource=github-releases depName=lordmulder/stdutils
     "StdUtils|https://raw.githubusercontent.com/lordmulder/stdutils/1.14/Contrib/StdUtils/src/rhash/COPYING.txt|8cf876d3406a2eed6c17ae804c8958bd78d3a0f63c30d6e2e789ab575e9fde40|src/rhash/COPYING.txt"
+    # renovate: datasource=github-releases depName=lordmulder/stdutils
     "StdUtils|https://raw.githubusercontent.com/lordmulder/stdutils/1.14/Contrib/StdUtils/src/blake2/COPYING.txt|a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499|src/blake2/COPYING.txt"
 )
 

@@ -18,6 +18,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 ASSETS_DIR="$SCRIPT_DIR/assets"
 OUT_DIR="$SCRIPT_DIR/out"
 
+# renovate: datasource=gitlab-tags depName=wine/wine extractVersion=^wine-(?<version>\d+\.0(\.\d+)?)$ registryUrl=https://gitlab.winehq.org
 export WINE_VERSION="${WINE_VERSION:-11.0}"
 export BUILD_DIR="${BUILD_DIR:-$SCRIPT_DIR/build}"
 export OUT_DIR

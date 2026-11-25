@@ -48,6 +48,7 @@ EOF
 }
 
 # Defaults — CLI flags take precedence over env vars, env vars over built-in defaults
+# renovate: datasource=nuget depName=Microsoft.Trusted.Signing.Client
 ATS_NUGET_VERSION="${ATS_NUGET_VERSION:-1.0.95}"
 # Pinned SHA-256 of microsoft.trusted.signing.client.1.0.95.nupkg
 ATS_NUGET_SHA256="${ATS_NUGET_SHA256:-3bfcf1e0a3cb42af1692f0a8ed45c15de070c2de86f28a59b2795d904d8a920f}"
